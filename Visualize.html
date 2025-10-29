@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>轮毂检测线————可视化</title>
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/map.css">
+</head>
+<body>
+    <div class="data">
+        <div class="data-title">
+            <!-- 左侧按钮 -->
+            <div class="button-container ">
+                <button class="btn" onclick="window.location.href='Home_Page.html'">主页</button>
+                <button class="btn" onclick="window.location.href='Visualize.html'">可视化平台</button>
+            </div>
+            <!-- 其他内容 -->
+            <div class="title-left fl"></div>
+            <div class="title-center fl" style="margin-top: -1.1%;"></div>
+            <!-- 右侧按钮 -->
+            <div class="button-container-right fr">
+                <button class="btnr" onclick="window.location.href='Monitor.html'">实时监控</button>
+                <button class="btnr" onclick="window.location.href='Digital_Twin.html'">数字孪生</button>
+            </div>
+            <div class="title-right fr"></div>
+        </div>
+        <div class="data-content">
+            <div class="con-left fl">
+                <div class="left-top">
+                    <div class="info">
+                        <div class="info-title">实时统计</div>
+                        <img src="img/bj-1.png" alt="" class="bj-1">
+                        <img src="img/bj-2.png" alt="" class="bj-2">
+                        <img src="img/bj-3.png" alt="" class="bj-3">
+                        <img src="img/bj-4.png" alt="" class="bj-4">
+                        <div class="info-main">
+                            <div class="info-1">
+                                <div class="info-img fl">
+                                    <img src="img/info-img-1.png" alt="">
+                                </div>
+                                <div class="info-text fl">
+                                    <p>轮毂总数(个)</p>
+                                    <p>3100</p>
+                                </div>
+                            </div>
+                            <div class="info-2">
+                                <div class="info-img fl">
+                                    <img src="img/info-img-2.png" alt="">
+                                </div>
+                                <div class="info-text fl">
+                                    <p>已检测数(个)</p>
+                                    <p>3000</p>
+                                </div>
+                            </div>
+                            <div class="info-3">
+                                <div class="info-img fl">
+                                    <img src="img/info-img-3.png" alt="">
+                                </div>
+                                <div class="info-text fl">
+                                    <p>未检测数(个)</p>
+                                    <p>100</p>
+                                </div>
+                            </div>
+                            <div class="info-4">
+                                <div class="info-img fl">
+                                    <img src="img/info-img-4.png" alt="">
+                                </div>
+                                <div class="info-text fl">
+                                    <p>完成率(%)</p>
+                                    <p>97</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="top-bottom">
+                        <div class="title" style="text-align: center;">尺寸分类</div>
+                        <img src="img/bj-1.png" alt="" class="bj-1">
+                        <img src="img/bj-2.png" alt="" class="bj-2">
+                        <img src="img/bj-3.png" alt="" class="bj-3">
+                        <img src="img/bj-4.png" alt="" class="bj-4">
+                        <div id="echarts_1" class="charts"></div>
+                    </div>
+                </div>
+                <div class="left-bottom">
+                    <div class="title" style="text-align: center;">型号分类</div>
+                    <img src="img/bj-1.png" alt="" class="bj-1">
+                    <img src="img/bj-2.png" alt="" class="bj-2">
+                    <img src="img/bj-3.png" alt="" class="bj-3">
+                    <img src="img/bj-4.png" alt="" class="bj-4">
+                    <div id="echarts_2" class="charts"></div>
+                </div>
+            </div>
+            <div class="con-center fl">
+                <div class="map-num">
+                    <p>轮毂信息（编号-直径-平均螺栓孔径-中心孔径-孔距-状态）</p>
+                </div>
+                <div class="cen-top-wrapper">
+                    <div class="cen-top" id="map">
+                        <article class="scroller">
+                            <div class="scroller-content" id="history-records">
+                                <!-- 数据将由JavaScript动态生成 -->
+                            </div>
+                        </article>
+                    </div>
+                    <div class="cen-top2">
+                        <div class="title">合格/不合格数量</div>
+                        <img src="img/bj-1.png" alt="" class="bj-1">
+                        <img src="img/bj-2.png" alt="" class="bj-2">
+                        <img src="img/bj-3.png" alt="" class="bj-3">
+                        <img src="img/bj-4.png" alt="" class="bj-4">
+                        <div id="echarts_7" class="charts"></div>
+                    </div>
+                </div>
+                <div class="cen-bottom">
+                    <div class="title">昨日轮毂检测数量</div>
+                    <img src="img/bj-1.png" alt="" class="bj-1">
+                    <img src="img/bj-2.png" alt="" class="bj-2">
+                    <img src="img/bj-3.png" alt="" class="bj-3">
+                    <img src="img/bj-4.png" alt="" class="bj-4">
+                    <div id="echarts_3" class="charts"></div>
+                </div>
+                <div class="cen-bottom2">
+                    <div class="title">各机构运行情况</div>
+                    <img src="img/bj-1.png" alt="" class="bj-1">
+                    <img src="img/bj-2.png" alt="" class="bj-2">
+                    <img src="img/bj-3.png" alt="" class="bj-3">
+                    <img src="img/bj-4.png" alt="" class="bj-4">
+                    <div class="cen-bottom1">
+                        <div class="cen-bottom2-1">
+                            <div id="echarts_8" class="charts"></div>
+                            <div>
+                                <p style="text-align: center; color: aliceblue; font-weight: 900;margin-top: 5%;">传送机构</p>
+                            </div>
+                        </div>
+                        <div class="cen-bottom2-2">
+                            <div id="echarts_9" class="charts"></div>
+                            <div>
+                                <p style="text-align: center; color: aliceblue; font-weight: 900;margin-top: 5%;">中心夹具</p>
+                            </div>
+                        </div>
+                        <div class="cen-bottom2-3">
+                            <div id="echarts_10" class="charts"></div>
+                            <div>
+                                <p style="text-align: center; color: aliceblue; font-weight: 900;margin-top: 5%;">侧面夹具</p>
+                            </div>
+                        </div>
+                        <div class="cen-bottom2-4">
+                            <div id="echarts_11" class="charts"></div>
+                            <div>
+                                <p style="text-align: center; color: aliceblue; font-weight: 900;margin-top: 5%;">检测机构</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="con-right fr">
+                <div class="right-top">
+                    <div class="title" style="text-align: center;">不合格型号占比</div>
+                    <img src="img/bj-1.png" alt="" class="bj-1">
+                    <img src="img/bj-2.png" alt="" class="bj-2">
+                    <img src="img/bj-3.png" alt="" class="bj-3">
+                    <img src="img/bj-4.png" alt="" class="bj-4">
+                    <div id="echarts_4" class="charts"></div>
+                </div>
+                <div class="right-center">
+                    <div class="title" style="text-align: center;">不合格型号TOP5</div>
+                    <img src="img/bj-1.png" alt="" class="bj-1">
+                    <img src="img/bj-2.png" alt="" class="bj-2">
+                    <img src="img/bj-3.png" alt="" class="bj-3">
+                    <img src="img/bj-4.png" alt="" class="bj-4">
+                    <div id="echarts_5" class="charts"></div>
+                </div>
+                <div class="right-bottom" style="text-align: center;">
+                    <div class="title">各机构运行时长</div>
+                    <img src="img/bj-1.png" alt="" class="bj-1">
+                    <img src="img/bj-2.png" alt="" class="bj-2">
+                    <img src="img/bj-3.png" alt="" class="bj-3">
+                    <img src="img/bj-4.png" alt="" class="bj-4">
+                    <div id="echarts_6" class="charts"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="js/jquery-2.1.1.min.js"></script>
+<script src="js/echarts.min.js"></script>
+<script src="js/china.js"></script>
+<script src="js/visual.js"></script>
+<script>
+    // 使用jQuery读取JSON文件并生成HTML内容
+    $(document).ready(function () {
+        $.getJSON('data.json', function (data) {
+            var records = '';
+            // 第一次添加数据
+            $.each(data, function (key, val) {
+                records += '<section class="history-record">' + val.id + ' —— ' + val.diameter + ' —— ' + val.average_bolt + ' —— ' + val.center + ' —— ' + val.pcd + ' —— ' + val.type + '</section>';
+            });
+            // 复制数据添加到末尾
+            $.each(data, function (key, val) {
+                records += '<section class="history-record">' + val.id + ' —— ' + val.diameter + ' —— ' + val.average_bolt + ' —— ' + val.center + ' —— ' + val.pcd + ' —— ' + val.type + '</section>';
+            });
+            $('#history-records').html(records);
+        });
+    });
+</script>
+</html>
