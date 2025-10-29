@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>轮毂检测线————数字孪生</title>
+    <link rel="stylesheet" href="css/common.css" />
+    <link rel="stylesheet" href="css/digitaltwin.css" />
+  </head>
+
+  <body>
+    <div class="data">
+      <div class="data-title">
+        <!-- 左侧按钮 -->
+        <div class="button-container">
+          <button class="btn" onclick="window.location.href='Home_Page.html'">主页</button>
+          <button class="btn" onclick="window.location.href='Visualize.html'">可视化平台</button>
+        </div>
+
+        <!-- 其他内容 -->
+        <div class="title-left fl"></div>
+        <div class="title-center fl" style="margin-top: -1.1%"></div>
+
+        <!-- 右侧按钮 -->
+        <div class="button-container-right fr">
+          <button class="btnr" onclick="window.location.href='Monitor.html'">实时监控</button>
+          <button class="btnr" onclick="window.location.href='Digital_Twin.html'">数字孪生</button>
+        </div>
+
+        <div class="title-right fr"></div>
+      </div>
+      <div class="data-content">
+        <div class="con-left fl">
+          <div class="left-top">
+            <div class="info">
+              <div class="info-title">实时数据</div>
+              <img src="img/bj-1.png" alt="" class="bj-1" />
+              <img src="img/bj-2.png" alt="" class="bj-2" />
+              <img src="img/bj-3.png" alt="" class="bj-3" />
+              <img src="img/bj-4.png" alt="" class="bj-4" />
+              <div class="info-main">
+                <div class="info-1">
+                  <div class="info-img fl">
+                    <img src="img/info-img-1.png" alt="" />
+                  </div>
+                  <div class="info-text fl">
+                    <p>轮毂总数(个)</p>
+                    <p>3100</p>
+                  </div>
+                </div>
+                <div class="info-2">
+                  <div class="info-img fl">
+                    <img src="img/info-img-2.png" alt="" />
+                  </div>
+                  <div class="info-text fl">
+                    <p>已检测数(个)</p>
+                    <p>3000</p>
+                  </div>
+                </div>
+                <div class="info-3">
+                  <div class="info-img fl">
+                    <img src="img/info-img-3.png" alt="" />
+                  </div>
+                  <div class="info-text fl">
+                    <p>未检测数(个)</p>
+                    <p>100</p>
+                  </div>
+                </div>
+                <div class="info-4">
+                  <div class="info-img fl">
+                    <img src="img/info-img-4.png" alt="" />
+                  </div>
+                  <div class="info-text fl">
+                    <p>完成率(%)</p>
+                    <p>97</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="top-bottom">
+              <div class="title" style="text-align: center">尺寸分类</div>
+              <img src="img/bj-1.png" alt="" class="bj-1" />
+              <img src="img/bj-2.png" alt="" class="bj-2" />
+              <img src="img/bj-3.png" alt="" class="bj-3" />
+              <img src="img/bj-4.png" alt="" class="bj-4" />
+              <div id="echarts_1" class="charts"></div>
+            </div>
+          </div>
+          <div class="left-bottom">
+            <div class="title" style="text-align: center">型号分类</div>
+            <img src="img/bj-1.png" alt="" class="bj-1" />
+            <img src="img/bj-2.png" alt="" class="bj-2" />
+            <img src="img/bj-3.png" alt="" class="bj-3" />
+            <img src="img/bj-4.png" alt="" class="bj-4" />
+            <div id="echarts_2" class="charts"></div>
+          </div>
+        </div>
+        <div class="con-center fl">
+          <div class="map-num" , id="map-num">
+            <p>设备模型</p>
+          </div>
+          <div class="cen-top" id="STL">
+            <img src="img/bj-1.png" alt="" class="bj-1" />
+            <img src="img/bj-2.png" alt="" class="bj-2" />
+            <img src="img/bj-3.png" alt="" class="bj-3" />
+            <img src="img/bj-4.png" alt="" class="bj-4" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  <script src="js/jquery-2.1.1.min.js"></script>
+  <script src="js/echarts.min.js"></script>
+  <script src="js/china.js"></script>
+  <script src="js/echarts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var container = document.getElementById('STL')
+      var scene = new THREE.Scene()
+      var camera = new THREE.PerspectiveCamera(
+        45,
+        container.clientWidth / container.clientHeight,
+        0.01,
+        100000
+      ) // 将 far 设置为 5000
+      camera.position.set(3.9217608405149282, 0.49519706049134804, 2.4955257204763734)
+      var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }) // 设置背景透明
+      renderer.setSize(container.clientWidth, container.clientHeight)
+      renderer.shadowMap.enabled = true // 启用阴影
+      renderer.shadowMap.type = THREE.BasicShadowMap
+      container.appendChild(renderer.domElement)
+
+      var controls = new THREE.OrbitControls(camera, renderer.domElement)
+      controls.enableDamping = true // 启用阻尼
+      controls.dampingFactor = 0.04 // 阻尼系数
+      controls.autoRotate = false // 自动旋转
+      controls.autoRotateSpeed = 0.8 // 自旋速度
+      controls.maxPolarAngle = Math.PI
+      controls.update()
+      // 添加环境光
+      var ambientLight = new THREE.AmbientLight(0xffffff, 1)
+      scene.add(ambientLight)
+
+      // 添加方向光
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+      directionalLight.position.set(5, 5, 5)
+      directionalLight.castShadow = true
+      scene.add(directionalLight)
+      const loaderRGB = new THREE.RGBELoader()
+      loaderRGB.load(`./20.hdr`, function (texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping //正常只是一张图平铺，设置这个可以让图包围环绕整个环境
+        // scene.background = texture; //设置环境贴图
+        scene.environment = texture
+      })
+      // DRACOLoader解析Draco压缩过的gltf模型
+      const dracoLoader = new THREE.DRACOLoader()
+      // DRACOLoader依赖的多个js文件在public下的draco文件中
+      dracoLoader.setDecoderPath(`./draco/`)
+      var loader = new THREE.GLTFLoader()
+      loader.setDRACOLoader(dracoLoader)
+      loader.load('./1.glb', function (object) {
+        //创建区域光
+        scene.add(object.scenes[0])
+      })
+
+      var animate = function () {
+        console.log('camera.position', camera.position)
+        requestAnimationFrame(animate)
+        controls.update()
+        renderer.render(scene, camera)
+      }
+
+      animate()
+    })
+  </script>
+</html>
