@@ -1,0 +1,48 @@
+<svg width="600" height="600" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="halo" cx="300" cy="300" r="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67e8f9" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#2a7ad7" stop-opacity="0.08"/>
+    </radialGradient>
+    <linearGradient id="main" x1="480" y1="140" x2="180" y2="530" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#50e3ed"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="disc" x1="320" y1="250" x2="400" y2="350" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4fd1c5" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#1e293b" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <circle cx="300" cy="300" r="220" fill="url(#halo)" />
+  <circle cx="300" cy="300" r="210" stroke="url(#main)" stroke-width="10" opacity="0.8"/>
+  <g opacity="0.47">
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(0 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(0 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(30 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(30 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(60 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(60 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(90 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(90 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(120 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(120 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(150 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(150 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(180 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(180 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(210 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(210 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(240 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(240 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(270 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(270 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(300 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(300 300 300)"/>
+    <rect x="297" y="110" width="6" height="55" rx="3" fill="#5eead4" transform="rotate(330 300 300)"/>
+    <rect x="299" y="73" width="2" height="31" rx="1.2" fill="#bae6fd" opacity="0.7" transform="rotate(330 300 300)"/>
+  </g>
+  <circle cx="300" cy="300" r="72" fill="url(#disc)" opacity="0.36"/>
+  <circle cx="300" cy="300" r="64" stroke="#2563eb" stroke-width="4" />
+  <circle cx="300" cy="300" r="12" fill="#38bdf8" opacity="0.7"/>
+  <circle cx="300" cy="300" r="26" stroke="#f0fdfa" stroke-width="2" opacity="0.12"/>
+</svg>

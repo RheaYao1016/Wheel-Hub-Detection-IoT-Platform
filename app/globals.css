@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 20, 36, 57;
+  --background-gradient: linear-gradient(135deg, #15253b 0%, #243859 56%, #32b6f6 100%);
+}
+
+html, body {
+  min-height: 100%;
+  width: 100%;
+  font-family: 'PingFang SC', 'SF Pro', 'Microsoft YaHei', Arial, sans-serif;
+  background: var(--background-gradient);
+  color: rgb(var(--foreground-rgb));
+}
+
+::selection {
+  background: #38bdf8cc;
+  color: #fff;
+}
+
+input, button {
+  outline: none;
+  border-radius: 0.65rem;
+  border: none;
+  box-shadow: none;
+  transition: box-shadow 0.18s, background 0.18s;
+}
+input:focus {
+  box-shadow: 0 0 0 2px #32b6f6aa;
+  background: #22324c33;
+}
+button:active {
+  opacity: 0.92;
+}
+
+.card,
+.bg-glass {
+  @apply bg-white/20 backdrop-blur-xl shadow-lg rounded-2xl border border-cyan-100/20;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .drop-shadow-blue {
+    filter: drop-shadow(0 4px 24px #38bdf8BB);
+  }
+  .glass {
+    background: rgba(255,255,255,0.13);
+    backdrop-filter: blur(18px) saturate(120%);
+    border-radius: 1.3rem;
+    border: 1px solid #32b6f62a;
+  }
+}
+
+/* 优化滚动条美观度 */
+::-webkit-scrollbar { width: 8px; background: transparent; }
+::-webkit-scrollbar-thumb { background: #38bdf88c; border-radius:8px; }
+
