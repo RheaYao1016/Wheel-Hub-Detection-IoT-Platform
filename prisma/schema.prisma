@@ -1,0 +1,81 @@
+// Prisma数据库模型定义
+// 运行 npx prisma migrate dev --name init 创建数据库表
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 轮毂检测记录
+model Wheel {
+  id            String   @id @default(cuid())
+  wheelNumber   String   @unique // 轮毂编号，如 "202503110001"
+  diameter      Float    // 直径 (mm)
+  averageBolt   Float    // 平均螺栓孔径 (mm)
+  center        Float    // 中心孔径 (mm)
+  pcd           Float    // 孔距 (PCD, mm)
+  type          String   // 状态: "合格" | "不合格"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([createdAt])
+  @@index([type])
+  @@map("wheels")
+}
+
+// 统计数据快照（用于缓存，提升性能）
+model Statistics {
+  id              String   @id @default(cuid())
+  totalCount      Int      // 轮毂总数
+  testedCount     Int      // 已检测数
+  untestedCount   Int      // 未检测数
+  completionRate  Float    // 完成率 (%)
+  qualifiedCount  Int      // 合格数
+  unqualifiedCount Int     // 不合格数
+  date            DateTime @default(now()) @unique
+  createdAt       DateTime @default(now())
+  
+  @@index([date])
+  @@map("statistics")
+}
+
+// 设备运行状态
+model DeviceStatus {
+  id              String   @id @default(cuid())
+  deviceName      String   // 设备名称: "传送机构" | "中心夹具" | "侧面夹具" | "检测机构"
+  status          String   // 状态: "运行中" | "待机" | "故障"
+  runningTime     Int      // 运行时长（分钟）
+  lastUpdate      DateTime @default(now())
+  
+  @@unique([deviceName])
+  @@map("device_statuses")
+}
+
+// 尺寸分类统计（按尺寸规格）
+model SizeDistribution {
+  id        String   @id @default(cuid())
+  size      String   // "15寸" | "16寸" | "17寸" | "18寸" | "19寸"
+  count     Int      @default(0)
+  date      DateTime @default(now())
+  
+  @@unique([size, date])
+  @@index([date])
+  @@map("size_distributions")
+}
+
+// 型号分类统计
+model ModelDistribution {
+  id        String   @id @default(cuid())
+  modelName String   // 型号名称
+  count     Int      @default(0)
+  date      DateTime @default(now())
+  
+  @@unique([modelName, date])
+  @@index([date])
+  @@map("model_distributions")
+}
+
