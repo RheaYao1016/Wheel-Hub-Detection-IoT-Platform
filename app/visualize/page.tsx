@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Layout/Card";
 import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
@@ -16,14 +16,10 @@ type ProjectRecord = {
   type: string;
 };
 
-type LogEntry = {
+type TickerItem = {
   id: string;
-  status: "放行" | "复检";
-  message: string;
-  diameter: string;
-  center: string;
-  pcd: string;
-  timestamp: string;
+  stage: string;
+  flag: string;
 };
 
 const METRICS = [
@@ -41,6 +37,22 @@ const DONUT_DATA = [
   { name: "19寸", value: 12 }
 ];
 
+const TICKER_STAGES = ["入站", "采集", "翻转", "判定", "联动"];
+const TICKER_FLAGS = ["—", "—", "—", "—", "PASS", "FAIL"];
+const TICKER_SIZE = 20;
+
+const LOG_MESSAGES = [
+  "相机完成曝光与取像",
+  "边缘检测完成，直径=566.3mm",
+  "孔距 PCD=114.28mm 在容差内",
+  "同轴度 0.12mm，跳动 0.11mm",
+  "判定 PASS，推送到看板",
+  "上传至 /api/result 成功"
+];
+const LOG_APPEND_INTERVAL = 1200;
+const MAX_LOG_LINES = 200;
+const INITIAL_LOG_COUNT = 3;
+
 const buildLabels = () => {
   const labels: string[] = [];
   const now = new Date();
@@ -54,46 +66,160 @@ const buildLabels = () => {
 
 const makeTrend = () => buildLabels().map((label) => ({ name: label, value: Math.round(200 + Math.random() * 160) }));
 
-const deriveLogs = (records: ProjectRecord[]): LogEntry[] => {
-  const now = new Date();
-  return records.slice(0, 12).map((item, index) => {
-    const time = new Date(now.getTime() - index * 14 * 60 * 1000);
-    const stamp = `${time.getHours().toString().padStart(2, "0")}:${time
-      .getMinutes()
-      .toString()
-      .padStart(2, "0")}`;
-    const status = index % 4 === 0 ? "复检" : "放行";
-    return {
-      id: item.id,
-      status,
-      message: status === "放行" ? "检验通过，已同步到仓储系统。" : "尺寸偏差临界，安排人工复检确认。",
-      diameter: item.diameter,
-      center: item.center,
-      pcd: item.pcd,
-      timestamp: stamp,
-    };
-  });
+const pad = (value: number) => value.toString().padStart(2, "0");
+
+const formatTimestamp = (date: Date) =>
+  `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, "0")}`;
+
+const formatLogLine = (message: string, offsetMs = 0) => {
+  const time = new Date(Date.now() - offsetMs);
+  return `[${formatTimestamp(time)}] ${message}`;
 };
 
+const buildTickerSeed = (records: ProjectRecord[]): TickerItem[] => {
+  const fallback = Array.from({ length: TICKER_SIZE }).map((_, idx) => ({
+    id: `WH-2025-${String(idx + 1).padStart(3, "0")}`,
+    stage: TICKER_STAGES[idx % TICKER_STAGES.length],
+    flag: TICKER_FLAGS[idx % TICKER_FLAGS.length]
+  }));
+
+  if (!records.length) {
+    return fallback;
+  }
+
+  const base = records.slice(0, TICKER_SIZE);
+  const items: TickerItem[] = base.map((record, idx) => ({
+    id: record.id ?? fallback[idx].id,
+    stage: TICKER_STAGES[idx % TICKER_STAGES.length],
+    flag: TICKER_FLAGS[idx % TICKER_FLAGS.length]
+  }));
+
+  while (items.length < TICKER_SIZE) {
+    const idx = items.length;
+    const record = base[idx % base.length];
+    items.push({
+      id: record?.id ?? fallback[idx].id,
+      stage: TICKER_STAGES[idx % TICKER_STAGES.length],
+      flag: TICKER_FLAGS[idx % TICKER_FLAGS.length]
+    });
+  }
+
+  return items;
+};
+
+const records = staticRecords as ProjectRecord[];
+
 export default function VisualizePage() {
-  const records = staticRecords as ProjectRecord[];
   const [trend, setTrend] = useState(makeTrend());
+  const [tickerItems, setTickerItems] = useState<TickerItem[]>(() => buildTickerSeed(records));
+  const tickerRef = useRef<HTMLDivElement>(null);
+  const tickerListRef = useRef<HTMLUListElement>(null);
+
+  const initialLogs = useMemo(
+    () =>
+      Array.from({ length: INITIAL_LOG_COUNT }).map((_, idx) =>
+        formatLogLine(LOG_MESSAGES[idx % LOG_MESSAGES.length], (INITIAL_LOG_COUNT - idx) * LOG_APPEND_INTERVAL)
+      ),
+    []
+  );
+  const [logs, setLogs] = useState<string[]>(initialLogs);
+  const logBoxRef = useRef<HTMLDivElement>(null);
+  const logCursorRef = useRef(initialLogs.length);
 
   useEffect(() => {
     const labels = buildLabels();
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       setTrend((prev) =>
         prev.slice(1).concat({
           name: labels[Math.floor(Math.random() * labels.length)],
-          value: Math.round(200 + Math.random() * 160),
+          value: Math.round(200 + Math.random() * 160)
         })
       );
     }, 2500);
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, []);
 
-  const displayProjects = useMemo(() => records.slice(0, 10), [records]);
-  const logs = useMemo(() => deriveLogs(records), [records]);
+  useEffect(() => {
+    if (!tickerItems.length) {
+      return;
+    }
+    let offset = 0;
+    let frameId = 0;
+
+    const step = () => {
+      const container = tickerRef.current;
+      const list = tickerListRef.current;
+      if (!container || !list || !list.firstElementChild) {
+        frameId = window.requestAnimationFrame(step);
+        return;
+      }
+      const rowHeight = (list.firstElementChild as HTMLElement).offsetHeight || 34;
+      offset += 0.7;
+      if (offset >= rowHeight) {
+        offset = 0;
+        container.scrollTop = 0;
+        setTickerItems((prev) => {
+          if (prev.length <= 1) return prev;
+          const [first, ...rest] = prev;
+          return [...rest, first];
+        });
+      } else {
+        container.scrollTop = offset;
+      }
+      frameId = window.requestAnimationFrame(step);
+    };
+
+    frameId = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [tickerItems.length]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setLogs((prev) => {
+        const message = LOG_MESSAGES[logCursorRef.current % LOG_MESSAGES.length];
+        logCursorRef.current += 1;
+        const next = [...prev, formatLogLine(message)];
+        return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
+      });
+    }, LOG_APPEND_INTERVAL);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (logBoxRef.current) {
+      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  // 预留实时接口，接入后端后取消注释即可。
+  /*
+  useEffect(() => {
+    const refreshLive = async () => {
+      try {
+        const response = await fetch("/api/live");
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (Array.isArray(payload.projects)) {
+          setTickerItems(buildTickerSeed(payload.projects));
+        }
+        if (Array.isArray(payload.logs)) {
+          setLogs((prev) => {
+            const appended = payload.logs.map((msg: string) => `[${formatTimestamp(new Date())}] ${msg}`);
+            const combined = [...prev, ...appended];
+            return combined.length > MAX_LOG_LINES ? combined.slice(combined.length - MAX_LOG_LINES) : combined;
+          });
+        }
+        if (typeof payload.step === "number" && typeof window !== "undefined" && typeof (window as any).setFlowStep === "function") {
+          (window as any).setFlowStep(payload.step);
+        }
+      } catch (error) {
+        console.warn("live feed unavailable", error);
+      }
+    };
+    const liveTimer = window.setInterval(refreshLive, 2000);
+    return () => window.clearInterval(liveTimer);
+  }, []);
+  */
 
   return (
     <div className="page-shell pt-0 pb-10">
@@ -113,9 +239,9 @@ export default function VisualizePage() {
         <Card className="col-span-1 md:col-span-6">
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {METRICS.map((metric) => (
-              <div key={metric.label} className="metric-tile">
+              <div key={metric.label} className="rounded-2xl border border-[rgba(91,189,247,0.18)] bg-[rgba(91,189,247,0.08)] px-4 py-3 shadow-[0_12px_22px_rgba(5,31,57,0.38)]">
                 <span className="text-sm text-[var(--text-secondary)]">{metric.label}</span>
-                <span className="text-3xl font-bold text-white">{metric.value}</span>
+                <span className="block text-3xl font-bold text-white">{metric.value}</span>
               </div>
             ))}
           </div>
@@ -129,7 +255,7 @@ export default function VisualizePage() {
             <h2 className="text-lg font-semibold text-white">检测量走势（近 30 天）</h2>
             <button
               type="button"
-              className="rounded-full border border-[rgba(91,189,247,0.3)] px-3 py-1 text-xs text-[rgba(232,243,255,0.78)] hover:border-[rgba(91,189,247,0.6)]"
+              className="rounded-full border border-[rgba(91,189,247,0.3)] px-3 py-1 text-xs text-[rgba(232,243,255,0.78)] transition hover:border-[rgba(91,189,247,0.6)]"
               onClick={() => setTrend(makeTrend())}
             >
               刷新数据
@@ -143,48 +269,30 @@ export default function VisualizePage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
         <Card className="col-span-1 md:col-span-6">
-          <h2 className="mb-4 text-lg font-semibold text-white">实时项目列表</h2>
-          <div className="flex max-h-[360px] flex-col gap-3 overflow-y-auto pr-1">
-            {displayProjects.length ? (
-              displayProjects.map((item, index) => {
-                const status = index % 5 === 0 ? "复检" : "合格";
-                const badge = status === "合格" ? "bg-[#51d3c3]" : "bg-[#ffd166]";
-                return (
-                  <div key={item.id} className="flex items-center gap-3 rounded-xl border border-[rgba(91,189,247,0.14)] bg-[rgba(91,189,247,0.06)] px-4 py-3 text-sm text-[rgba(232,243,255,0.9)]">
-                    <span className={`h-2 w-2 rounded-full ${badge}`}></span>
-                    <span className="font-mono text-white">{item.id}</span>
-                    <span className="text-xs text-[var(--text-secondary)]">直径 {item.diameter} mm</span>
-                    <span className="text-xs text-[var(--text-secondary)]">中心孔 Φ{item.center}</span>
-                    <span className="ml-auto text-sm font-semibold text-white">{status}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-xl border border-dashed border-[rgba(91,189,247,0.3)] bg-[#0a1b31]/70 py-12 text-center text-sm text-[var(--text-secondary)]">
-                暂无实时项目数据
-              </div>
-            )}
+          <h2 className="mb-4 text-lg font-semibold text-white">实时项目</h2>
+          <div
+            ref={tickerRef}
+            className="max-h-[220px] overflow-hidden rounded-xl border border-[rgba(91,189,247,0.14)] bg-[rgba(11,29,53,0.7)]"
+          >
+            <ul ref={tickerListRef} className="divide-y divide-[rgba(255,255,255,0.06)] text-sm text-[rgba(232,243,255,0.88)]">
+              {tickerItems.map((item, index) => (
+                <li key={`${item.id}-${index}`} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="font-mono text-white">{item.id}</span>
+                  <span>{item.stage}</span>
+                  <span className="ml-auto text-xs text-[var(--text-secondary)]">{item.flag}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </Card>
         <Card className="col-span-1 md:col-span-6">
-          <h2 className="mb-4 text-lg font-semibold text-white">检测日志预览</h2>
-          <div className="flex max-h-[360px] flex-col gap-3 overflow-y-auto pr-1">
-            {logs.map((log) => (
-              <div key={log.id} className="rounded-xl border-l-4 border-[rgba(91,189,247,0.35)] bg-[#0a1b31]/75 px-4 py-3 text-sm text-[rgba(232,243,255,0.9)]">
-                <div className="mb-1 flex items-center gap-3">
-                  <span className="font-mono text-white">{log.id}</span>
-                  <span className="text-xs text-[var(--text-secondary)]">{log.timestamp}</span>
-                  <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${log.status === "放行" ? "bg-[rgba(81,211,195,0.25)] text-[#51d3c3]" : "bg-[rgba(255,209,102,0.25)] text-[#ffd166]"}`}>
-                    {log.status}
-                  </span>
-                </div>
-                <p className="text-sm text-[rgba(232,243,255,0.82)]">{log.message}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-[var(--text-secondary)]">
-                  <span>直径 {log.diameter} mm</span>
-                  <span>中心孔 Φ{log.center}</span>
-                  <span>PCD {log.pcd} mm</span>
-                </div>
-              </div>
+          <h2 className="mb-4 text-lg font-semibold text-white">日志预览</h2>
+          <div
+            ref={logBoxRef}
+            className="h-[260px] overflow-y-auto rounded-xl border border-[rgba(91,189,247,0.14)] bg-[rgba(255,255,255,0.04)] p-3 font-mono text-xs leading-[1.6] text-[rgba(232,243,255,0.88)]"
+          >
+            {logs.map((line, index) => (
+              <div key={`${line}-${index}`}>{line}</div>
             ))}
           </div>
         </Card>
