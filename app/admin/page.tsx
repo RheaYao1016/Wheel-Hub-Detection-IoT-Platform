@@ -1,51 +1,151 @@
-"use client";
+﻿"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "../components/Layout/Card";
 import LineChart from "../components/Charts/LineChart";
 import PieChart from "../components/Charts/PieChart";
-import { useState, useEffect } from "react";
-const mockData = Array.from({length:72}, (_,i)=>({id: 202504011001 + i, value: Math.floor(200*Math.random()+300), time: `${(i%24)+1}时`}));
-const batchStats = [
-  {label: "总轮毂", icon: "/images/info-img-1.png", val: 3100},
-  {label: "今日检测", icon: "/images/info-img-2.png", val: 210},
-  {label: "本周入库", icon: "/images/info-img-4.png", val: 392},
-  {label: "告警数", icon: "/images/info-img-3.png", val: 3},
+import ReactECharts from "echarts-for-react";
+
+type RoleState = "admin" | "user" | null;
+
+const KPI_METRICS = [
+  { label: "轮毂总数", value: 3100 },
+  { label: "今日检测", value: 210 },
+  { label: "本周入库", value: 392 },
+  { label: "告警数", value: 3 }
 ];
-function StatTicker(){
-  const [idx,setIdx] = useState(0);
-  useEffect(()=>{const t = setInterval(()=>setIdx(i=>(i+4)%batchStats.length), 2000);return ()=>clearInterval(t);},[]);
-  // 连续滑动四组数据批量展示
+
+const DONUT_DATA = [
+  { name: "合格", value: 88 },
+  { name: "不合格", value: 12 }
+];
+
+const BAR_DATA = {
+  categories: ["17寸", "18寸", "19寸", "20寸", "21寸"],
+  values: [320, 280, 240, 190, 160]
+};
+
+const buildLabels = () => {
+  const labels: string[] = [];
+  const now = new Date();
+  for (let i = 29; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
+  }
+  return labels;
+};
+
+const buildTrend = () => buildLabels().map((label) => ({ name: label, value: Math.round(260 + Math.random() * 140) }));
+
+export default function AdminDashboard() {
+  const router = useRouter();
+  const [role, setRole] = useState<RoleState>(null);
+  const trend = useMemo(buildTrend, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("role");
+    if (stored === "admin") {
+      setRole("admin");
+    } else {
+      router.replace("/login");
+    }
+  }, [router]);
+
+  if (role !== "admin") {
+    return null;
+  }
+
+  const barOption = {
+    grid: { left: 60, right: 24, top: 20, bottom: 40 },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+    xAxis: { type: "value", splitLine: { show: false }, axisLabel: { color: "rgba(166,192,220,0.86)" } },
+    yAxis: { type: "category", data: BAR_DATA.categories, axisLabel: { color: "#e8f3ff" } },
+    series: [
+      {
+        type: "bar",
+        data: BAR_DATA.values,
+        barWidth: 18,
+        itemStyle: {
+          borderRadius: [0, 12, 12, 0],
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 1,
+            y2: 0,
+            colorStops: [
+              { offset: 0, color: "#5bbdf7" },
+              { offset: 1, color: "#4f82f4" }
+            ]
+          }
+        }
+      }
+    ]
+  } as const;
+
   return (
-    <div className="flex flex-wrap gap-3 justify-between py-1 w-full animate-fadein">
-      {batchStats.concat(batchStats).slice(idx,idx+4).map(s=>(
-        <div className="flex flex-col items-center gap-1 bg-[#1d314a]/60 px-5 py-4 rounded-xl shadow min-w-[150px]">
-          <img src={s.icon} className="h-9" alt={s.label}/>
-          <div className="text-blue-300 text-sm">{s.label}</div>
-          <div className="text-4xl font-black text-cyan-200 leading-tight">{s.val}</div>
+    <div className="page-shell pt-0 pb-10">
+      <div className="flex flex-col gap-2">
+        <span className="text-xs text-[var(--text-secondary)]">管理员后台 / 数据概览</span>
+        <h1 className="text-2xl font-semibold text-white md:text-3xl">管理员后台管理台</h1>
+        <p className="text-sm text-[var(--text-secondary)]">状态纵览、数据分析与导入</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        {KPI_METRICS.map((metric) => (
+          <Card key={metric.label} className="flex flex-col items-center justify-center py-6 text-center">
+            <span className="text-sm text-[var(--text-secondary)]">{metric.label}</span>
+            <span className={`${metric.label === "告警数" ? "text-[#ffd166]" : "text-white"} text-3xl font-bold`}>{metric.value}</span>
+            <span className="text-xs text-[var(--text-secondary)]">{metric.label === "告警数" ? "待处理" : "实时统计"}</span>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+        <Card className="col-span-1 md:col-span-7">
+          <h2 className="mb-3 text-lg font-semibold text-white">每日检测量趋势</h2>
+          <div className="h-[320px]">
+            <LineChart data={trend} />
+          </div>
+        </Card>
+        <Card className="col-span-1 space-y-4 md:col-span-5">
+          <h2 className="text-lg font-semibold text-white">合格率占比 + 尺寸 Top5</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <PieChart title="合格率" data={DONUT_DATA} />
+            <div className="h-[260px]">
+              <ReactECharts style={{ height: "100%" }} option={barOption} />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold text-white">快速操作</h2>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="rounded-full bg-gradient-to-r from-[#5bbdf7] to-[#4f82f4] px-6 py-2 text-sm font-semibold text-[#041629] shadow-[0_10px_24px_rgba(91,189,247,0.3)]"
+            onClick={() => router.push("/admin/data-import")}
+          >
+            数据导入
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-[rgba(91,189,247,0.3)] bg-[rgba(91,189,247,0.08)] px-6 py-2 text-sm font-semibold text-white"
+          >
+            数据同步
+          </button>
+          <button
+            type="button"
+            className="rounded-full bg-gradient-to-r from-[#ff6b81] to-[#f6556d] px-6 py-2 text-sm font-semibold text-[#041629] shadow-[0_10px_24px_rgba(255,107,129,0.3)]"
+          >
+            风险告警
+          </button>
         </div>
-      ))}
-    </div>
-  );
-}
-export default function AdminPage() {
-  return (
-    <div className="max-w-screen-2xl mx-auto px-3 py-8 min-h-[95vh] flex flex-col gap-8">
-      <h1 className="text-2xl md:text-3xl font-extrabold mb-6 text-center text-cyan-300 tracking-widest mt-2">管理员后台管理台</h1>
-      <StatTicker />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card title="设备台账"><div className="text-center text-base md:text-lg">10台设备</div></Card>
-        <Card title="轮毂管理"><div className="text-center">70条记录</div><button className="mt-3 px-3 py-2 rounded bg-gradient-to-r from-cyan-400 to-blue-600 text-sm text-white">新增轮毂</button></Card>
-        <Card title="数据分析"><div className="text-center">检测数据趋势、合格率、告警类型等统计</div></Card>
-        <Card title="操作日志"><div className="text-center">最后登录时间 2025-10-30</div><button className="mt-3 px-3 py-2 rounded bg-blue-900/60 text-sm text-cyan-200">导出日志</button></Card>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
-        <Card title="每日检测量趋势"><div className="w-full h-[240px]"><LineChart data={mockData.slice(0,24).map(d=>({name:d.time,value:d.value}))}/></div></Card>
-        <Card title="合格率占比"><div className="w-full h-[240px]"><PieChart title="合格占比" data={[{name:"合格",value:88},{name:"不合格",value:12}]}/></div></Card>
-      </div>
-      <div className="w-full flex flex-row gap-6 justify-end mb-6">
-        <button className="px-7 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-600 text-lg font-bold text-white shadow hover:scale-105 transition-all">数据同步</button>
-        <button className="px-7 py-2 rounded-xl bg-gradient-to-r from-green-400 to-blue-400 text-lg font-bold text-white shadow hover:scale-105 transition-all">批量导入</button>
-        <button className="px-7 py-2 rounded-xl bg-gradient-to-r from-red-400 to-pink-400 text-lg font-bold text-white shadow hover:scale-105 transition-all">风险告警</button>
-      </div>
+      </Card>
     </div>
   );
 }

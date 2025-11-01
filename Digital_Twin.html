@@ -1,181 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>è½®æ¯‚æ£€æµ‹çº¿â€”â€”â€”â€”æ•°å­—å­ªç”Ÿ</title>
-    <link rel="stylesheet" href="css/common.css" />
-    <link rel="stylesheet" href="css/digitaltwin.css" />
-  </head>
-
-  <body>
-    <div class="data">
-      <div class="data-title">
-        <!-- å·¦ä¾§æŒ‰é’® -->
-        <div class="button-container">
-          <button class="btn" onclick="window.location.href='Home_Page.html'">ä¸»é¡µ</button>
-          <button class="btn" onclick="window.location.href='Visualize.html'">å¯è§†åŒ–å¹³å°</button>
+<html lang=\"zh-CN\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>ÂÖì±¼ì²âÊı×ÖÂÏÉúÆ½Ì¨ ¡¤ Êı×ÖÂÏÉú</title>
+    <link rel=\"stylesheet\" href=\"css/common.css\">
+    <link rel=\"stylesheet\" href=\"css/digitaltwin.css\">
+</head>
+<body class=\"page\">
+    <header class=\"topbar\">
+        <div class=\"brand\">
+            <span class=\"brand-circle\">W</span>
+            <span>ÂÖì±¼ì²âÊı×ÖÂÏÉúÆ½Ì¨</span>
         </div>
+        <nav id=\"topNav\" class=\"nav\"></nav>
+        <div id=\"accountMenu\"></div>
+    </header>
 
-        <!-- å…¶ä»–å†…å®¹ -->
-        <div class="title-left fl"></div>
-        <div class="title-center fl" style="margin-top: -1.1%"></div>
-
-        <!-- å³ä¾§æŒ‰é’® -->
-        <div class="button-container-right fr">
-          <button class="btnr" onclick="window.location.href='Monitor.html'">å®æ—¶ç›‘æ§</button>
-          <button class="btnr" onclick="window.location.href='Digital_Twin.html'">æ•°å­—å­ªç”Ÿ</button>
-        </div>
-
-        <div class="title-right fr"></div>
-      </div>
-      <div class="data-content">
-        <div class="con-left fl">
-          <div class="left-top">
-            <div class="info">
-              <div class="info-title">å®æ—¶æ•°æ®</div>
-              <img src="img/bj-1.png" alt="" class="bj-1" />
-              <img src="img/bj-2.png" alt="" class="bj-2" />
-              <img src="img/bj-3.png" alt="" class="bj-3" />
-              <img src="img/bj-4.png" alt="" class="bj-4" />
-              <div class="info-main">
-                <div class="info-1">
-                  <div class="info-img fl">
-                    <img src="img/info-img-1.png" alt="" />
-                  </div>
-                  <div class="info-text fl">
-                    <p>è½®æ¯‚æ€»æ•°(ä¸ª)</p>
-                    <p>3100</p>
-                  </div>
-                </div>
-                <div class="info-2">
-                  <div class="info-img fl">
-                    <img src="img/info-img-2.png" alt="" />
-                  </div>
-                  <div class="info-text fl">
-                    <p>å·²æ£€æµ‹æ•°(ä¸ª)</p>
-                    <p>3000</p>
-                  </div>
-                </div>
-                <div class="info-3">
-                  <div class="info-img fl">
-                    <img src="img/info-img-3.png" alt="" />
-                  </div>
-                  <div class="info-text fl">
-                    <p>æœªæ£€æµ‹æ•°(ä¸ª)</p>
-                    <p>100</p>
-                  </div>
-                </div>
-                <div class="info-4">
-                  <div class="info-img fl">
-                    <img src="img/info-img-4.png" alt="" />
-                  </div>
-                  <div class="info-text fl">
-                    <p>å®Œæˆç‡(%)</p>
-                    <p>97</p>
-                  </div>
-                </div>
-              </div>
+    <main class=\"page-content\">
+        <section class=\"digital-top\">
+            <div class=\"card digital-col\">
+                <img src=\"public/images/TianXiaWuShuang.png\" alt=\"Éè±¸×ó²à½á¹¹Ê¾Òâ\" class=\"digital-figure\">
             </div>
-            <div class="top-bottom">
-              <div class="title" style="text-align: center">å°ºå¯¸åˆ†ç±»</div>
-              <img src="img/bj-1.png" alt="" class="bj-1" />
-              <img src="img/bj-2.png" alt="" class="bj-2" />
-              <img src="img/bj-3.png" alt="" class="bj-3" />
-              <img src="img/bj-4.png" alt="" class="bj-4" />
-              <div id="echarts_1" class="charts"></div>
+            <div class=\"card digital-col viewer-col\">
+                <div class=\"card-header\">ÈıÎ¬Ä£ĞÍÕ¹Ê¾</div>
+                <div id=\"twinViewer\" class=\"viewer-stage\"></div>
             </div>
-          </div>
-          <div class="left-bottom">
-            <div class="title" style="text-align: center">å‹å·åˆ†ç±»</div>
-            <img src="img/bj-1.png" alt="" class="bj-1" />
-            <img src="img/bj-2.png" alt="" class="bj-2" />
-            <img src="img/bj-3.png" alt="" class="bj-3" />
-            <img src="img/bj-4.png" alt="" class="bj-4" />
-            <div id="echarts_2" class="charts"></div>
-          </div>
-        </div>
-        <div class="con-center fl">
-          <div class="map-num" , id="map-num">
-            <p>è®¾å¤‡æ¨¡å‹</p>
-          </div>
-          <div class="cen-top" id="STL">
-            <img src="img/bj-1.png" alt="" class="bj-1" />
-            <img src="img/bj-2.png" alt="" class="bj-2" />
-            <img src="img/bj-3.png" alt="" class="bj-3" />
-            <img src="img/bj-4.png" alt="" class="bj-4" />
-          </div>
-        </div>
-      </div>
-    </div>
-  </body>
-  <script src="js/jquery-2.1.1.min.js"></script>
-  <script src="js/echarts.min.js"></script>
-  <script src="js/china.js"></script>
-  <script src="js/echarts.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      var container = document.getElementById('STL')
-      var scene = new THREE.Scene()
-      var camera = new THREE.PerspectiveCamera(
-        45,
-        container.clientWidth / container.clientHeight,
-        0.01,
-        100000
-      ) // å°† far è®¾ç½®ä¸º 5000
-      camera.position.set(3.9217608405149282, 0.49519706049134804, 2.4955257204763734)
-      var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }) // è®¾ç½®èƒŒæ™¯é€æ˜
-      renderer.setSize(container.clientWidth, container.clientHeight)
-      renderer.shadowMap.enabled = true // å¯ç”¨é˜´å½±
-      renderer.shadowMap.type = THREE.BasicShadowMap
-      container.appendChild(renderer.domElement)
+            <div class=\"card digital-col\">
+                <img src=\"public/images/she_bei_jian_mo.png\" alt=\"Éè±¸ÓÒ²à½á¹¹Ê¾Òâ\" class=\"digital-figure\">
+            </div>
+        </section>
 
-      var controls = new THREE.OrbitControls(camera, renderer.domElement)
-      controls.enableDamping = true // å¯ç”¨é˜»å°¼
-      controls.dampingFactor = 0.04 // é˜»å°¼ç³»æ•°
-      controls.autoRotate = false // è‡ªåŠ¨æ—‹è½¬
-      controls.autoRotateSpeed = 0.8 // è‡ªæ—‹é€Ÿåº¦
-      controls.maxPolarAngle = Math.PI
-      controls.update()
-      // æ·»åŠ ç¯å¢ƒå…‰
-      var ambientLight = new THREE.AmbientLight(0xffffff, 1)
-      scene.add(ambientLight)
+        <section class=\"digital-bottom\">
+            <div class=\"card digital-card\">
+                <div class=\"card-header\">ÊµÊ±²ÎÊı</div>
+                <p class=\"card-body\">´«¸ĞÆ÷¶ÁÊı¡¢³ß´çÆ«²îÓëÇı¶¯×´Ì¬ÊµÊ±Ó³Éä£¬Ö§³Ö×Ô¶¨ÒåãĞÖµÓëÊı¾İ¶©ÔÄ£¬±ãÓÚÎ¬»¤ÈËÔ±¿ìËÙÕï¶Ï¡£</p>
+            </div>
+            <div class=\"card digital-card\">
+                <div class=\"card-header\">×´Ì¬¼à¿Ø</div>
+                <p class=\"card-body\">¼à¿ØÉè±¸ÔËĞĞ×´Ì¬¡¢½ÚÅÄ¡¢ºÏ¸ñÂÊÓë¸æ¾¯ĞÅÏ¢£¬½áºÏ¿ÉÊÓ»¯¿´°å²é¿´Ç÷ÊÆ²¢´¥·¢Ó¦¼±Áª¶¯¡£</p>
+            </div>
+            <div class=\"card digital-card\">
+                <div class=\"card-header\">¾¯¸æ¼ÇÂ¼</div>
+                <p class=\"card-body\">½ü24Ğ¡Ê±¸æ¾¯¼ÇÂ¼Óë´¦Àí±Õ»·ÇåÎú¿É²é£¬Ö§³Ö°´»ú¹¹¡¢°à´Î¡¢¸æ¾¯µÈ¼¶µÈÎ¬¶È»ØËİÓëµ¼³ö¡£</p>
+            </div>
+        </section>
 
-      // æ·»åŠ æ–¹å‘å…‰
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
-      directionalLight.position.set(5, 5, 5)
-      directionalLight.castShadow = true
-      scene.add(directionalLight)
-      const loaderRGB = new THREE.RGBELoader()
-      loaderRGB.load(`./20.hdr`, function (texture) {
-        texture.mapping = THREE.EquirectangularReflectionMapping //æ­£å¸¸åªæ˜¯ä¸€å¼ å›¾å¹³é“ºï¼Œè®¾ç½®è¿™ä¸ªå¯ä»¥è®©å›¾åŒ…å›´ç¯ç»•æ•´ä¸ªç¯å¢ƒ
-        // scene.background = texture; //è®¾ç½®ç¯å¢ƒè´´å›¾
-        scene.environment = texture
-      })
-      // DRACOLoaderè§£æDracoå‹ç¼©è¿‡çš„gltfæ¨¡å‹
-      const dracoLoader = new THREE.DRACOLoader()
-      // DRACOLoaderä¾èµ–çš„å¤šä¸ªjsæ–‡ä»¶åœ¨publicä¸‹çš„dracoæ–‡ä»¶ä¸­
-      dracoLoader.setDecoderPath(`./draco/`)
-      var loader = new THREE.GLTFLoader()
-      loader.setDRACOLoader(dracoLoader)
-      loader.load('./1.glb', function (object) {
-        //åˆ›å»ºåŒºåŸŸå…‰
-        scene.add(object.scenes[0])
-      })
+        <section class=\"card workflow-card\">
+            <div class=\"card-header\">¹¤×÷Á÷³Ì</div>
+            <ol class=\"workflow-list\">
+                <li>ÂÖì±´«ËÍÖÁ¼ì²â¹¤Î»£¬¶ÔÖĞÄ£¿éÍê³É¶¨Î»¡£</li>
+                <li>ÖĞĞÄ¼Ğ¾ßÉı½µ²¢Ğı×ª£¬²É¼¯¾¶ÏòÔ²Ìø¶¯ÓëÖáÏò³ß´ç¡£</li>
+                <li>²àÃæ¼Ğ¾ßÉì³ö¼Ğ½ô²¢·­×ª£¬²¶»ñ²à±ÚºÍ¿×Î»¸ß¾«¶ÈÍ¼Ïñ¡£</li>
+                <li>ÊÓ¾õËã·¨Íê³ÉÍ¼ÏñÔ¤´¦Àí¡¢±ßÔµÌáÈ¡Óë³ß´çÄâºÏ£¬Êä³öÅĞ¶¨½á¹û¡£</li>
+                <li>¼ì²âÊı¾İĞ´ÈëÆ½Ì¨£¬´¥·¢¸æ¾¯»ò·ÅĞĞ£¬²¢Í¬²½ÖÁ²Ö´¢/ERP ÏµÍ³¡£</li>
+            </ol>
+        </section>
+    </main>
 
-      var animate = function () {
-        console.log('camera.position', camera.position)
-        requestAnimationFrame(animate)
-        controls.update()
-        renderer.render(scene, camera)
-      }
+    <footer class=\"site-footer\">
+        ? 2025 ÂÖì±¼ì²âÊı×ÖÂÏÉúÆ½Ì¨ ¡¤ All Rights Reserved.<span>ÏîÄ¿ºÏ×÷/½¨ÒéÇëÁªÏµ£ºcontact@example.com</span>
+    </footer>
 
-      animate()
-    })
-  </script>
+    <script src=\"js/app-shell.js\"></script>
+    <script src=\"https://cdnjs.cloudflare.com/ajax/libs/three.js/r150/three.min.js\"></script>
+    <script src=\"https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/controls/OrbitControls.js\"></script>
+    <script src=\"https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/GLTFLoader.js\"></script>
+    <script src=\"js/digitaltwin.js\"></script>
+</body>
 </html>

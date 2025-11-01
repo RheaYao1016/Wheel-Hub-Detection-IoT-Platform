@@ -1,36 +1,72 @@
-import Card from "../components/Layout/Card";
-export default function HomeIntro(){
+﻿import Card from "../components/Layout/Card";
+
+const INTRO_COPY = `本项目聚焦“多功能轮毂尺寸形状检测一体化设备”，整合传送、定位、夹具、机器视觉与可视化平台，构建传送→定位→夹持→多角度采集→识别→判定→追溯的自动化闭环。装置通过模块化机构实现升降、旋转与翻转，视觉系统输出关键尺寸并同步至平台形成统计、告警与追溯能力。`;
+const PURPOSE_COPY = `随着汽车保有量持续攀升，轮毂几何精度直接关系行驶安全与轮胎寿命。传统人工检测效率低且易受经验影响，难以支撑智能化产线对质量与安全的双重要求。本项目以自动化机械机构配合视觉测量提升检测效率与精度，确保生产过程稳定可控，降低操作风险，实现符合标准的批量交付。`;
+const FEATURES = [
+  "单工位模块化集成：传输、定位、检测协同运行，节省空间并便于维护扩展。",
+  "中心夹具复合运动：升降与旋转结合，保障圆跳动及轴向尺寸测量精度。",
+  "侧面夹具翻转检测：覆盖孔位、轮缘等关键侧向尺寸，实现全方位采集。",
+  "机器视觉识别：灰度化、滤波、阈值与边缘拟合流程输出稳定尺寸判定。",
+  "可视化平台联动：统计、趋势、监控、告警互通，形成数据闭环管理。",
+  "PLC 控制架构：S7-1200 与传感执行单元协同，提供安全互锁与远程监控。"
+];
+
+export default function HomeIntro() {
   return (
-    <main className="max-w-6xl mx-auto px-3 py-8 flex flex-col gap-6">
-      <Card title="项目简介">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          <img src="/images/TianXiaWuShuang.png" className="w-full aspect-[4/3] object-cover rounded-lg shadow mx-auto" alt="装置示意"/>
-          <div className="space-y-4 leading-8 text-neutral-100 max-w-[680px]">
-            <p>本项目面向自动化产线的轮毂尺寸/形状检测，围绕“对中、夹紧、升降、旋转、翻转、拍摄、识别、判定、追溯”完整闭环构建硬件与软件一体化方案。装置通过模块化机构完成多角度采集与稳定夹持，结合机器视觉算法实现关键尺寸识别；平台侧提供统计、态势、趋势、告警等可视化能力。</p>
-            <p>系统采用单工位模块化设计：对中模块精准定位、中心夹具升降与旋转实现圆跳动测量、侧面夹具伸出与翻转实现侧向尺寸测量；采集图像经预处理、阈值分割、边缘与尺寸检测得到结果并入库，与看板联动形成数据闭环。</p>
+    <div className="page-shell pt-0 pb-8">
+      <Card className="p-6 md:p-8">
+        <div className="grid items-center gap-8 md:grid-cols-[minmax(260px,1fr)_minmax(360px,1.2fr)]">
+          <div className="flex max-w-[520px] items-center justify-center rounded-2xl bg-[rgba(91,189,247,0.08)] p-6">
+            <img src="/images/TianXiaWuShuang.png" alt="轮毂检测设备整体示意" className="h-full w-full object-contain" />
+          </div>
+          <div className="space-y-4 text-[15px] leading-8 text-[rgba(232,243,255,0.88)]">
+            <h2 className="text-2xl font-semibold text-white">项目简介</h2>
+            <p>{INTRO_COPY}</p>
           </div>
         </div>
       </Card>
-      <Card title="研究目的">
-        <p className="leading-8 text-neutral-100 max-w-[680px]">在大规模制造场景中，轮毂等关键件的加工精度直接影响安全与寿命。通过自动化机构与视觉检测替代人工，提高检测效率与一致性，降低人为误差，实现“更快、更稳、更准”的生产质量管理。</p>
+
+      <Card className="p-6 md:p-8">
+        <div className="grid items-center gap-8 md:grid-cols-[minmax(260px,1fr)_minmax(360px,1.2fr)]">
+          <div className="order-last flex max-w-[520px] items-center justify-center rounded-2xl bg-[rgba(91,189,247,0.08)] p-6 md:order-first">
+            <img src="/images/digital_bcgd.jpg" alt="轮毂检测研究目的" className="h-full w-full object-contain rounded-xl" />
+          </div>
+          <div className="space-y-4 text-[15px] leading-8 text-[rgba(232,243,255,0.88)]">
+            <h2 className="text-2xl font-semibold text-white">研究目的</h2>
+            <p>{PURPOSE_COPY}</p>
+          </div>
+        </div>
       </Card>
-      <Card title="创新特色">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          <ul className="list-disc pl-6 space-y-2 text-neutral-100 max-w-[680px]">
-            <li>单工位模块化：多机构合一，节省空间、易维护、可扩展。</li>
-            <li>中心夹具：升降+旋转复合，实现径向圆跳动高精测量。</li>
-            <li>侧面夹具：伸出夹持与翻转，覆盖关键侧向尺寸项目。</li>
-            <li>视觉识别：灰度化/滤波/阈值/边缘检测+尺寸拟合，稳定可靠。</li>
-            <li>可视化：统计、趋势、监控、告警联动，数据闭环一目了然。</li>
-          </ul>
+
+      <Card className="p-6 md:p-8">
+        <div className="grid items-start gap-8 md:grid-cols-[minmax(260px,1fr)_minmax(360px,1.2fr)]">
+          <div className="space-y-4 text-[15px] leading-7 text-[rgba(232,243,255,0.9)]">
+            <h2 className="text-2xl font-semibold text-white">创新特色</h2>
+            <ul className="space-y-3">
+              {FEATURES.map((item) => (
+                <li key={item} className="relative pl-4">
+                  <span className="absolute left-0 top-3 h-2 w-2 -translate-y-1/2 rounded-full bg-[#5bbdf7]"></span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
           <div className="grid grid-cols-2 gap-4">
-            <img src="/images/she_bei_jian_mo.png" className="rounded shadow aspect-[4/3] object-cover" alt="机构结构"/>
-            <img src="/images/bj-1.png" className="rounded shadow aspect-[4/3] object-cover" alt="装置细节1"/>
-            <img src="/images/bj-2.png" className="rounded shadow aspect-[4/3] object-cover" alt="装置细节2"/>
-            <img src="/images/bj-3.png" className="rounded shadow aspect-[4/3] object-cover" alt="装置细节3"/>
+            <div className="rounded-2xl bg-[rgba(91,189,247,0.08)] p-4">
+              <img src="/images/she_bei_jian_mo.png" alt="设备结构示意" className="h-full w-full object-contain" />
+            </div>
+            <div className="rounded-2xl bg-[rgba(91,189,247,0.08)] p-4">
+              <img src="/images/bj-1.png" alt="检测细节 1" className="h-full w-full object-contain" />
+            </div>
+            <div className="rounded-2xl bg-[rgba(91,189,247,0.08)] p-4">
+              <img src="/images/bj-2.png" alt="检测细节 2" className="h-full w-full object-contain" />
+            </div>
+            <div className="rounded-2xl bg-[rgba(91,189,247,0.08)] p-4">
+              <img src="/images/bj-3.png" alt="检测细节 3" className="h-full w-full object-contain" />
+            </div>
           </div>
         </div>
       </Card>
-    </main>
+    </div>
   );
 }

@@ -1,223 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang=\"zh-CN\">
 <head>
-    <meta charset="UTF-8">
-    <title>è½®æ¯‚æ£€æµ‹çº¿â€”â€”â€”â€”è®¾å¤‡ç›‘æ§</title>
-    <link rel="stylesheet" href="css/common.css">
-    <link rel="stylesheet" href="css/monitor.css">
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>ÂÖì±¼ì²âÊı×ÖÂÏÉúÆ½Ì¨ ¡¤ ÊµÊ±¼à¿Ø</title>
+    <link rel=\"stylesheet\" href=\"css/common.css\">
+    <link rel=\"stylesheet\" href=\"css/monitor.css\">
 </head>
-
-<body>
-    <div class="data">
-        <div class="data-title">
-            <!-- å·¦ä¾§æŒ‰é’® -->
-            <div class="button-container ">
-                <button class="btn" onclick="window.location.href='Home_Page.html'">ä¸»é¡µ</button>
-                <button class="btn" onclick="window.location.href='Visualize.html'">å¯è§†åŒ–å¹³å°</button>
-            
-            </div>
-            
-            <!-- å…¶ä»–å†…å®¹ -->
-            <div class="title-left fl"></div>
-            <div class="title-center fl" style="margin-top: -1.1%;"></div>
-            
-            <!-- å³ä¾§æŒ‰é’® -->
-            <div class="button-container-right fr">
-                <button class="btnr" onclick="window.location.href='Monitor.html'">å®æ—¶ç›‘æ§</button>
-                <button class="btnr" onclick="window.location.href='Digital_Twin.html'">æ•°å­—å­ªç”Ÿ</button>
-            </div>
-        
-            <div class="title-right fr"></div>
+<body class=\"page\">
+    <header class=\"topbar\">
+        <div class=\"brand\">
+            <span class=\"brand-circle\">W</span>
+            <span>ÂÖì±¼ì²âÊı×ÖÂÏÉúÆ½Ì¨</span>
         </div>
-        <div class="data-content">
-            <div class="con-left fl">
-                <div class="left-top">
-                    <div class="info">
-                        <div class="info-title">å®æ—¶æ•°æ®</div>
-                        <img src="img/bj-1.png" alt="" class="bj-1">
-                        <img src="img/bj-2.png" alt="" class="bj-2">
-                        <img src="img/bj-3.png" alt="" class="bj-3">
-                        <img src="img/bj-4.png" alt="" class="bj-4">
-                        <div class="info-main">
-                            <div class="info-1">
-                                <div class="info-img fl">
-                                    <img src="img/info-img-1.png" alt="">
-                                </div>
-                                <div class="info-text fl">
-                                    <p>è½®æ¯‚æ€»æ•°(ä¸ª)</p>
-                                    <p>3100</p>
-                                </div>
-                            </div>
-                            <div class="info-2">
-                                <div class="info-img fl">
-                                    <img src="img/info-img-2.png" alt="">
-                                </div>
-                                <div class="info-text fl">
-                                    <p>å·²æ£€æµ‹æ•°(ä¸ª)</p>
-                                    <p>3000</p>
-                                </div>
-                            </div>
-                            <div class="info-3">
-                                <div class="info-img fl">
-                                    <img src="img/info-img-3.png" alt="">
-                                </div>
-                                <div class="info-text fl">
-                                    <p>æœªæ£€æµ‹æ•°(ä¸ª)</p>
-                                    <p>100</p>
-                                </div>
-                            </div>
-                            <div class="info-4">
-                                <div class="info-img fl">
-                                    <img src="img/info-img-4.png" alt="">
-                                </div>
-                                <div class="info-text fl">
-                                    <p>å®Œæˆç‡(%)</p>
-                                    <p>97</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="top-bottom">
-                        <div class="title" style="text-align: center;">å°ºå¯¸åˆ†ç±»</div>
-                        <img src="img/bj-1.png" alt="" class="bj-1">
-                        <img src="img/bj-2.png" alt="" class="bj-2">
-                        <img src="img/bj-3.png" alt="" class="bj-3">
-                        <img src="img/bj-4.png" alt="" class="bj-4">
-                        <div id="echarts_1" class="charts"></div>
-                    </div>
+        <nav id=\"topNav\" class=\"nav\"></nav>
+        <div id=\"accountMenu\"></div>
+    </header>
+
+    <main class=\"page-content\">
+        <section class=\"card camera-card\">
+            <div class=\"card-header\">ÉãÏñÍ·½ÓÈë£¨ËÄÂ·£©</div>
+            <div class=\"camera-grid\">
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo1\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn1\" class=\"camera-btn\">²é¿´¼à¿Ø</button>
                 </div>
-                <div class="left-bottom">
-                    <div class="title" style="text-align: center;">å‹å·åˆ†ç±»</div>
-                    <img src="img/bj-1.png" alt="" class="bj-1">
-                    <img src="img/bj-2.png" alt="" class="bj-2">
-                    <img src="img/bj-3.png" alt="" class="bj-3">
-                    <img src="img/bj-4.png" alt="" class="bj-4">
-                    <div id="echarts_2" class="charts"></div>
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo2\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn2\" class=\"camera-btn\">²é¿´¼à¿Ø</button>
+                </div>
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo3\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn3\" class=\"camera-btn\">²é¿´¼à¿Ø</button>
+                </div>
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo4\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn4\" class=\"camera-btn\">²é¿´¼à¿Ø</button>
                 </div>
             </div>
-            <div class="con-center fl">
-                <div class="map-num" , id="map-num">
-                    <button class="check_svli1" id="svli">æŸ¥çœ‹ç›‘æ§</button>
-                </div>
-                <div class="cen-top" id="STL">
-                    <img src="img/bj-1.png" alt="" class="bj-1">
-                    <img src="img/bj-2.png" alt="" class="bj-2">
-                    <img src="img/bj-3.png" alt="" class="bj-3">
-                    <img src="img/bj-4.png" alt="" class="bj-4">
-                    <div id="video_container1">
-                        <video id="camera-feed1" autoplay></video>
-                        <script>
-                            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                                window.onload = function () {
-                                    alert('æ‚¨çš„æµè§ˆå™¨ä¸æ”¯æŒæ‘„åƒå¤´è®¿é—®åŠŸèƒ½ï¼Œè¯·ä½¿ç”¨æœ€æ–°ç‰ˆæœ¬çš„ Chrome æˆ– Edge æµè§ˆå™¨ã€‚');
-                                };
-                            }
-                            
-                            const videoElement1 = document.getElementById('camera-feed1');
-                            const startButton1 = document.getElementById('svli');
-                            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                                startButton1.addEventListener('click', () => {
-                                    navigator.mediaDevices
-                                        .getUserMedia({ video: true })
-                                        .then(function (stream) {
-                                            videoElement1.srcObject = stream;
-                                        })
-                                        .catch(function (error) {
-                                            console.error('è·å–æ‘„åƒå¤´æƒé™å¤±è´¥: ', error);
-                                        });
-                                });
-                            } else {
-                                console.error('æµè§ˆå™¨ä¸æ”¯æŒgetUserMedia');
-                            }
-                        </script>
-                    </div>
-                    <div id="video_container2">
-                        <video id="camera-feed2" autoplay></video>
-                        <script>
-                            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                                alert('æ‚¨çš„æµè§ˆå™¨ä¸æ”¯æŒæ‘„åƒå¤´è®¿é—®åŠŸèƒ½ï¼Œè¯·ä½¿ç”¨æœ€æ–°ç‰ˆæœ¬çš„ Chrome æˆ– Edge æµè§ˆå™¨ã€‚');
-                            }
-                            const videoElement2 = document.getElementById('camera-feed2');
-                            const startButton2 = document.getElementById('svli');
-                            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                                startButton2.addEventListener('click', () => {
-                                    navigator.mediaDevices
-                                        .getUserMedia({ video: true })
-                                        .then(function (stream) {
-                                            videoElement2.srcObject = stream;
-                                        })
-                                        .catch(function (error) {
-                                            console.error('è·å–æ‘„åƒå¤´æƒé™å¤±è´¥: ', error);
-                                        });
-                                });
-                            } else {
-                                console.error('æµè§ˆå™¨ä¸æ”¯æŒgetUserMedia');
-                            }
-                        </script>
-                    </div>
-                    <div id="video_container3">
-                        <video id="camera-feed3" autoplay></video>
-                        <script>
-                            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                                alert('æ‚¨çš„æµè§ˆå™¨ä¸æ”¯æŒæ‘„åƒå¤´è®¿é—®åŠŸèƒ½ï¼Œè¯·ä½¿ç”¨æœ€æ–°ç‰ˆæœ¬çš„ Chrome æˆ– Edge æµè§ˆå™¨ã€‚');
-                            }
-                            const videoElement3 = document.getElementById('camera-feed3');
-                            const startButton3 = document.getElementById('svli');
-                            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                                startButton3.addEventListener('click', () => {
-                                    navigator.mediaDevices
-                                        .getUserMedia({ video: true })
-                                        .then(function (stream) {
-                                            videoElement3.srcObject = stream;
-                                        })
-                                        .catch(function (error) {
-                                            console.error('è·å–æ‘„åƒå¤´æƒé™å¤±è´¥: ', error);
-                                        });
-                                });
-                            } else {
-                                console.error('æµè§ˆå™¨ä¸æ”¯æŒgetUserMedia');
-                            }
-                        </script>
-                    </div>
-                    <div id="video_container4">
-                        <video id="camera-feed4" autoplay></video>
-                        <script>
-                            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                                alert('æ‚¨çš„æµè§ˆå™¨ä¸æ”¯æŒæ‘„åƒå¤´è®¿é—®åŠŸèƒ½ï¼Œè¯·ä½¿ç”¨æœ€æ–°ç‰ˆæœ¬çš„ Chrome æˆ– Edge æµè§ˆå™¨ã€‚');
-                            }
-                            const videoElement4 = document.getElementById('camera-feed4');
-                            const startButton4 = document.getElementById('svli');
-                            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                                startButton4.addEventListener('click', () => {
-                                    navigator.mediaDevices
-                                        .getUserMedia({ video: true })
-                                        .then(function (stream) {
-                                            videoElement4.srcObject = stream;
-                                        })
-                                        .catch(function (error) {
-                                            console.error('è·å–æ‘„åƒå¤´æƒé™å¤±è´¥: ', error);
-                                        });
-                                });
-                            } else {
-                                console.error('æµè§ˆå™¨ä¸æ”¯æŒgetUserMedia');
-                            }
-                        </script>
-                    </div>
+        </section>
 
-                    
-                    </html>
-                </div>
-            </div>
-        </div>
-    </div>
+        <section class=\"grid-12 monitor-row\">
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">×òÈÕ¼ì²âÁ¿Ç÷ÊÆ</div>
+                <div id=\"monitorTrend\" class=\"chart large\"></div>
+            </article>
+            <article class=\"card col-span-6 status-card\">
+                <div class=\"card-header\">×´Ì¬×ÜÀÀ</div>
+                <ul class=\"status-list\">
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>´«ËÍ»ú¹¹</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>Õı³£</span>
+                    </li>
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>ÖĞĞÄ¼Ğ¾ß</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>Õı³£</span>
+                    </li>
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>²àÃæ¼Ğ¾ß</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>Õı³£</span>
+                    </li>
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>¼ì²â»ú¹¹</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>Õı³£</span>
+                    </li>
+                </ul>
+            </article>
+        </section>
 
+        <section class=\"grid-12 monitor-row\">
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">³ß´ç·ÖÀà</div>
+                <div id=\"sizeDonut\" class=\"chart donut\"></div>
+            </article>
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">ĞÍºÅ·ÖÀà</div>
+                <div id=\"modelDonut\" class=\"chart donut\"></div>
+            </article>
+        </section>
+    </main>
+
+    <footer class=\"site-footer\">
+        ? 2025 ÂÖì±¼ì²âÊı×ÖÂÏÉúÆ½Ì¨ ¡¤ All Rights Reserved.<span>ÏîÄ¿ºÏ×÷/½¨ÒéÇëÁªÏµ£ºcontact@example.com</span>
+    </footer>
+
+    <script src=\"js/app-shell.js\"></script>
+    <script src=\"js/echarts.min.js\"></script>
+    <script src=\"js/monitor.js\"></script>
 </body>
-<script src="js/jquery-2.1.1.min.js"></script>
-<script src="js/echarts.min.js"></script>
-<script src="js/china.js"></script>
-<script src="js/echarts.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-
+</html>

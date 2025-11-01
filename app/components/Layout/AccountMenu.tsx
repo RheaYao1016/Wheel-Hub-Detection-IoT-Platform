@@ -1,32 +1,139 @@
-"use client";
+﻿"use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-export default function AccountMenu(){
+import { useEffect, useRef, useState } from "react";
+
+type RoleState = "admin" | "user" | null;
+
+export default function AccountMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const username = typeof window!=='undefined'?localStorage.getItem('admin_user')??'管理员':'管理员';
-  const handleLogout = () =>{
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
-    router.replace('/login');
+  const [role, setRole] = useState<RoleState>(null);
+  const [displayName, setDisplayName] = useState("访客");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncRole = () => {
+      const stored = localStorage.getItem("role");
+      if (stored === "admin" || stored === "user") {
+        setRole(stored);
+      } else {
+        setRole(null);
+      }
+      const nameKey = stored === "admin" ? "admin_user" : stored === "user" ? "user_name" : undefined;
+      const fallback = stored === "admin" ? "管理员" : "访客";
+      setDisplayName(nameKey ? localStorage.getItem(nameKey) || fallback : "访客");
+    };
+    const handleRoleChange = (event: Event) => {
+      const detail = (event as CustomEvent<RoleState>).detail;
+      if (detail === "admin" || detail === "user" || detail === null) {
+        setRole(detail);
+        const nameKey = detail === "admin" ? "admin_user" : detail === "user" ? "user_name" : undefined;
+        const fallback = detail === "admin" ? "管理员" : "访客";
+        setDisplayName(nameKey ? localStorage.getItem(nameKey) || fallback : "访客");
+      } else {
+        syncRole();
+      }
+    };
+
+    syncRole();
+    window.addEventListener("storage", syncRole);
+    window.addEventListener("app:role-change", handleRoleChange as EventListener);
+    return () => {
+      window.removeEventListener("storage", syncRole);
+      window.removeEventListener("app:role-change", handleRoleChange as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, [open]);
+
+  const broadcastRole = (next: RoleState) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent<RoleState>("app:role-change", { detail: next }));
+    }
   };
-  const handleSwitch = ()=>{
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
-    router.replace('/login?switch=1'); //切换账号体验
+
+  const handleLogout = () => {
+    if (typeof window === "undefined") return;
+    localStorage.removeItem("role");
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("user_token");
+    setRole(null);
+    setOpen(false);
+    broadcastRole(null);
+    router.replace("/visualize");
   };
+
+  const handleSwitch = () => {
+    if (typeof window === "undefined") return;
+    localStorage.removeItem("role");
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("user_token");
+    setRole(null);
+    setOpen(false);
+    broadcastRole(null);
+    router.push("/login?switch=1");
+  };
+
+  const goLogin = () => {
+    setOpen(false);
+    router.push("/login");
+  };
+
+  const goRegister = () => {
+    setOpen(false);
+    router.push("/login?mode=reg");
+  };
+
+  const avatar = (displayName || "访客").charAt(0).toUpperCase();
+
   return (
-    <div className="relative">
-      <button className="flex items-center gap-2 focus:outline-none px-4 py-2 rounded-lg bg-blue-800/70 hover:bg-cyan-600/70 text-white" onClick={()=>setOpen(v=>!v)}>
-        <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-300 to-blue-400 flex items-center justify-center text-lg font-black shadow">{username.slice(0,1)}</span>
-        <span>{username}</span>
-        <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M5 8l5 5 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+    <div className="relative" ref={menuRef}>
+      <button
+        className="flex items-center gap-2 rounded-full border border-[rgba(91,189,247,0.25)] bg-[rgba(91,189,247,0.18)] px-4 py-2 text-sm font-semibold text-white shadow-sm backdrop-blur hover:border-[rgba(91,189,247,0.45)] md:px-5 md:py-2.5"
+        onClick={() => setOpen((prev) => !prev)}
+        type="button"
+      >
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-[#5bbdf7] to-[#51d3c3] text-base font-bold text-[#041629] shadow">
+          {avatar}
+        </span>
+        <span className="hidden text-sm md:inline">{displayName}</span>
+        <svg className={`h-4 w-4 transition-transform ${open ? "rotate-180" : "rotate-0"}`} viewBox="0 0 20 20" fill="none">
+          <path d="M5 7l5 6 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-36 rounded shadow-lg bg-white/95 text-blue-900 z-50 border border-cyan-100 divide-y divide-blue-50">
-          <div className="px-4 py-2">当前用户：<b>{username}</b></div>
-          <button className="w-full text-left px-4 py-2 hover:bg-cyan-100" onClick={handleSwitch}>切换账号</button>
-          <button className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-500" onClick={handleLogout}>退出登录</button>
+        <div className="absolute right-0 mt-3 w-44 rounded-2xl border border-[rgba(91,189,247,0.18)] bg-[#061324]/95 p-2 text-sm text-[var(--text-primary)] shadow-xl">
+          {role ? (
+            <>
+              <div className="px-3 py-2 text-xs text-[var(--text-secondary)]">当前身份：{role === "admin" ? "管理员" : "普通用户"}</div>
+              <button className="block w-full rounded-xl px-3 py-2 text-left hover:bg-[rgba(91,189,247,0.18)]" onClick={handleSwitch}>
+                切换账号
+              </button>
+              <button className="block w-full rounded-xl px-3 py-2 text-left text-[#ff6b81] hover:bg-[rgba(255,107,129,0.15)]" onClick={handleLogout}>
+                退出登录
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="block w-full rounded-xl px-3 py-2 text-left hover:bg-[rgba(91,189,247,0.18)]" onClick={goLogin}>
+                登录
+              </button>
+              <button className="block w-full rounded-xl px-3 py-2 text-left hover:bg-[rgba(91,189,247,0.18)]" onClick={goRegister}>
+                注册
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
