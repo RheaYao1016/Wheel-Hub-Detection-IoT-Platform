@@ -46,16 +46,61 @@
             </div>
         </section>
 
-        <section class=\"card workflow-card\">
-            <div class=\"card-header\">工作流程</div>
-            <ol class=\"workflow-list\">
-                <li>轮毂传送至检测工位，对中模块完成定位。</li>
-                <li>中心夹具升降并旋转，采集径向圆跳动与轴向尺寸。</li>
-                <li>侧面夹具伸出夹紧并翻转，捕获侧壁和孔位高精度图像。</li>
-                <li>视觉算法完成图像预处理、边缘提取与尺寸拟合，输出判定结果。</li>
-                <li>检测数据写入平台，触发告警或放行，并同步至仓储/ERP 系统。</li>
-            </ol>
+        <!-- FLOW_SECTION_START -->
+        <section class=\"card flow-wrap\" id=\"flowSection\">
+            <div class=\"flow-text\">
+                <h3>工作流程</h3>
+                <p>流程示意突出物理环节与数字映射，便于巡检和调度人员快速理解。</p>
+                <ol id=\"flowText\">
+                    <li>入站与对中：工件定位至检测位，夹具锁定。</li>
+                    <li>多面采集：同步测量关键尺寸与孔位。</li>
+                    <li>翻转检测：暴露不同检测面，补充特征。</li>
+                    <li>视觉判定：算法输出尺寸/公差/良率。</li>
+                    <li>数据联动：结果同步至仓储/ERP/看板。</li>
+                </ol>
+            </div>
+            <div class=\"flow-rail\">
+                <div class=\"flow-pills\" id=\"flowPills\" aria-live=\"polite\">
+                    <div class=\"flow-pill\" data-step=\"0\"><span>入站对中</span><small>夹具锁定</small></div>
+                    <div class=\"flow-connector\" style=\"width:40px\"></div>
+                    <div class=\"flow-pill\" data-step=\"1\"><span>多面采集</span><small>同步测量</small></div>
+                    <div class=\"flow-connector\" style=\"width:40px\"></div>
+                    <div class=\"flow-pill\" data-step=\"2\"><span>翻转检测</span><small>轮廓/孔位</small></div>
+                    <div class=\"flow-connector\" style=\"width:40px\"></div>
+                    <div class=\"flow-pill\" data-step=\"3\"><span>视觉判定</span><small>算法输出</small></div>
+                    <div class=\"flow-connector\" style=\"width:40px\"></div>
+                    <div class=\"flow-pill\" data-step=\"4\"><span>数据联动</span><small>ERP/仓储</small></div>
+                </div>
+            </div>
         </section>
+        <!-- FLOW_SECTION_END -->
+
+        <script>
+        (function(){
+          const pills=[...document.querySelectorAll('#flowPills .flow-pill')];
+          const textLis=[...document.querySelectorAll('#flowText li')];
+          if(!pills.length||!textLis.length){return;}
+          let cur=0,timer=null;
+          function render(i){
+            pills.forEach(p=>p.classList.toggle('active',+p.dataset.step===i));
+            textLis.forEach((li,idx)=>li.classList.toggle('active',idx===i));
+          }
+          window.setFlowStep=function(i){
+            cur=(i+pills.length)%pills.length;
+            render(cur);
+          };
+          function autoplay(){
+            if(timer){clearTimeout(timer);}
+            timer=setTimeout(()=>{
+              setFlowStep(cur+1);
+              autoplay();
+            },1800);
+          }
+          setFlowStep(0);
+          autoplay();
+        })();
+        </script>
+
     </main>
 
     <footer class=\"site-footer\">

@@ -57,7 +57,7 @@ export default function Navigation() {
     <nav className="flex flex-1 justify-center">
       <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
         {navItems.map((item) => {
-          const isActive = currentPath === item.href || (currentPath.startsWith(item.href) && item.href !== "/home");
+          const isActive = currentPath === item.href;
           return (
             <Link
               key={item.href}

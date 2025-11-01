@@ -1,0 +1,2 @@
+﻿inspection_id,project_id,hub_serial,station_id,camera_id,operator_id,cycle_start_time,cycle_end_time,cycle_time_ms,meas_diameter_mm,meas_pcd_mm,meas_width_mm,meas_concentricity_mm,meas_runout_mm,result,defect_code,image_path
+INSP-0001,WH-2025-001,HUBSN-000001,ST-01,CAM-A1,OP-1001,2025-11-01 09:10:21,2025-11-01 09:10:26,5100,566.3,114.28,215.1,0.12,0.11,PASS,,/data/images/WH-2025-001/HUBSN-000001_A1.png
