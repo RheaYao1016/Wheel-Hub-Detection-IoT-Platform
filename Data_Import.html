@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang=\"zh-CN\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>轮毂检测数字孪生平台 · 数据导入</title>
+    <link rel=\"stylesheet\" href=\"css/common.css\">
+    <link rel=\"stylesheet\" href=\"css/dataimport.css\">
+</head>
+<body class=\"page\">
+    <header class=\"topbar\">
+        <div class=\"brand\">
+            <span class=\"brand-circle\">W</span>
+            <span>轮毂检测数字孪生平台</span>
+        </div>
+        <nav id=\"topNav\" class=\"nav\"></nav>
+        <div id=\"accountMenu\"></div>
+    </header>
+
+    <main class=\"page-content\">
+        <div class=\"breadcrumb\">管理员后台 / 数据导入</div>
+
+        <section class=\"card upload-card\">
+            <div class=\"card-header\">上传 CSV</div>
+            <div class=\"upload-body\">
+                <label class=\"upload-dropzone\" for=\"importFile\">
+                    <input type=\"file\" id=\"importFile\" accept=\".csv\" hidden>
+                    <span>点击或拖拽 CSV 文件到此处</span>
+                    <small>文件编码 UTF-8，列头包含编号、尺寸、中心孔等字段。</small>
+                </label>
+                <button class=\"action-btn primary\" id=\"importSubmit\" disabled>导入</button>
+            </div>
+        </section>
+
+        <section class=\"card preview-card\">
+            <div class=\"card-header\">导入预览</div>
+            <div id=\"previewContainer\" class=\"preview-container\">暂无数据，请先上传文件。</div>
+        </section>
+    </main>
+
+    <footer class=\"site-footer\">
+        ? 2025 轮毂检测数字孪生平台 · All Rights Reserved.<span>项目合作/建议请联系：contact@example.com</span>
+    </footer>
+
+    <script src=\"js/app-shell.js\"></script>
+    <script src=\"js/data-import.js\"></script>
+</body>
+</html>

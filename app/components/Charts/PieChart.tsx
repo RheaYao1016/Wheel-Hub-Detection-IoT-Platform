@@ -1,83 +1,90 @@
-"use client";
-import React from 'react';
-import ReactECharts from 'echarts-for-react';
+﻿"use client";
+
+import ReactECharts from "echarts-for-react";
+
+interface PieSlice {
+  name: string;
+  value: number;
+}
 
 interface PieChartProps {
   title: string;
-  data: { name: string; value: number }[];
+  data: PieSlice[];
+  id?: string;
+  colors?: string[];
 }
 
-export default function PieChart({ title, data }: PieChartProps) {
-  const total = data.reduce((s, i) => s + (Number(i.value) || 0), 0);
-  const percent = (v: number) => (total ? Math.round((v / total) * 100) : 0);
-
+export default function PieChart({ title, data, id, colors }: PieChartProps) {
+  const total = data.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+  const palette = colors ?? ["#5bbdf7", "#51d3c3", "#9ad0f5", "#ffd166", "#a5bde8", "#f08fc0"];
   const option = {
-    backgroundColor: 'rgba(0,0,0,0)',
-    tooltip: { trigger: 'item', formatter: '{b}<br/>{c}（{d}%）' },
-    color: ['#5BBDF7', '#51D3C3', '#A5B4FC', '#FFD166', '#1EC997', '#FF9AA2'],
+    tooltip: {
+      trigger: "item",
+      formatter: "{b}<br/>{c}（{d}%）",
+      backgroundColor: "rgba(5, 23, 45, 0.85)",
+      borderWidth: 0,
+      textStyle: { color: "#e8f3ff" }
+    },
+    color: palette,
     legend: {
-      orient: 'vertical',
+      orient: "vertical",
       right: 0,
-      top: 'middle',
-      itemGap: 10,
+      top: "middle",
       itemWidth: 10,
       itemHeight: 10,
-      icon: 'circle',
-      textStyle: { color: '#e0e7ef', fontSize: 12 }
+      icon: "circle",
+      textStyle: { color: "#e8f3ff", fontSize: 12 }
     },
     series: [
       {
         name: title,
-        type: 'pie',
-        radius: ['60%', '78%'],
-        center: ['35%', '50%'],
+        type: "pie",
+        radius: ["58%", "78%"],
+        center: ["38%", "50%"],
         avoidLabelOverlap: true,
-        minAngle: 3,
         label: {
           show: true,
-          position: 'outside',
-          formatter: (p: any) => `${p.name} ${p.percent}%`,
-          color: '#e6edf6',
+          formatter: "{b} {d}%",
+          color: "#e8f3ff",
           fontSize: 12,
-          fontWeight: 600
+          fontWeight: 500
         },
         labelLine: { length: 12, length2: 10 },
-        itemStyle: { borderRadius: 8, borderColor: '#0f1f35', borderWidth: 2 },
-        emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,.4)' } },
+        itemStyle: { borderRadius: 8, borderColor: "#0a1b31", borderWidth: 2 },
         data
       },
-      // 中心读数
       {
-        name: '中心',
-        type: 'pie',
-        radius: ['0%', '52%'],
-        center: ['35%', '50%'],
+        name: "中心",
+        type: "pie",
+        radius: ["0%", "52%"],
+        center: ["38%", "50%"],
         silent: true,
         label: {
           show: true,
-          position: 'center',
+          position: "center",
           formatter: () => {
-            // 若有“合格/不合格”二分类，显示合格率；否则显示总量
-            const okItem = data.find(d => /合格/.test(d.name));
-            if (okItem) return `{val|${percent(okItem.value)}%}\n{sub|合格率}`;
-            return `{val|${total}}\n{sub|总量}`;
+            const qualified = data.find((item) => /合格/.test(item.name));
+            if (qualified && total) {
+              const percent = Math.round((qualified.value / total) * 100);
+              return `{value|${percent}%}\n{label|合格率}`;
+            }
+            return `{value|${total}}\n{label|总量}`;
           },
           rich: {
-            val: { fontSize: 20, fontWeight: 800, color: '#5BBDF7' },
-            sub: { fontSize: 12, color: '#a8c3de', padding: [4, 0, 0, 0] }
+            value: { fontSize: 20, fontWeight: 700, color: "#5bbdf7" },
+            label: { fontSize: 12, color: "rgba(232,243,255,0.75)", padding: [4, 0, 0, 0] }
           }
         },
-        itemStyle: { color: 'rgba(255,255,255,0.03)' },
+        itemStyle: { color: "rgba(255,255,255,0.03)" },
         data: [{ value: 1 }]
       }
     ],
     labelLayout: { hideOverlap: true }
-  } as any;
+  } as const;
 
   return (
-    <div className="w-full h-[240px] md:h-[260px]">
-      <ReactECharts option={option} style={{ height: '100%', width: '100%' }} />
+    <div className="w-full" id={id} style={{ height: 260 }}>
+      <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
     </div>
   );
 }
-

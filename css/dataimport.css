@@ -1,0 +1,113 @@
+.breadcrumb {
+    font-size: 14px;
+    color: rgba(166, 192, 220, 0.78);
+}
+
+.upload-card {
+    gap: 18px;
+}
+
+.upload-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.upload-dropzone {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 32px;
+    border: 1px dashed rgba(91, 189, 247, 0.5);
+    border-radius: 18px;
+    background: rgba(91, 189, 247, 0.06);
+    color: rgba(232, 243, 255, 0.86);
+    cursor: pointer;
+    flex: 1 1 360px;
+    text-align: center;
+}
+
+.upload-dropzone:hover {
+    background: rgba(91, 189, 247, 0.1);
+}
+
+.upload-dropzone span {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.upload-dropzone small {
+    font-size: 13px;
+    color: rgba(166, 192, 220, 0.8);
+}
+
+.action-btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    background: rgba(91, 189, 247, 0.1);
+    border: 1px solid rgba(91, 189, 247, 0.2);
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(232, 243, 255, 0.9);
+    transition: all 0.2s ease;
+}
+
+.action-btn.primary {
+    background: linear-gradient(135deg, #5bbdf7, #4f82f4);
+    color: #041629;
+    border-color: transparent;
+}
+
+.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.preview-card {
+    gap: 16px;
+}
+
+.preview-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(91, 189, 247, 0.12);
+    background: rgba(6, 19, 36, 0.82);
+    padding: 18px;
+    color: rgba(232, 243, 255, 0.86);
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.preview-table thead {
+    background: rgba(91, 189, 247, 0.12);
+}
+
+.preview-table th,
+.preview-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(91, 189, 247, 0.08);
+    text-align: left;
+}
+
+.preview-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+@media (max-width: 720px) {
+    .upload-body {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .action-btn {
+        width: 100%;
+        text-align: center;
+    }
+}

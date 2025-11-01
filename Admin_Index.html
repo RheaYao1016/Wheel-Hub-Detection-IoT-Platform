@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang=\"zh-CN\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>轮毂检测数字孪生平台 · 管理员后台</title>
+    <link rel=\"stylesheet\" href=\"css/common.css\">
+    <link rel=\"stylesheet\" href=\"css/admin.css\">
+</head>
+<body class=\"page\">
+    <header class=\"topbar\">
+        <div class=\"brand\">
+            <span class=\"brand-circle\">W</span>
+            <span>轮毂检测数字孪生平台</span>
+        </div>
+        <nav id=\"topNav\" class=\"nav\"></nav>
+        <div id=\"accountMenu\"></div>
+    </header>
+
+    <main class=\"page-content\">
+        <div class=\"breadcrumb\">管理员后台 / 数据概览</div>
+
+        <section class=\"grid-12 admin-stats\">
+            <div class=\"card col-span-3 stat-card\">
+                <span class=\"stat-label\">轮毂总数</span>
+                <span class=\"stat-value\">3100</span>
+                <span class=\"stat-desc\">库存累计</span>
+            </div>
+            <div class=\"card col-span-3 stat-card\">
+                <span class=\"stat-label\">今日检测量</span>
+                <span class=\"stat-value\">210</span>
+                <span class=\"stat-desc\">08:00 - 20:00</span>
+            </div>
+            <div class=\"card col-span-3 stat-card\">
+                <span class=\"stat-label\">本周入库</span>
+                <span class=\"stat-value\">392</span>
+                <span class=\"stat-desc\">含复检通过</span>
+            </div>
+            <div class=\"card col-span-3 stat-card\">
+                <span class=\"stat-label\">告警数</span>
+                <span class=\"stat-value warning\">3</span>
+                <span class=\"stat-desc\">待处理</span>
+            </div>
+        </section>
+
+        <section class=\"grid-12 admin-analytics\">
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">每日检测量趋势</div>
+                <div id=\"adminLine\" class=\"chart large\"></div>
+            </article>
+            <article class=\"card col-span-6 quality-card\">
+                <div class=\"card-header\">合格率占比 + 尺寸Top5</div>
+                <div class=\"quality-grid\">
+                    <div id=\"adminDonut\" class=\"chart donut\"></div>
+                    <div id=\"adminBar\" class=\"chart bar\"></div>
+                </div>
+            </article>
+        </section>
+
+        <section class=\"card admin-actions\">
+            <div class=\"card-header\">快速操作</div>
+            <div class=\"actions\">
+                <button class=\"action-btn primary\" onclick=\"location.href='Data_Import.html'\">数据同步</button>
+                <button class=\"action-btn\">批量导入</button>
+                <button class=\"action-btn danger\">风险告警</button>
+            </div>
+        </section>
+    </main>
+
+    <footer class=\"site-footer\">
+        ? 2025 轮毂检测数字孪生平台 · All Rights Reserved.<span>项目合作/建议请联系：contact@example.com</span>
+    </footer>
+
+    <script src=\"js/app-shell.js\"></script>
+    <script src=\"js/echarts.min.js\"></script>
+    <script src=\"js/admin.js\"></script>
+</body>
+</html>

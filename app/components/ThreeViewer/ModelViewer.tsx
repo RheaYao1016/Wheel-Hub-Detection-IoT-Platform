@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, Suspense } from "react";
 import * as THREE from "three";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export default function ModelViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -35,6 +39,8 @@ export default function ModelViewer() {
     );
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.BasicShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace as any;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -48,50 +54,36 @@ export default function ModelViewer() {
     scene.add(directionalLight);
 
     // 加载环境贴图
-    const loaderRGB = new THREE.RGBELoader();
+    const loaderRGB = new RGBELoader();
     loaderRGB.load("/models/20.hdr", (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping;
       scene.environment = texture;
     });
 
     // 加载GLB模型
-    import("three/examples/jsm/loaders/GLTFLoader.js").then((module) => {
-      const { GLTFLoader } = module;
-      import("three/examples/jsm/loaders/DRACOLoader.js").then(
-        (dracoModule) => {
-          const { DRACOLoader } = dracoModule;
-          const dracoLoader = new DRACOLoader();
-          dracoLoader.setDecoderPath("/draco/");
-
-          const loader = new GLTFLoader();
-          loader.setDRACOLoader(dracoLoader);
-          loader.load("/models/1.glb", (gltf) => {
-            scene.add(gltf.scene);
-          });
-        }
-      );
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("/draco/");
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
+    loader.load("/models/1.glb", (gltf) => {
+      scene.add(gltf.scene);
     });
 
     // 添加轨道控制器
-    import("three/examples/jsm/controls/OrbitControls.js").then(
-      (controlsModule) => {
-        const { OrbitControls } = controlsModule;
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.04;
-        controls.maxPolarAngle = Math.PI;
-        controls.update();
-        controlsRef.current = controls;
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.04;
+    controls.maxPolarAngle = Math.PI;
+    controls.update();
+    controlsRef.current = controls;
 
-        // 动画循环
-        const animate = () => {
-          requestAnimationFrame(animate);
-          controls.update();
-          renderer.render(scene, camera);
-        };
-        animate();
-      }
-    );
+    // 动画循环
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
 
     // 响应式调整
     const handleResize = () => {
