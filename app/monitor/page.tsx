@@ -81,7 +81,7 @@ export default function MonitorPage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
         <Card className="col-span-1 md:col-span-7">
-          <h2 className="mb-3 text-lg font-semibold text-white">昨日检测量趋势</h2>
+          <h2 className="mb-3 text-lg font-semibold text-white">上周检测趋势</h2>
           <div className="h-[320px]">
             <LineChart data={trendData} />
           </div>

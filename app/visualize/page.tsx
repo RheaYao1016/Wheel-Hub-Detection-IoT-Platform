@@ -16,10 +16,10 @@ type ProjectRecord = {
   type: string;
 };
 
-type TickerItem = {
+type ProjectItem = {
   id: string;
   stage: string;
-  flag: string;
+  result: "" | "PASS" | "FAIL";
 };
 
 const METRICS = [
@@ -38,20 +38,23 @@ const DONUT_DATA = [
 ];
 
 const TICKER_STAGES = ["入站", "采集", "翻转", "判定", "联动"];
-const TICKER_FLAGS = ["—", "—", "—", "—", "PASS", "FAIL"];
-const TICKER_SIZE = 20;
+const RESULT_PATTERN: Array<ProjectItem["result"]> = ["", "", "", "PASS", "", "FAIL"];
+const PROJECT_ROLL_INTERVAL = 2800;
+const PROJECT_WINDOW = 6;
+const DEFAULT_PROJECT_COUNT = 30;
 
 const LOG_MESSAGES = [
   "相机完成曝光与取像",
   "边缘检测完成，直径=566.3mm",
   "孔距 PCD=114.28mm 在容差内",
-  "同轴度 0.12mm，跳动 0.11mm",
   "判定 PASS，推送到看板",
-  "上传至 /api/result 成功"
+  "判定 FAIL，派发返修任务",
+  "上传统计报表到 /api/result",
+  "工位 ST-02 队列已清空，等待下一批任务"
 ];
 const LOG_APPEND_INTERVAL = 1200;
-const MAX_LOG_LINES = 200;
 const INITIAL_LOG_COUNT = 3;
+const MAX_LOG_LINES = 240;
 
 const buildLabels = () => {
   const labels: string[] = [];
@@ -68,52 +71,38 @@ const makeTrend = () => buildLabels().map((label) => ({ name: label, value: Math
 
 const pad = (value: number) => value.toString().padStart(2, "0");
 
-const formatTimestamp = (date: Date) =>
-  `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, "0")}`;
+const formatLogTimestamp = (date: Date) =>
+  `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+    date.getSeconds()
+  )}.${date.getMilliseconds().toString().padStart(3, "0")}`;
 
 const formatLogLine = (message: string, offsetMs = 0) => {
   const time = new Date(Date.now() - offsetMs);
-  return `[${formatTimestamp(time)}] ${message}`;
+  return `[${formatLogTimestamp(time)}] ${message}`;
 };
 
-const buildTickerSeed = (records: ProjectRecord[]): TickerItem[] => {
-  const fallback = Array.from({ length: TICKER_SIZE }).map((_, idx) => ({
-    id: `WH-2025-${String(idx + 1).padStart(3, "0")}`,
-    stage: TICKER_STAGES[idx % TICKER_STAGES.length],
-    flag: TICKER_FLAGS[idx % TICKER_FLAGS.length]
-  }));
+const buildProjectPool = (records: ProjectRecord[]): ProjectItem[] => {
+  const pool: ProjectItem[] = [];
+  const base = records.slice(0, DEFAULT_PROJECT_COUNT);
 
-  if (!records.length) {
-    return fallback;
-  }
-
-  const base = records.slice(0, TICKER_SIZE);
-  const items: TickerItem[] = base.map((record, idx) => ({
-    id: record.id ?? fallback[idx].id,
-    stage: TICKER_STAGES[idx % TICKER_STAGES.length],
-    flag: TICKER_FLAGS[idx % TICKER_FLAGS.length]
-  }));
-
-  while (items.length < TICKER_SIZE) {
-    const idx = items.length;
-    const record = base[idx % base.length];
-    items.push({
-      id: record?.id ?? fallback[idx].id,
-      stage: TICKER_STAGES[idx % TICKER_STAGES.length],
-      flag: TICKER_FLAGS[idx % TICKER_FLAGS.length]
+  const ensureLength = Math.max(DEFAULT_PROJECT_COUNT, base.length || DEFAULT_PROJECT_COUNT);
+  for (let i = 0; i < ensureLength; i += 1) {
+    const record = base[i % (base.length || 1)];
+    pool.push({
+      id: record?.id ?? `WH-2025-${String(1000 + i).padStart(4, "0")}`,
+      stage: TICKER_STAGES[i % TICKER_STAGES.length],
+      result: RESULT_PATTERN[i % RESULT_PATTERN.length]
     });
   }
-
-  return items;
+  return pool;
 };
 
 const records = staticRecords as ProjectRecord[];
 
 export default function VisualizePage() {
   const [trend, setTrend] = useState(makeTrend());
-  const [tickerItems, setTickerItems] = useState<TickerItem[]>(() => buildTickerSeed(records));
-  const tickerRef = useRef<HTMLDivElement>(null);
-  const tickerListRef = useRef<HTMLUListElement>(null);
+  const [projects, setProjects] = useState<ProjectItem[]>(() => buildProjectPool(records));
+  const [windowIndex, setWindowIndex] = useState(0);
 
   const initialLogs = useMemo(
     () =>
@@ -125,6 +114,11 @@ export default function VisualizePage() {
   const [logs, setLogs] = useState<string[]>(initialLogs);
   const logBoxRef = useRef<HTMLDivElement>(null);
   const logCursorRef = useRef(initialLogs.length);
+
+  useEffect(() => {
+    setProjects(buildProjectPool(records));
+    setWindowIndex(0);
+  }, []);
 
   useEffect(() => {
     const labels = buildLabels();
@@ -140,38 +134,14 @@ export default function VisualizePage() {
   }, []);
 
   useEffect(() => {
-    if (!tickerItems.length) {
+    if (!projects.length) {
       return;
     }
-    let offset = 0;
-    let frameId = 0;
-
-    const step = () => {
-      const container = tickerRef.current;
-      const list = tickerListRef.current;
-      if (!container || !list || !list.firstElementChild) {
-        frameId = window.requestAnimationFrame(step);
-        return;
-      }
-      const rowHeight = (list.firstElementChild as HTMLElement).offsetHeight || 34;
-      offset += 0.7;
-      if (offset >= rowHeight) {
-        offset = 0;
-        container.scrollTop = 0;
-        setTickerItems((prev) => {
-          if (prev.length <= 1) return prev;
-          const [first, ...rest] = prev;
-          return [...rest, first];
-        });
-      } else {
-        container.scrollTop = offset;
-      }
-      frameId = window.requestAnimationFrame(step);
-    };
-
-    frameId = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [tickerItems.length]);
+    const timer = window.setInterval(() => {
+      setWindowIndex((prev) => (prev + 1) % projects.length);
+    }, PROJECT_ROLL_INTERVAL);
+    return () => window.clearInterval(timer);
+  }, [projects.length]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -200,26 +170,35 @@ export default function VisualizePage() {
         if (!response.ok) return;
         const payload = await response.json();
         if (Array.isArray(payload.projects)) {
-          setTickerItems(buildTickerSeed(payload.projects));
+          setProjects(buildProjectPool(payload.projects));
+          setWindowIndex(0);
         }
         if (Array.isArray(payload.logs)) {
           setLogs((prev) => {
-            const appended = payload.logs.map((msg: string) => `[${formatTimestamp(new Date())}] ${msg}`);
+            const appended = payload.logs.map((msg: string) => `[${formatLogTimestamp(new Date())}] ${msg}`);
             const combined = [...prev, ...appended];
             return combined.length > MAX_LOG_LINES ? combined.slice(combined.length - MAX_LOG_LINES) : combined;
           });
         }
-        if (typeof payload.step === "number" && typeof window !== "undefined" && typeof (window as any).setFlowStep === "function") {
-          (window as any).setFlowStep(payload.step);
+        if (typeof payload.step === "number" && typeof window !== "undefined" && typeof (window as any).setCurrentStep === "function") {
+          (window as any).setCurrentStep(payload.step);
         }
       } catch (error) {
         console.warn("live feed unavailable", error);
       }
     };
-    const liveTimer = window.setInterval(refreshLive, 2000);
+    const liveTimer = window.setInterval(refreshLive, 2500);
     return () => window.clearInterval(liveTimer);
   }, []);
   */
+
+  const visibleProjects = useMemo(() => {
+    if (!projects.length) {
+      return [];
+    }
+    const length = Math.min(PROJECT_WINDOW, projects.length);
+    return Array.from({ length }, (_, idx) => projects[(windowIndex + idx) % projects.length]);
+  }, [projects, windowIndex]);
 
   return (
     <div className="page-shell pt-0 pb-10">
@@ -267,36 +246,36 @@ export default function VisualizePage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 md:col-span-6">
-          <h2 className="mb-4 text-lg font-semibold text-white">实时项目</h2>
-          <div
-            ref={tickerRef}
-            className="max-h-[220px] overflow-hidden rounded-xl border border-[rgba(91,189,247,0.14)] bg-[rgba(11,29,53,0.7)]"
-          >
-            <ul ref={tickerListRef} className="divide-y divide-[rgba(255,255,255,0.06)] text-sm text-[rgba(232,243,255,0.88)]">
-              {tickerItems.map((item, index) => (
-                <li key={`${item.id}-${index}`} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="font-mono text-white">{item.id}</span>
-                  <span>{item.stage}</span>
-                  <span className="ml-auto text-xs text-[var(--text-secondary)]">{item.flag}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Card>
-        <Card className="col-span-1 md:col-span-6">
-          <h2 className="mb-4 text-lg font-semibold text-white">日志预览</h2>
-          <div
-            ref={logBoxRef}
-            className="h-[260px] overflow-y-auto rounded-xl border border-[rgba(91,189,247,0.14)] bg-[rgba(255,255,255,0.04)] p-3 font-mono text-xs leading-[1.6] text-[rgba(232,243,255,0.88)]"
-          >
+      <Card className="live-card">
+        <div className="live-column">
+          <h3>实时项目</h3>
+          <ul className="live-list">
+            {visibleProjects.map((item) => (
+              <li key={`${item.id}-${item.stage}`}>
+                <span className="live-id">
+                  <span className="font-mono">{item.id}</span>
+                  <span className="live-stage">{item.stage}</span>
+                </span>
+                <span className="live-result">
+                  {item.result ? (
+                    <span className={`badge ${item.result === "PASS" ? "pass" : "fail"}`}>{item.result}</span>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="live-column">
+          <h3>日志预览</h3>
+          <div ref={logBoxRef} className="logbox">
             {logs.map((line, index) => (
               <div key={`${line}-${index}`}>{line}</div>
             ))}
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 }
