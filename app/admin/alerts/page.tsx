@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Card from "../../components/Layout/Card";
 import { useAdminGuard } from "../hooks/useAdminGuard";
+import BackButton from "../../components/Layout/BackButton";
+import ExportButton from "@/app/components/Controls/ExportButton";
+import { buildExportFilename, exportToCsv } from "@/app/utils/export";
 
 type AlertLevel = "高" | "中" | "低";
 
@@ -33,7 +35,6 @@ const SAMPLE_ALERTS: AlertRecord[] = [
 ];
 
 export default function AlertsPage() {
-  const router = useRouter();
   const ready = useAdminGuard();
   const [records, setRecords] = useState<AlertRecord[]>(SAMPLE_ALERTS);
   const [levelFilter, setLevelFilter] = useState<"ALL" | AlertLevel>("ALL");
@@ -80,6 +81,21 @@ export default function AlertsPage() {
     }
   };
 
+  const handleExport = useCallback(() => {
+    if (!filteredRecords.length) {
+      showToast("没有可导出的记录", "error");
+      return;
+    }
+    const header = ["告警编号", "时间", "工位", "级别", "描述", "状态"];
+    const rows = filteredRecords.map((alert) => [alert.id, alert.timestamp, alert.station, alert.level, alert.description, alert.status]);
+    exportToCsv({
+      filename: buildExportFilename("alerts"),
+      header,
+      rows
+    });
+    showToast(`已导出 ${filteredRecords.length} 条告警`, "success");
+  }, [filteredRecords, showToast]);
+
   if (!ready) {
     return null;
   }
@@ -88,14 +104,8 @@ export default function AlertsPage() {
 
   return (
     <div className="page-shell pt-0 pb-10 space-y-6">
+      <BackButton fallbackHref="/admin" />
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          className="w-fit rounded-xl border border-[rgba(91,189,247,0.3)] bg-[rgba(20,52,85,0.7)] px-4 py-1.5 text-sm text-[rgba(232,243,255,0.9)] transition hover:border-[rgba(91,189,247,0.6)] hover:text-white"
-          onClick={() => router.push("/admin")}
-        >
-          ← 返回
-        </button>
         <span className="text-xs text-[var(--text-secondary)]">管理员后台 / 风险告警</span>
         <h1 className="text-2xl font-semibold text-white md:text-3xl">风险告警列表</h1>
         <p className="text-sm text-[var(--text-secondary)]">查看实时告警并派发到具体工位</p>
@@ -113,19 +123,20 @@ export default function AlertsPage() {
         <Card className="flex items-center justify-between gap-3">
           <div>
             <span className="text-sm text-[var(--text-secondary)]">快捷操作</span>
-            <p className="text-xs text-[rgba(232,243,255,0.8)]">将列表导出或派发工位负责人</p>
+            <p className="text-xs text-[rgba(232,243,255,0.8)]">使用列表右上角工具快速导出或派发工位。</p>
           </div>
-          <button
-            type="button"
-            className="rounded-full border border-[rgba(91,189,247,0.3)] px-4 py-2 text-xs text-white transition hover:border-[rgba(91,189,247,0.5)]"
-            onClick={() => showToast("已导出 CSV（示例）", "success")}
-          >
-            导出
-          </button>
+          <span className="text-[10px] uppercase tracking-[0.2em] text-[rgba(232,243,255,0.6)]">tools</span>
         </Card>
       </div>
 
       <Card>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">告警记录</h2>
+            <p className="text-xs text-[var(--text-secondary)]">当前筛选：{filteredRecords.length} 条</p>
+          </div>
+          <ExportButton onClick={handleExport} disabled={!filteredRecords.length} />
+        </div>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <span className="text-sm font-semibold text-white">筛选</span>
           <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">

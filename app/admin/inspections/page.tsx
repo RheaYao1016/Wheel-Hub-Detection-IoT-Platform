@@ -3,6 +3,9 @@
 import { useMemo } from "react";
 import Card from "../../components/Layout/Card";
 import { useAdminGuard } from "../hooks/useAdminGuard";
+import BackButton from "../../components/Layout/BackButton";
+import ExportButton from "@/app/components/Controls/ExportButton";
+import { buildExportFilename, exportToCsv } from "@/app/utils/export";
 
 type InspectionRecord = {
   id: string;
@@ -25,12 +28,22 @@ export default function InspectionListPage() {
   const ready = useAdminGuard();
   const records = useMemo(() => SAMPLE_INSPECTIONS, []);
 
+  const handleExport = () => {
+    if (!records.length) return;
+    exportToCsv({
+      filename: buildExportFilename("inspections"),
+      header: ["记录编号", "轮毂编号", "结果", "工位", "操作员", "完成时间"],
+      rows: records.map((item) => [item.id, item.wheelId, item.result, item.station, item.operator, item.finishedAt])
+    });
+  };
+
   if (!ready) {
     return null;
   }
 
   return (
     <div className="page-shell pt-0 pb-10 space-y-6">
+      <BackButton fallbackHref="/admin" />
       <div className="flex flex-col gap-2">
         <span className="text-xs text-[var(--text-secondary)]">管理员后台 / 检测记录</span>
         <h1 className="text-2xl font-semibold text-white md:text-3xl">检测记录明细</h1>
@@ -38,6 +51,10 @@ export default function InspectionListPage() {
       </div>
 
       <Card>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-white">检测记录</h2>
+          <ExportButton onClick={handleExport} disabled={!records.length} />
+        </div>
         <div className="overflow-auto">
           <table className="min-w-full border-collapse text-sm text-[rgba(232,243,255,0.9)]">
             <thead>
