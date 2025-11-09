@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import Card from "../components/Layout/Card";
 import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
+import BackButton from "../components/Layout/BackButton";
 
 const SIZE_DONUT = [
   { name: "15寸", value: 12 },
@@ -60,7 +61,8 @@ export default function MonitorPage() {
   };
 
   return (
-    <div className="page-shell pt-0 pb-10">
+    <div className="page-shell pt-0 pb-10 space-y-6">
+      <BackButton fallbackHref="/visualize" />
       <Card>
         <h1 className="mb-4 text-lg font-semibold text-white md:text-xl">摄像头接入（四路）</h1>
         <div className="grid gap-4 md:grid-cols-2">

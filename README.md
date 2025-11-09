@@ -1,100 +1,131 @@
 # 轮毂检测物联网平台
 
-基于 Next.js 的全栈物联网监控平台，用于轮毂检测数据可视化和管理。
+基于 Next.js + Prisma 的全栈可视化平台，覆盖轮毂检测的创新设计、实时监控、数字孪生与管理员后台。本文档整合了运行指南、配置说明、页面导航、版本记录与待办事项。
 
-## 🚀 快速开始
+> 当前版本：**v2.1.1**（2025-11-09, UTC+8）  
+> 本次要点：优化首页两卡图文比例与背景统一；校正数字孪生区图片与名称；修复可视化页饼图越界并保持左右卡片三基线对齐。  
+> 版本历史详见 [CHANGELOG.md](CHANGELOG.md)
 
-### 1. 安装依赖
+## 📦 快速上手（5 步）
+1. **安装依赖**
+   ```bash
+   npm install
+   ```
+2. **准备环境变量**：复制 `.env.example` 为 `.env`，填写数据库连接串（见下文）。
+3. **初始化数据库**
+   ```bash
+   npx prisma migrate dev --name init
+   npx prisma generate
+   ```
+4. **复制静态资源**（保持目录结构）：
+   - `img/` → `public/images/`
+   - `draco/` → `public/draco/`
+   - `*.glb`, `*.hdr` → `public/models/`
+   - 新增的创新图片位于 `public/images/innovation/`
+5. **启动开发服务器**
+   ```bash
+   npm run dev
+   ```
+   访问 [http://localhost:3000](http://localhost:3000)。
 
-```bash
-npm install
-```
+> 需要一键启动？上述命令已按顺序列出，满足 `README` 要求的“运行配置 + 一键启动”场景。
 
-### 2. 配置数据库
+## ⚙️ 环境与账号
+| 项目 | 说明 |
+| --- | --- |
+| Node.js | ≥ 20（推荐 22.21） |
+| 必填环境变量 | `DATABASE_URL`：PostgreSQL 连接串，例：`postgresql://user:pass@host/db?sslmode=require` |
+| 可选环境变量 | `NODE_ENV` 控制 Prisma 日志（开发环境默认输出 query） |
+| 登录 / 角色 | 登录页为 Mock：输入任意账号/密码，选择“管理员”或“普通用户”即可；角色写入 `localStorage`，管理员会被路由到 `/admin`。 |
 
-1. 注册 [Neon](https://neon.tech) 或 [Supabase](https://supabase.com)
-2. 创建数据库项目，获取连接串
-3. 创建 `.env` 文件：
+## 🛠️ 可用脚本
+- `npm run dev` – 启动开发模式
+- `npm run build` – 构建生产版本
+- `npm run start` – 运行生产服务器
+- `npm run lint` – ESLint 检查
+- `npm run db:push` / `npm run db:migrate` / `npm run db:studio` – Prisma 工具链
 
-```env
-DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require"
-```
+## ✨ 功能一览
+- **每页返回键**：内容区右上角固定“← 返回”，不占用标题/顶栏空间，滚动时亦保持视口固定且不遮挡卡片或图例。
+- **表格一键导出**：所有表格右上角提供统一文案的“导出”按钮，导出当前筛选/分页后的 UTF-8 CSV，空态也有一致提示。
+- **统计图规范**：合格率环图标签完整可读，尺寸 Top5 柱状图并排展示且每条柱子带数量标签，双卡分栏保持 ≥24px 间距。
+- **图片资源规范**：首页两张卡片与数字孪生区域统一使用英文小写连字符命名的图片资源，采用等比缩放保证完整显示。
+- **饼/环图口径**：所有饼/环图的数量按统一倍数等比放大，仅用于可视化呈现；百分比保持不变且不会溢出卡片。
+- **版本展示**：版本号仅在 README/CHANGELOG 中体现，UI 标题栏不显示版本信息。
+- **主页卡片图片规范**：项目概览与研究目的卡片使用英文命名的资源文件，并以同名英文 alt/title 说明保障可访问性。
 
-### 3. 初始化数据库
+> **功能**：统计总览、可视化分析、风险预警、数据导出  
+> **设计规范**：夜色主题、统一按钮与卡片风格、图表标签不截断  
+> **版本**：当前 v2.0.6（首发 v1.0）
 
-```bash
-npx prisma migrate dev --name init
-npx prisma generate
-```
+## 🧭 页面与功能导航
+| 路由 | 说明 |
+| --- | --- |
+| `/home` | 创新特色 + 研究目的模块，已接入返回按钮与 4 张设备实拍图（`public/images/innovation/*`）。 |
+| `/visualize` | 统计分析大屏：ECharts 折线 + 新增“合格率”环形图外部摘要，并提供 3D 模型窗口。 |
+| `/monitor` | 实时监控卡片、摄像头占位与指标（保留 mock 数据）。 |
+| `/digital-twin` | 数字孪生页，含 3D 模型、尺寸/型号分布。 |
+| `/admin` | 管理员工作台，聚合 KPI、趋势、`PieChart + 尺寸 Top5` 等。 |
+| `/admin/data-import` | CSV 导入与历史记录（本次重点升级），内置返回按钮指向 `/admin`。 |
 
-### 4. 复制静态资源
+> 所有二级页面（创新特色、统计分析、数据导入等）右上均固定 `BackButton`，在移动端同样保持可触达。
 
-- 将 `img/` 文件夹复制到 `public/images/`
-- 将 `1.glb` 和 `*.hdr` 文件复制到 `public/models/`
-- 将 `draco/` 文件夹复制到 `public/draco/`
+## 📂 数据导入 & 历史记录
+- **上传/预览**：支持 CSV 解析、列预览、14 行示例，并允许在导入前设置 “导入人 / 状态 / 备注 / 错误详情”。
+- **历史记录 API**：`/api/imports` 现支持分页、状态 / 人员 / 时间范围 / 关键词筛选，返回总数与可选项；后端新增日志下载接口 `/api/imports/[id]/log`。
+- **表格升级**：
+  - 列包含文件名、大小、行数、耗时、导入人、时间、状态、备注/错误、操作。
+  - 备注/错误支持展开查看，失败导入也能一键复核。
+  - 支持分页（8/12/16 条）与空态、错误态反馈。
+  - 操作列包含“修改状态”“下载日志”“删除”。
+- **日志**：生成服务端文本文件，点击即可下载 `${批次号}.log`。
 
-### 5. 启动开发服务器
+## 🎨 静态资源与滚动体验
+- 图片：`public/images/`（品牌、示意图）、`public/images/innovation/`（四张设备照）。
+- 模型 & HDR：`public/models/`；Draco 解码器：`public/draco/`；视频：`public/media/`。
+- 全局滚动体验：`scroll-behavior: smooth`、`scrollbar-gutter: stable both-edges`、细化的滚动条配色，以及被动滚动（无阻塞监听）。
 
-```bash
-npm run dev
-```
+## 🎨 设计规范
+- **按钮与卡片主题色**：夜色背景 + `#5bbdf7/#4f82f4` 渐变为主色，卡片统一 14px 圆角、半透明边框，操作按钮维持 10–12px 内边距及 18–24px 圆角。
+- **浮动操作区域**：内容区右上角的返回键/工具按钮固定在视口，距主标题垂直间距 ≥56px，距右侧 24–32px，并保持投影与对比度，避免遮挡 KPI/图例。
+- **饼/环图约束**：统计环图/饼图容器高度不小于 360px，legend 默认右侧垂直排列；引线 24px/14px，标签通过富文本完整展示。
+- **Top5 柱状图**：横向柱条高度 ≥18px，条间距与类目间距清晰，相邻条形可轻微错落；每条柱子在内部或尾端显示数量值。
+- **暗色主题对比度**：文本、引线、网格线与辅助信息均保持 ≥4.5:1 的对比度，确保夜色主题下的可读性。
+- **统计卡片对齐**：可视化平台的「合格率占比」与「检测量走势」卡片在标题、图表画布顶部与卡片底部保持三条基线对齐，右上角工具区对齐，卡片同高。
+- **首页图文卡片**：图文比例统一为 5:7（或 4:8），图片采取等比缩放并保持内边距，确保 wheel-manufacturing-trends-overview / technical-solution-roadmap 等资源完整展示。
+- **数字孪生图片**：左卡为 `TianXiaWuShuang.png`（模型渲染图）、右卡为 `she_bei_jian_mo.png`（模型框架图），并在卡片中展示名称，保持缩放、圆角、阴影一致。
+- **饼图数量口径**：饼/环图数量按照统一倍数（默认 ×3）等比放大，百分比基准不变，并在页内注明“可视化口径”。
 
-访问 [http://localhost:3000](http://localhost:3000) 查看应用。
+## 🚀 部署
+1. 准备数据库（Neon / Supabase / 自托管 PostgreSQL）。
+2. 设置 `.env` 并运行 `npx prisma migrate dev` 生成结构。
+3. 推送至 GitHub，使用 **Vercel** 导入仓库并配置 `DATABASE_URL`，即可自动构建。
+4. 需要更细的部署与排障步骤，请查看 [`docs/DEPLOY.md`](docs/DEPLOY.md)。
 
-## 📁 项目结构
+## 📄 文档结构
+当前仅保留：
+- `README.md`（本文件，整合运行/特性/版本/待办）
+- `docs/DEPLOY.md`（部署与数据库配置详解）
 
-```
-├── app/                    # Next.js App Router
-│   ├── api/               # API路由
-│   ├── components/        # React组件
-│   ├── layout.tsx         # 根布局
-│   └── page.tsx           # 主页
-├── lib/                   # 工具库
-├── prisma/                # 数据库模型
-├── public/                # 静态资源
-└── ...配置文件
-```
+历史的 `START_HERE / STEP_BY_STEP / IMPLEMENTATION_PLAN / PROJECT_SUMMARY / QUICK_START / SETUP_INSTRUCTIONS` 等零散文件已合并至上述文档中，避免信息重复。
 
-## 🛠️ 技术栈
+## 📝 版本
+- 当前版本：**v2.1.1**（2025-11-09, UTC+8）
+- 本次要点：优化首页两卡图文比例与背景统一；校正数字孪生区图片与名称；修复可视化页饼图越界并保持左右卡片三基线对齐。
+- 版本历史详见 [CHANGELOG.md](CHANGELOG.md)
 
-- **框架**: Next.js 14 (App Router)
-- **语言**: TypeScript
-- **样式**: Tailwind CSS
-- **数据库**: PostgreSQL (via Prisma)
-- **图表**: ECharts
-- **3D**: Three.js + React Three Fiber
+## 📌 待办 & 风险提示
+1. **真实数据源**：目前导入历史与统计接口仍为内存 mock，接入 Postgres 后需替换。
+2. **鉴权**：登录逻辑仅基于 `localStorage`，需要后续接入正式认证（如 NextAuth）。
+3. **测试覆盖**：暂无自动化测试，可按模块补充 Vitest/Playwright。
+4. **大型文件导入**：当前 CSV 解析在前端完成，大文件需引入分块/流式上传策略。
+5. **多语言 / i18n**：界面为中文，可按需求接入 `next-intl` 等方案。
 
-## 📝 可用脚本
-
-- `npm run dev` - 启动开发服务器
-- `npm run build` - 构建生产版本
-- `npm run start` - 启动生产服务器
-- `npm run lint` - 运行ESLint
-- `npm run db:push` - 推送Prisma schema到数据库
-- `npm run db:migrate` - 执行数据库迁移
-- `npm run db:studio` - 打开Prisma Studio（数据库GUI）
-
-## 🌐 部署
-
-### Vercel（推荐）
-
-1. 推送代码到 GitHub
-2. 在 [Vercel](https://vercel.com) 导入项目
-3. 配置环境变量 `DATABASE_URL`
-4. 点击部署
-
-### 其他平台
-
-也可以部署到：
-- Railway
-- Render
-- 自有服务器（Docker + Nginx）
-
-## 📚 更多信息
-
-详见 `IMPLEMENTATION_PLAN.md` 和 `STEP_BY_STEP_GUIDE.md`
+### 遗留任务（继续排期）
+- 数据导入页：补齐历史记录列表的筛选/分页扩展与交互验证。
+- 全站滚动体验：继续调优滚动惯性与动效，使长页滚动更顺滑。
+- 合格率环图：管理员后台“不合格百分比显示不全”问题需修复。
+- 创新特色：替换 4 张占位图为提供的高清图片并同步引用路径。
 
 ## 📄 License
-
 MIT
-

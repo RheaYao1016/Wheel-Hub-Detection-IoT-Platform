@@ -6,6 +6,7 @@ import Card from "../components/Layout/Card";
 import LineChart from "../components/Charts/LineChart";
 import PieChart from "../components/Charts/PieChart";
 import ReactECharts from "echarts-for-react";
+import BackButton from "../components/Layout/BackButton";
 
 type KpiMetric = {
   label: string;
@@ -39,18 +40,58 @@ const BAR_DATA = {
   values: [320, 280, 240, 190, 160]
 };
 
+const BAR_SERIES_DATA = BAR_DATA.categories.map((category, index) => ({
+  name: category,
+  value: BAR_DATA.values[index],
+  itemStyle: {
+    borderRadius: index % 2 === 0 ? [0, 16, 16, 0] : [0, 10, 10, 0],
+    shadowColor: "rgba(91,189,247,0.35)",
+    shadowBlur: index % 2 === 0 ? 16 : 10,
+    shadowOffsetY: index % 2 === 0 ? 0 : 4
+  }
+}));
+
 const BAR_CHART_OPTION = {
-  grid: { left: 60, right: 24, top: 20, bottom: 40 },
-  tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-  xAxis: { type: "value", splitLine: { show: false }, axisLabel: { color: "rgba(166,192,220,0.86)" } },
-  yAxis: { type: "category", data: BAR_DATA.categories, axisLabel: { color: "#e8f3ff" } },
+  grid: { left: 90, right: 40, top: 20, bottom: 24 },
+  tooltip: {
+    trigger: "item",
+    formatter: ({ name, value }: { name: string; value: number }) => `${name}<br/>数量：${value} 件`,
+    backgroundColor: "rgba(5, 23, 45, 0.9)",
+    borderWidth: 0,
+    textStyle: { color: "#e8f3ff" }
+  },
+  xAxis: {
+    type: "value",
+    splitLine: { show: true, lineStyle: { color: "rgba(91,189,247,0.15)", type: "dashed" } },
+    axisLabel: { color: "rgba(166,192,220,0.86)" },
+    axisLine: { show: false },
+    axisTick: { show: false }
+  },
+  yAxis: {
+    type: "category",
+    data: BAR_DATA.categories,
+    axisLabel: { color: "#e8f3ff", fontWeight: 600 },
+    axisTick: { show: false },
+    axisLine: { show: false }
+  },
   series: [
     {
       type: "bar",
-      data: BAR_DATA.values,
+      data: BAR_SERIES_DATA,
       barWidth: 18,
+      barCategoryGap: "40%",
+      showBackground: true,
+      backgroundStyle: { color: "rgba(91,189,247,0.08)", borderRadius: [0, 12, 12, 0] },
+      label: {
+        show: true,
+        position: "right",
+        formatter: ({ value }: { value: number }) => `${value} 件`,
+        color: "#ffffff",
+        fontSize: 12,
+        fontWeight: 600,
+        padding: [0, 0, 0, 6]
+      },
       itemStyle: {
-        borderRadius: [0, 12, 12, 0],
         color: {
           type: "linear",
           x: 0,
@@ -137,6 +178,7 @@ export default function AdminDashboard() {
 
   return (
     <>
+      <BackButton fallbackHref="/home" />
       <AdminHome trend={trend} onNavigate={handleNavigate} onSync={handleSync} />
       {toast && (
         <div
@@ -181,19 +223,34 @@ function AdminHome({ trend, onNavigate, onSync }: AdminHomeProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 md:col-span-7">
+        <Card className="col-span-1 md:col-span-12">
           <h2 className="mb-3 text-lg font-semibold text-white">每日检测量趋势</h2>
           <div className="h-[320px]">
             <LineChart data={trend} />
           </div>
         </Card>
-        <Card className="col-span-1 space-y-4 md:col-span-5">
-          <h2 className="text-lg font-semibold text-white">合格率占比 + 尺寸 Top5</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <PieChart title="合格率" data={DONUT_DATA} />
-            <div className="h-[260px]">
-              <ReactECharts style={{ height: "100%" }} option={BAR_CHART_OPTION} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+        <Card className="col-span-1 md:col-span-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">合格率占比</h2>
+              <p className="text-xs text-[var(--text-secondary)]">环图容器 ≥360px，标签完整展示</p>
             </div>
+          </div>
+          <PieChart title="合格率" data={DONUT_DATA} />
+        </Card>
+        <Card className="col-span-1 md:col-span-7">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">尺寸 Top5</h2>
+              <p className="text-xs text-[var(--text-secondary)]">按数量排序，尾端标注数量</p>
+            </div>
+            <span className="text-[11px] uppercase tracking-[0.2em] text-[rgba(232,243,255,0.6)]">Top 5</span>
+          </div>
+          <div className="mt-4 h-[360px]">
+            <ReactECharts style={{ height: "100%", width: "100%" }} option={BAR_CHART_OPTION} />
           </div>
         </Card>
       </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Layout/Card";
 import ModelViewer from "../components/ThreeViewer/ModelViewer";
+import BackButton from "../components/Layout/BackButton";
 
 type FlowStep = {
   title: string;
@@ -19,10 +20,17 @@ const FLOW_STEPS: FlowStep[] = [
 
 export default function DigitalTwinPage() {
   return (
-    <div className="page-shell pt-0 pb-10">
+    <div className="page-shell pt-0 pb-10 space-y-6">
+      <BackButton fallbackHref="/visualize" />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 flex items-center justify-center md:col-span-3">
-          <img src="/images/TianXiaWuShuang.png" alt="设备左侧结构示意" className="h-full w-full max-h-[360px] rounded-2xl object-contain" />
+        <Card className="col-span-1 flex flex-col gap-4 md:col-span-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">模型渲染图</h2>
+            <span className="text-xs text-[var(--text-secondary)]">整机视角</span>
+          </div>
+          <div className="twin-visual">
+            <img src="/images/TianXiaWuShuang.png" alt="模型渲染图" title="TianXiaWuShuang" />
+          </div>
         </Card>
         <Card className="col-span-1 md:col-span-6">
           <div className="mb-4 flex items-center justify-between">
@@ -33,8 +41,14 @@ export default function DigitalTwinPage() {
             <ModelViewer />
           </div>
         </Card>
-        <Card className="col-span-1 flex items-center justify-center md:col-span-3">
-          <img src="/images/she_bei_jian_mo.png" alt="设备右侧结构示意" className="h-full w-full max-h-[360px] rounded-2xl object-contain" />
+        <Card className="col-span-1 flex flex-col gap-4 md:col-span-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">模型框架图</h2>
+            <span className="text-xs text-[var(--text-secondary)]">结构骨架</span>
+          </div>
+          <div className="twin-visual">
+            <img src="/images/she_bei_jian_mo.png" alt="模型框架图" title="she_bei_jian_mo" />
+          </div>
         </Card>
       </div>
 

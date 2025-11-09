@@ -1,6 +1,6 @@
 {
   "name": "wheel-detection-platform",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "轮毂检测物联网平台 - Next.js全栈应用",
   "private": true,
   "scripts": {

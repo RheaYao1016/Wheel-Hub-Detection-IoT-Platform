@@ -5,6 +5,7 @@ import Card from "../components/Layout/Card";
 import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
 import ModelViewer from "../components/ThreeViewer/ModelViewer";
+import BackButton from "../components/Layout/BackButton";
 import staticRecords from "../../data.json" assert { type: "json" };
 
 type ProjectRecord = {
@@ -201,7 +202,15 @@ export default function VisualizePage() {
   }, [projects, windowIndex]);
 
   return (
-    <div className="page-shell pt-0 pb-10">
+    <div className="page-shell pt-0 pb-10 space-y-6">
+      <BackButton fallbackHref="/home" />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-[var(--text-secondary)]">可视化平台 / 统计分析</span>
+          <h1 className="text-2xl font-semibold text-white md:text-3xl">统计分析总览</h1>
+        </div>
+        <p className="text-sm text-[var(--text-secondary)]">多维掌握轮毂检测实时指标、趋势曲线与 3D 模型，辅助快速调度。</p>
+      </div>
       <Card className="p-5 md:p-6">
         <div className="flex flex-col gap-5">
           <div className="flex items-center justify-between">
@@ -215,8 +224,12 @@ export default function VisualizePage() {
       </Card>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 md:col-span-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Card className="col-span-1 md:col-span-12">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white">关键指标</h2>
+            <span className="text-xs text-[var(--text-secondary)]">实时同步 · 更新频率 5s</span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
             {METRICS.map((metric) => (
               <div key={metric.label} className="rounded-2xl border border-[rgba(91,189,247,0.18)] bg-[rgba(91,189,247,0.08)] px-4 py-3 shadow-[0_12px_22px_rgba(5,31,57,0.38)]">
                 <span className="text-sm text-[var(--text-secondary)]">{metric.label}</span>
@@ -224,14 +237,26 @@ export default function VisualizePage() {
               </div>
             ))}
           </div>
-          <div className="mt-6">
-            <h2 className="mb-3 text-lg font-semibold text-white">合格率占比</h2>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+        <Card className="chart-card col-span-1 md:col-span-6">
+          <div className="chart-header">
+            <div>
+              <h2>合格率占比</h2>
+              <p>抽检批次 · 当日累计（数量为可视化口径）</p>
+            </div>
+          </div>
+          <div className="chart-body">
             <PieChart title="合格率占比" data={DONUT_DATA} />
           </div>
         </Card>
-        <Card className="col-span-1 md:col-span-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">检测量走势（近 30 天）</h2>
+        <Card className="chart-card col-span-1 md:col-span-6">
+          <div className="chart-header">
+            <div>
+              <h2>检测量走势（近 30 天）</h2>
+            </div>
             <button
               type="button"
               className="rounded-full border border-[rgba(91,189,247,0.3)] px-3 py-1 text-xs text-[rgba(232,243,255,0.78)] transition hover:border-[rgba(91,189,247,0.6)]"
@@ -240,7 +265,7 @@ export default function VisualizePage() {
               刷新数据
             </button>
           </div>
-          <div className="h-[320px]">
+          <div className="chart-body">
             <LineChart data={trend} />
           </div>
         </Card>
