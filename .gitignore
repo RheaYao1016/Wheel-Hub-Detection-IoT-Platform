@@ -12,6 +12,9 @@
 
 # production
 /build
+/backend/data/
+/backend/data-smoketest/
+/backend/*.log
 
 # misc
 .DS_Store

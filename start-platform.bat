@@ -3,6 +3,7 @@ setlocal
 
 set ROOT_DIR=%~dp0
 cd /d "%ROOT_DIR%"
+set DATA_DIR=%ROOT_DIR%backend\data
 
 echo [Wheel Hub Platform] Preparing environment...
 
@@ -30,14 +31,15 @@ if not exist "node_modules" (
 )
 
 echo [Wheel Hub Platform] Starting Spring Boot backend on http://localhost:%BACKEND_PORT% ...
-start "Wheel Hub Backend" cmd /k "cd /d "%ROOT_DIR%backend" && set SERVER_PORT=%BACKEND_PORT%&& call mvnw.cmd spring-boot:run"
+start "Wheel Hub Backend" cmd /k "cd /d ""%ROOT_DIR%backend"" && set SERVER_PORT=%BACKEND_PORT% && set APP_DATA_HOME=%DATA_DIR% && call mvnw.cmd spring-boot:run"
 
 echo [Wheel Hub Platform] Starting Next.js frontend on http://localhost:3000 ...
-start "Wheel Hub Frontend" cmd /k "cd /d "%ROOT_DIR%" && set NEXT_PUBLIC_API_BASE_URL=http://localhost:%BACKEND_PORT%/api&& npm run dev"
+start "Wheel Hub Frontend" cmd /k "cd /d ""%ROOT_DIR%"" && set NEXT_PUBLIC_API_BASE_URL=http://localhost:%BACKEND_PORT%/api && npm run dev"
 
 timeout /t 8 >nul
 start "" http://localhost:3000
 
 echo [Wheel Hub Platform] Frontend and backend startup commands have been launched.
 echo [Wheel Hub Platform] Backend API base: http://localhost:%BACKEND_PORT%/api
+echo [Wheel Hub Platform] Backend data directory: %DATA_DIR%
 echo [Wheel Hub Platform] Close the two terminal windows to stop the services.
