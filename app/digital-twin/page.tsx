@@ -5,6 +5,7 @@ import BackButton from "../components/Layout/BackButton";
 import PieChart from "../components/Charts/PieChart";
 import Card from "../components/Layout/Card";
 import ModelViewer from "../components/ThreeViewer/ModelViewer";
+import { fetchPlatformData } from "@/lib/dashboard-client";
 import type { DigitalTwinSnapshot } from "@/types/platform";
 
 export default function DigitalTwinPage() {
@@ -16,11 +17,7 @@ export default function DigitalTwinPage() {
 
     const load = async () => {
       try {
-        const response = await fetch("/api/digital-twin", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("数字孪生数据加载失败");
-        }
-        const payload = (await response.json()) as DigitalTwinSnapshot;
+        const payload = await fetchPlatformData<DigitalTwinSnapshot>("/dashboard/digital-twin", "/api/digital-twin");
         if (!active) return;
         setSnapshot(payload);
       } catch (requestError) {

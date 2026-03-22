@@ -6,6 +6,7 @@ import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
 import ModelViewer from "../components/ThreeViewer/ModelViewer";
 import Card from "../components/Layout/Card";
+import { fetchPlatformData } from "@/lib/dashboard-client";
 import type { CommandCenterSnapshot, DeviceSnapshot } from "@/types/platform";
 
 export default function VisualizePage() {
@@ -19,11 +20,7 @@ export default function VisualizePage() {
 
     const load = async () => {
       try {
-        const response = await fetch("/api/command-center", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("无法加载指挥中心数据");
-        }
-        const payload = (await response.json()) as CommandCenterSnapshot;
+        const payload = await fetchPlatformData<CommandCenterSnapshot>("/dashboard/command-center", "/api/command-center");
         if (!active) return;
         setSnapshot(payload);
         setLogs(payload.logs);

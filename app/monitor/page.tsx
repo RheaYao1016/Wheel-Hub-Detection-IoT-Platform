@@ -5,6 +5,7 @@ import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
 import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
+import { fetchPlatformData } from "@/lib/dashboard-client";
 import type { MonitorSnapshot } from "@/types/platform";
 
 export default function MonitorPage() {
@@ -22,11 +23,7 @@ export default function MonitorPage() {
 
     const load = async () => {
       try {
-        const response = await fetch("/api/monitor", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("监控数据加载失败");
-        }
-        const payload = (await response.json()) as MonitorSnapshot;
+        const payload = await fetchPlatformData<MonitorSnapshot>("/dashboard/monitor", "/api/monitor");
         if (!active) return;
         setSnapshot(payload);
       } catch (requestError) {

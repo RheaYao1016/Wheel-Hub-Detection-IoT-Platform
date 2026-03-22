@@ -7,6 +7,7 @@ import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
 import LineChart from "../components/Charts/LineChart";
 import PieChart from "../components/Charts/PieChart";
+import { fetchPlatformData } from "@/lib/dashboard-client";
 import type { AdminSnapshot } from "@/types/platform";
 
 type ToastState = {
@@ -33,11 +34,7 @@ export default function AdminDashboard() {
     let active = true;
     const load = async () => {
       try {
-        const response = await fetch("/api/admin", { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("后台数据加载失败");
-        }
-        const payload = (await response.json()) as AdminSnapshot;
+        const payload = await fetchPlatformData<AdminSnapshot>("/dashboard/admin", "/api/admin");
         if (!active) return;
         setSnapshot(payload);
       } catch (requestError) {
@@ -71,12 +68,21 @@ export default function AdminDashboard() {
 
   const handleSync = useCallback(async () => {
     try {
-      const response = await fetch("/api/sync", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8080/api"}/dashboard/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ triggeredAt: new Date().toISOString() }),
       });
-      showToast(response.ok ? "数据同步完成" : "数据同步失败", response.ok ? "success" : "error");
+      if (response.ok) {
+        showToast("数据同步完成", "success");
+      } else {
+        const fallback = await fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ triggeredAt: new Date().toISOString() }),
+        });
+        showToast(fallback.ok ? "数据同步完成" : "数据同步失败", fallback.ok ? "success" : "error");
+      }
     } catch (requestError) {
       console.error(requestError);
       showToast("同步过程发生异常", "error");

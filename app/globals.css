@@ -1540,12 +1540,212 @@ table {
   text-align: center;
 }
 
+.innovation-shell {
+  gap: 1.5rem;
+}
+
+.innovation-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(24rem, 0.92fr);
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.innovation-copy h1 {
+  margin-top: 0.55rem;
+  font-size: clamp(2.8rem, 5vw, 4.8rem);
+  line-height: 0.98;
+  color: #ffffff;
+}
+
+.innovation-copy p {
+  margin-top: 1rem;
+  max-width: 48rem;
+  color: rgba(232, 243, 255, 0.82);
+  line-height: 1.9;
+  font-size: 1rem;
+}
+
+.innovation-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.innovation-stat-card {
+  position: relative;
+  border: 1px solid rgba(91, 189, 247, 0.14);
+  border-radius: 24px;
+  padding: 1.15rem;
+  background: linear-gradient(180deg, rgba(9, 28, 51, 0.92), rgba(6, 17, 31, 0.92));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+}
+
+.innovation-stat-card span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  background: rgba(91, 189, 247, 0.12);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.innovation-stat-card strong,
+.innovation-feature-card h3,
+.innovation-timeline-item strong {
+  display: block;
+  margin-top: 0.9rem;
+  color: #ffffff;
+  font-size: 1.25rem;
+}
+
+.innovation-stat-card p,
+.innovation-feature-card p,
+.innovation-highlight-list p,
+.innovation-timeline-item p {
+  margin-top: 0.55rem;
+  color: rgba(166, 192, 220, 0.84);
+  line-height: 1.75;
+}
+
+.innovation-roadmap-card,
+.innovation-purpose-card,
+.innovation-highlights-card,
+.innovation-timeline-card {
+  overflow: hidden;
+}
+
+.innovation-roadmap-media {
+  min-height: 30rem;
+  border-radius: 28px;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top, rgba(91, 189, 247, 0.16), transparent 36%),
+    rgba(5, 19, 36, 0.72);
+}
+
+.innovation-purpose-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.9fr);
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.innovation-purpose-text p {
+  font-size: 1rem;
+}
+
+.innovation-purpose-media {
+  min-height: 22rem;
+  padding: 1rem;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.innovation-highlights-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.innovation-highlight-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.innovation-highlight-list div {
+  border: 1px solid rgba(91, 189, 247, 0.14);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1rem;
+}
+
+.innovation-highlight-list strong,
+.innovation-feature-card h3,
+.innovation-purpose-card h2,
+.innovation-highlights-card h2,
+.innovation-roadmap-card h2,
+.innovation-timeline-card h2 {
+  color: #ffffff;
+}
+
+.innovation-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.innovation-feature-card {
+  position: relative;
+}
+
+.innovation-feature-tag {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  background: rgba(81, 211, 195, 0.12);
+  color: rgba(149, 248, 232, 0.92);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.innovation-feature-image {
+  margin-top: 1rem;
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.innovation-feature-image img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.innovation-feature-card:hover .innovation-feature-image img {
+  transform: scale(1.04);
+}
+
+.innovation-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.innovation-timeline-item {
+  display: flex;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(91, 189, 247, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.innovation-timeline-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(91, 189, 247, 0.22), rgba(79, 130, 244, 0.24));
+  color: #ffffff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 @media (max-width: 1280px) {
   .monitor-header,
   .admin-header,
   .auth-grid,
   .command-hero,
-  .twin-hero-grid {
+  .twin-hero-grid,
+  .innovation-hero {
     grid-template-columns: 1fr;
   }
 
@@ -1565,7 +1765,10 @@ table {
   .monitor-summary,
   .admin-actions,
   .camera-grid,
-  .auth-feature-list {
+  .auth-feature-list,
+  .innovation-stat-grid,
+  .innovation-feature-grid,
+  .innovation-timeline {
     grid-template-columns: 1fr;
   }
 
@@ -1578,8 +1781,13 @@ table {
   .camera-overlay,
   .live-queue-item,
   .device-item-top,
-  .twin-flow-item {
+  .twin-flow-item,
+  .innovation-timeline-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .innovation-purpose-layout {
+    grid-template-columns: 1fr;
   }
 }

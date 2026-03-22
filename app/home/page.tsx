@@ -1,114 +1,161 @@
 "use client";
 
-import Card from "../components/Layout/Card";
 import BackButton from "../components/Layout/BackButton";
+import Card from "../components/Layout/Card";
 
 const HERO_PARAGRAPHS = [
-  "本项目面向轮毂尺寸与形状的在线自动化检测，设计一套多功能一体化装置与配套的视觉算法与可视化平台。我们先明确生产线上轮毂检测的标准流程，再为各功能模块设计对应的机构与动作；在多套可行方案中进行对比分析，择优确定最终机构方案。",
-  "在机械侧，使用 SolidWorks 完成三维建模与关键参数确定，并选型驱动与执行单元；在算法侧，围绕尺寸识别开发处理流程，形成与不同检测模块相匹配的程序方案；在平台侧，构建 Web 可视化把检测过程与结果直观呈现，形成一套从机械到算法、从数据到可视化的完整闭环。"
+  "本项目围绕轮毂尺寸、孔位与外观缺陷检测，构建了一套从机械执行、视觉算法、数字孪生到运营看板的一体化工业平台。",
+  "我们保留原有检测逻辑与技术底座，在此基础上强化交付表达、管理视角和前后端联动能力，使它更接近可落地的商业化项目形态。",
 ];
 
-const PURPOSE_PARAGRAPHS = [
-  "随着国内汽车保有量快速增长，制造端对效率与精度的要求持续提升。为满足国家安全标准，轮毅等关键部件需进行严格的尺寸与性能质量控制。轮毅直接影响车辆的转向、驱动与制动安全，也与轮胎寿命密切相关，因此几何尺寸精度成为检测重点。",
-  "当前行业普遍存在以人工或单一参数检测为主的问题，效率、稳定性与一致性难兼顾。我们提出基于机器视觉的轮毅尺寸与形状一体化检测方案，以模块化机械与视觉算法协同，统一多尺寸、多姿态的检测流程，补齐工业场景的一体化空缺。",
-  "同时，国内外诸多学者与企业持续通过改进检测流程与采用更先进的检测原理以提升轮毅检测的准确性与可靠性。在结构与工艺方面，国内与国外先进技术仍存在差距。国外汽车配件企业已广泛采用激光传感器并配合全自动控制完成轮毅检测；而国内设备多以半自动为主，人工参与度高，检测往往聚焦单一参量，精度与效率受限。因此，研发单工位式轮毅集成化 AI 视觉同步检测设备具有重要意义，可同时识别轮毅关键尺寸并发现表面缺陷，进一步提升轮毅生产的精确性与一致性。"
+const VALUE_CARDS = [
+  { value: "01", title: "一体化工位设计", detail: "对中、夹紧、旋转、翻转整合为单工位执行闭环，缩短切换链路。" },
+  { value: "02", title: "视觉算法链路", detail: "从边缘识别到尺寸测量形成标准化流程，便于后续接入 AI 分割模型。" },
+  { value: "03", title: "运营级看板", detail: "不仅展示检测结果，也展示设备状态、告警闭环和数字孪生映射。" },
 ];
 
-const INNOVATION_POINTS = [
+const FEATURE_CARDS = [
   {
-    title: "单工位模块化",
-    body: "对中、夹紧、旋转、翻转集成于单工位，节拍稳定、切换便捷；检测结果直达后台判定并联动流转。"
+    title: "单工位模块化设备",
+    body: "对中、夹紧、旋转与翻转动作统一编排，便于形成稳定节拍与标准接口。",
+    image: "/images/innovation/center-clamp.png",
+    tag: "机械设计",
   },
   {
-    title: "中心夹具模块",
-    body: "升降 + 中心夹紧 + 旋转三机构协同，保证同轴度与圆跳动检测的稳定性与精度。"
+    title: "侧向夹持与传感协同",
+    body: "侧面夹具与检测传感器同步布局，在有限空间里兼顾推力、精度与维护便利性。",
+    image: "/images/innovation/side-module.png",
+    tag: "执行机构",
   },
   {
-    title: "侧面夹具模块",
-    body: "伸出 / 夹紧 / 抬升 / 放回流程一体，采用滚珠丝杠与近似直线机构布局，节省空间并兼顾推力与成本。"
+    title: "机器视觉检测链路",
+    body: "围绕灰度化、阈值、边缘与尺寸测量建立完整的视觉处理路径，为复杂场景升级预留接口。",
+    image: "/images/innovation/vision-inspection.png",
+    tag: "算法能力",
   },
   {
-    title: "视觉尺寸检测",
-    body: "灰度化 → 滤波 → 阈值 → 边缘与尺寸测量的处理链路，预留引入深度学习分割以提升复杂场景鲁棒性。"
+    title: "PLC 与控制台方案",
+    body: "以 PLC、触摸屏与执行单元的协同控制为核心，强调安全互锁、可维护性和远程监控能力。",
+    image: "/images/innovation/plc-solution.png",
+    tag: "控制系统",
   },
-  {
-    title: "可视化平台",
-    body: "前端 HTML/CSS/JS 联动后端服务与 ECharts，在线呈现运行状态、检测数量、合格率与预警。"
-  },
-  {
-    title: "PLC 控制方案",
-    body: "S7-1200 协同触摸屏与传感执行单元，提供安全互锁与远程监控能力，确保装置运行的实时性与可重复性。"
-  }
 ];
 
-const FEATURE_IMAGES = [
-  { src: "/images/innovation/center-clamp.png", alt: "中心夹具模块" },
-  { src: "/images/innovation/side-module.png", alt: "侧面夹具与传感器" },
-  { src: "/images/innovation/vision-inspection.png", alt: "视觉检测工作站" },
-  { src: "/images/innovation/plc-solution.png", alt: "PLC 控制与触控台" }
+const TIMELINE = [
+  { title: "机械结构定型", text: "完成 3D 建模、关键参数定义与治具动作关系确认。" },
+  { title: "视觉检测流程", text: "建立尺寸测量与缺陷检测的核心算法处理路径。" },
+  { title: "数字孪生映射", text: "把 3D 模型、设备工况和工艺步骤映射到可视化界面。" },
+  { title: "运营与交付包装", text: "形成适合展示、汇报和落地扩展的商业化平台形态。" },
 ];
 
 export default function HomeIntro() {
   return (
-    <div className="page-shell pt-0 pb-10 space-y-6">
+    <div className="page-shell innovation-shell pt-0 pb-10">
       <BackButton fallbackHref="/visualize" />
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--text-secondary)]">项目概览 / 创新特色</span>
-          <h1 className="text-2xl font-semibold text-white md:text-3xl">创新特色</h1>
-        </div>
-        <p className="text-sm text-[var(--text-secondary)]">一体化检测装备 + 数字孪生平台的设计过程与亮点拆解：机械、视觉、平台三线协同，展示六大创新要点。</p>
-      </div>
 
-      <Card className="hero-grid">
-        <div className="hero-media media-panel">
-          <img
-            src="/images/technical-solution-roadmap.png"
-            alt="Technical Solution Roadmap"
-            title="Technical Solution Roadmap"
-            className="media-contain"
-          />
-        </div>
-        <div className="hero-text">
-          <h2>项目概览</h2>
+      <section className="innovation-hero">
+        <div className="innovation-copy">
+          <span className="eyebrow">Innovation Showcase / Product Story</span>
+          <h1>创新特色</h1>
           {HERO_PARAGRAPHS.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}
-        </div>
-      </Card>
-
-      <Card className="purpose two-col">
-        <div className="purpose-text">
-          <h3>研究目的</h3>
-          {PURPOSE_PARAGRAPHS.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-        </div>
-        <div className="purpose-media media-panel">
-          <img
-            src="/images/wheel-manufacturing-trends-overview.png"
-            alt="Wheel Manufacturing Development Trends Overview"
-            title="Wheel Manufacturing Development Trends Overview"
-            className="media-contain"
-          />
-        </div>
-      </Card>
-
-      <Card className="features">
-        <div className="col-text">
-          <h3>创新特色</h3>
-          <ul className="bullets">
-            {INNOVATION_POINTS.map((point) => (
-              <li key={point.title}>
-                <b>{point.title}：</b>
-                <span>{point.body}</span>
-              </li>
+          <div className="innovation-stat-grid">
+            {VALUE_CARDS.map((item) => (
+              <div key={item.title} className="innovation-stat-card">
+                <span>{item.value}</span>
+                <strong>{item.title}</strong>
+                <p>{item.detail}</p>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
-        <div className="col-imggrid">
-          {FEATURE_IMAGES.map((img) => (
-            <img key={img.src} src={img.src} alt={img.alt} />
+
+        <Card className="innovation-roadmap-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Solution Roadmap</span>
+              <h2>技术方案总览</h2>
+            </div>
+          </div>
+          <div className="innovation-roadmap-media">
+            <img src="/images/technical-solution-roadmap.png" alt="技术方案总览" className="media-contain" />
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-7 innovation-purpose-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Research Purpose</span>
+              <h2>研究目的与行业价值</h2>
+            </div>
+          </div>
+          <div className="innovation-purpose-layout">
+            <div className="innovation-purpose-text">
+              <p>随着汽车制造对效率、精度和追溯能力提出更高要求，轮毂检测已不再只是单点测量，而是需要同时具备数据联动、设备可视化与质量管理能力。</p>
+              <p>本平台希望解决“设备、算法、数据、管理”之间长期割裂的问题，让检测流程不仅能运行，还能被看见、被度量、被复盘。</p>
+            </div>
+            <div className="innovation-purpose-media">
+              <img src="/images/wheel-manufacturing-trends-overview.png" alt="轮毂制造发展趋势" className="media-contain" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="xl:col-span-5 innovation-highlights-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Why It Matters</span>
+              <h2>平台优势</h2>
+            </div>
+          </div>
+          <div className="innovation-highlight-list">
+            <div>
+              <strong>卡片化交互</strong>
+              <p>大字号、清晰区块和统一卡片风格，适合演示和汇报场景。</p>
+            </div>
+            <div>
+              <strong>前后端互通</strong>
+              <p>前端已可直连 Spring Boot 后端，同时保留 Next API 兜底能力。</p>
+            </div>
+            <div>
+              <strong>后续可扩展</strong>
+              <p>便于继续接真实数据库、设备接口、用户鉴权和导入流程。</p>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      <section className="innovation-feature-grid">
+        {FEATURE_CARDS.map((card) => (
+          <Card key={card.title} className="innovation-feature-card">
+            <span className="innovation-feature-tag">{card.tag}</span>
+            <div className="innovation-feature-image">
+              <img src={card.image} alt={card.title} />
+            </div>
+            <h3>{card.title}</h3>
+            <p>{card.body}</p>
+          </Card>
+        ))}
+      </section>
+
+      <Card className="innovation-timeline-card">
+        <div className="panel-heading">
+          <div>
+            <span className="panel-kicker">Delivery Journey</span>
+            <h2>从装备设计到平台落地</h2>
+          </div>
+        </div>
+        <div className="innovation-timeline">
+          {TIMELINE.map((item, index) => (
+            <div key={item.title} className="innovation-timeline-item">
+              <div className="innovation-timeline-index">{String(index + 1).padStart(2, "0")}</div>
+              <div>
+                <strong>{item.title}</strong>
+                <p>{item.text}</p>
+              </div>
+            </div>
           ))}
         </div>
       </Card>
