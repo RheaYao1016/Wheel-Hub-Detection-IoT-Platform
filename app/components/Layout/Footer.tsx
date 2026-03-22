@@ -1,7 +1,14 @@
-﻿export default function Footer() {
+export default function Footer() {
   return (
-    <footer className="w-full py-6 text-center text-xs text-[var(--text-secondary)]">
-      © {new Date().getFullYear()} 轮毂检测数字孪生平台 · All Rights Reserved. 项目合作/建议请联系：ruyiyao@stumail.ysu.edu.cn
+    <footer className="footer-shell">
+      <div>
+        <strong>Wheel Hub Detection Platform</strong>
+        <span>Commercial packaging demo built on Next.js, Prisma, ECharts and Three.js.</span>
+      </div>
+      <div>
+        <span>© {new Date().getFullYear()} 轮毂检测数字孪生平台</span>
+        <span>项目合作 / 建议请联系：ruyiyao@stumail.ysu.edu.cn</span>
+      </div>
     </footer>
   );
 }

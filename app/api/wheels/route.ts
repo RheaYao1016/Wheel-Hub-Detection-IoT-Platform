@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 // GET: 获取轮毂列表（支持分页和筛选）
 export async function GET(request: NextRequest) {
   try {

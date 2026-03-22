@@ -1,164 +1,208 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import BackButton from "../components/Layout/BackButton";
+import PieChart from "../components/Charts/PieChart";
 import Card from "../components/Layout/Card";
 import ModelViewer from "../components/ThreeViewer/ModelViewer";
-import BackButton from "../components/Layout/BackButton";
-
-type FlowStep = {
-  title: string;
-  meta: string;
-};
-
-const FLOW_STEPS: FlowStep[] = [
-  { title: "入站对中", meta: "夹具锁定" },
-  { title: "多面采集", meta: "同步测量" },
-  { title: "翻转检测", meta: "轮辋 / 孔位" },
-  { title: "视觉判定", meta: "算法输出" },
-  { title: "数据联动", meta: "ERP / 仓储" }
-];
+import type { DigitalTwinSnapshot } from "@/types/platform";
 
 export default function DigitalTwinPage() {
+  const [snapshot, setSnapshot] = useState<DigitalTwinSnapshot | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        const response = await fetch("/api/digital-twin", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("数字孪生数据加载失败");
+        }
+        const payload = (await response.json()) as DigitalTwinSnapshot;
+        if (!active) return;
+        setSnapshot(payload);
+      } catch (requestError) {
+        if (!active) return;
+        console.error(requestError);
+        setError("数字孪生模块暂时不可用，请稍后重试。");
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   return (
-    <div className="page-shell pt-0 pb-10 space-y-6">
+    <div className="page-shell twin-shell pt-0 pb-10">
       <BackButton fallbackHref="/visualize" />
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 flex flex-col gap-4 md:col-span-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">模型渲染图</h2>
-            <span className="text-xs text-[var(--text-secondary)]">整机视角</span>
-          </div>
-          <div className="twin-visual">
-            <img src="/images/TianXiaWuShuang.png" alt="模型渲染图" title="TianXiaWuShuang" />
+
+      <section className="twin-hero-grid">
+        <Card className="twin-summary-card">
+          <span className="eyebrow">{snapshot?.summary.sceneLabel ?? "Twin Mesh / Operational Mapping"}</span>
+          <h1>{snapshot?.summary.title ?? "数字孪生作业单元"}</h1>
+          <p>
+            {snapshot?.summary.description ??
+              "通过 3D 模型、传感器、工艺步骤和告警闭环，把检测装备的运行状态压缩到一个可操作的孪生界面中。"}
+          </p>
+          <div className="twin-summary-assets">
+            <div className="twin-asset-card">
+              <span>模型渲染视图</span>
+              <img src="/images/TianXiaWuShuang.png" alt="模型渲染视图" />
+            </div>
+            <div className="twin-asset-card">
+              <span>设备建模骨架</span>
+              <img src="/images/she_bei_jian_mo.png" alt="设备建模骨架" />
+            </div>
           </div>
         </Card>
-        <Card className="col-span-1 md:col-span-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-white md:text-2xl">三维模型展示</h1>
-            <span className="text-xs text-[var(--text-secondary)] md:text-sm">支持旋转 / 缩放 / 平移</span>
+
+        <Card className="twin-stage-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Realtime 3D</span>
+              <h2>装备三维场景</h2>
+            </div>
+            <span className="status-chip status-success">交互可用</span>
           </div>
-          <div className="h-[420px] rounded-2xl border border-[rgba(91,189,247,0.14)] bg-[#0a1b31]/85 p-3">
+          <div className="twin-stage-frame">
             <ModelViewer />
           </div>
         </Card>
-        <Card className="col-span-1 flex flex-col gap-4 md:col-span-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">模型框架图</h2>
-            <span className="text-xs text-[var(--text-secondary)]">结构骨架</span>
-          </div>
-          <div className="twin-visual">
-            <img src="/images/she_bei_jian_mo.png" alt="模型框架图" title="she_bei_jian_mo" />
-          </div>
-        </Card>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="flex min-h-[180px] flex-col items-center justify-center text-center">
-          <h2 className="mb-3 text-lg font-semibold text-white">实时参数</h2>
-          <p className="max-w-xs text-sm leading-7 text-[rgba(232,243,255,0.85)]">
-            传感器读数与尺寸偏差实时映射，支持自定义阈值与数据订阅，辅助维护人员迅速掌握状态。
-          </p>
-        </Card>
-        <Card className="flex min-h-[180px] flex-col items-center justify-center text-center">
-          <h2 className="mb-3 text-lg font-semibold text-white">状态监控</h2>
-          <p className="max-w-xs text-sm leading-7 text-[rgba(232,243,255,0.85)]">
-            监控设备运行节拍、合格率与告警信息，可视化看板协助掌握趋势，触发应急联动策略。
-          </p>
-        </Card>
-        <Card className="flex min-h-[180px] flex-col items-center justify-center text-center">
-          <h2 className="mb-3 text-lg font-semibold text-white">警告记录</h2>
-          <p className="max-w-xs text-sm leading-7 text-[rgba(232,243,255,0.85)]">
-            近 24 小时告警记录与处理闭环可追溯，支持按机构、班次、告警等级等维度筛选导出。
-          </p>
-        </Card>
-      </div>
+      {error ? <div className="empty-state"><span>!</span>{error}</div> : null}
 
-      <Card className="flow-card">
-        <FlowSection />
-      </Card>
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-7">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Sensor Map</span>
+              <h2>实时传感器画像</h2>
+            </div>
+          </div>
+          <div className="sensor-grid">
+            {snapshot?.sensors.map((sensor) => (
+              <div key={sensor.label} className="sensor-tile">
+                <span>{sensor.label}</span>
+                <strong>
+                  {sensor.value}
+                  <small>{sensor.unit}</small>
+                </strong>
+                <div className="sensor-meta">
+                  <span>目标 {sensor.target}</span>
+                  <span>偏差 {sensor.deviation}</span>
+                </div>
+                <em className={`status-text ${sensor.status === "正常" ? "good" : sensor.status === "关注" ? "warn" : "danger"}`}>
+                  {sensor.status}
+                </em>
+              </div>
+            )) ?? <div className="loading-state">传感器加载中...</div>}
+          </div>
+        </Card>
+
+        <Card className="xl:col-span-5">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Workflow</span>
+              <h2>工艺步骤编排</h2>
+            </div>
+          </div>
+          <div className="twin-flow-list">
+            {snapshot?.flowSteps.map((step, index) => (
+              <div key={step.title} className={`twin-flow-item ${index === 2 ? "active" : ""}`}>
+                <div className="twin-flow-index">{String(index + 1).padStart(2, "0")}</div>
+                <div>
+                  <strong>{step.title}</strong>
+                  <span>{step.meta}</span>
+                </div>
+                <em>{step.duration}</em>
+              </div>
+            )) ?? <div className="loading-state">流程加载中...</div>}
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-6 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Size Profile</span>
+              <h2>尺寸分布映射</h2>
+            </div>
+          </div>
+          <div className="chart-body">{snapshot ? <PieChart title="尺寸分布" data={snapshot.sizeDistribution} /> : <div className="loading-state">分布加载中...</div>}</div>
+        </Card>
+
+        <Card className="xl:col-span-6 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Model Profile</span>
+              <h2>型号结构映射</h2>
+            </div>
+          </div>
+          <div className="chart-body">{snapshot ? <PieChart title="型号分布" data={snapshot.modelDistribution} /> : <div className="loading-state">分布加载中...</div>}</div>
+        </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-7">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Device Lattice</span>
+              <h2>设备状态矩阵</h2>
+            </div>
+          </div>
+          <div className="device-stack">
+            {snapshot?.devices.map((device) => (
+              <div key={device.name} className="device-item">
+                <div className="device-item-top">
+                  <strong>{device.name}</strong>
+                  <span className={`status-chip ${device.status === "运行中" ? "status-success" : device.status === "维护中" ? "status-warning" : "status-danger"}`}>
+                    {device.status}
+                  </span>
+                </div>
+                <div className="device-gauge">
+                  <span style={{ width: `${device.utilization}%` }} />
+                </div>
+                <div className="device-item-meta">
+                  <span>利用率 {device.utilization}%</span>
+                  <span>温度 {device.temperature}°C</span>
+                  <span>{device.note}</span>
+                </div>
+              </div>
+            )) ?? <div className="loading-state">设备状态加载中...</div>}
+          </div>
+        </Card>
+
+        <Card className="xl:col-span-5">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Alert Linkage</span>
+              <h2>告警闭环</h2>
+            </div>
+          </div>
+          <div className="alert-stack">
+            {snapshot?.alerts.map((alert) => (
+              <div key={alert.id} className="alert-item">
+                <div className="alert-level">{alert.level}</div>
+                <div>
+                  <strong>{alert.title}</strong>
+                  <span>
+                    {alert.station} · {alert.timestamp}
+                  </span>
+                  <p>{alert.detail}</p>
+                </div>
+              </div>
+            )) ?? <div className="loading-state">告警加载中...</div>}
+          </div>
+        </Card>
+      </section>
     </div>
-  );
-}
-
-function FlowSection() {
-  const [activeStep, setActiveStep] = useState(0);
-  const timerRef = useRef<number>();
-  const steps = useMemo(() => FLOW_STEPS, []);
-  const stepsCount = steps.length;
-
-  const progress = stepsCount > 1 ? (activeStep / (stepsCount - 1)) * 100 : 0;
-
-  const scheduleNext = useCallback(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (timerRef.current) {
-      window.clearTimeout(timerRef.current);
-    }
-    timerRef.current = window.setTimeout(() => {
-      setActiveStep((prev) => {
-        const next = (prev + 1) % stepsCount;
-        scheduleNext();
-        return next;
-      });
-    }, 3000);
-  }, [stepsCount]);
-
-  const jumpTo = useCallback(
-    (index: number) => {
-      if (!Number.isFinite(index)) return;
-      const normalized = ((Math.floor(index) % stepsCount) + stepsCount) % stepsCount;
-      setActiveStep(normalized);
-      scheduleNext();
-    },
-    [scheduleNext, stepsCount]
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    jumpTo(0);
-    return () => {
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
-      }
-    };
-  }, [jumpTo]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const setStep = (index: number) => jumpTo(index);
-    (window as typeof window & { setCurrentStep?: (index: number) => void }).setCurrentStep = setStep;
-    return () => {
-      const w = window as typeof window & { setCurrentStep?: (index: number) => void };
-      if (w.setCurrentStep === setStep) {
-        delete w.setCurrentStep;
-      }
-    };
-  }, [jumpTo]);
-
-  return (
-    <section className="flow-section">
-      <div className="flow-header">
-        <h3>工作流程</h3>
-        <p>节点进度条映射生产节拍，高亮当前工序，便于巡检与调度协同。</p>
-      </div>
-      <div className="flow-track">
-        <div className="flow-bar">
-          <span className="flow-progress" style={{ width: `${progress}%` }} aria-hidden />
-        </div>
-        <ul className="flow-steps">
-          {steps.map((step, index) => (
-            <li key={step.title} className={`flow-step ${index === activeStep ? "active" : ""}`}>
-              <span>{step.title}</span>
-              <em>{step.meta}</em>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
   );
 }

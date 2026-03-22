@@ -1,163 +1,63 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Card from "../components/Layout/Card";
+import BackButton from "../components/Layout/BackButton";
 import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
 import ModelViewer from "../components/ThreeViewer/ModelViewer";
-import BackButton from "../components/Layout/BackButton";
-import staticRecords from "../../data.json" assert { type: "json" };
-
-type ProjectRecord = {
-  id: string;
-  diameter: string;
-  average_bolt: string;
-  center: string;
-  pcd: string;
-  type: string;
-};
-
-type ProjectItem = {
-  id: string;
-  stage: string;
-  result: "" | "PASS" | "FAIL";
-};
-
-const METRICS = [
-  { label: "轮毂总数", value: 3100 },
-  { label: "已检测", value: 3000 },
-  { label: "未检测", value: 100 },
-  { label: "完成率(%)", value: 97 }
-];
-
-const DONUT_DATA = [
-  { name: "15寸", value: 23 },
-  { name: "16寸", value: 17 },
-  { name: "17寸", value: 20 },
-  { name: "18寸", value: 28 },
-  { name: "19寸", value: 12 }
-];
-
-const TICKER_STAGES = ["入站", "采集", "翻转", "判定", "联动"];
-const RESULT_PATTERN: Array<ProjectItem["result"]> = ["", "", "", "PASS", "", "FAIL"];
-const PROJECT_ROLL_INTERVAL = 2800;
-const PROJECT_WINDOW = 6;
-const DEFAULT_PROJECT_COUNT = 30;
-
-const LOG_MESSAGES = [
-  "相机完成曝光与取像",
-  "边缘检测完成，直径=566.3mm",
-  "孔距 PCD=114.28mm 在容差内",
-  "判定 PASS，推送到看板",
-  "判定 FAIL，派发返修任务",
-  "上传统计报表到 /api/result",
-  "工位 ST-02 队列已清空，等待下一批任务"
-];
-const LOG_APPEND_INTERVAL = 1200;
-const INITIAL_LOG_COUNT = 3;
-const MAX_LOG_LINES = 240;
-
-const SEED_LOGS = LOG_MESSAGES.slice(0, INITIAL_LOG_COUNT).map(
-  (message, index) => `预置日志 ${index + 1}：${message}`
-);
-
-const buildLabels = () => {
-  const labels: string[] = [];
-  const now = new Date();
-  for (let i = 29; i >= 0; i -= 1) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
-  }
-  return labels;
-};
-
-const makeTrend = () => buildLabels().map((label) => ({ name: label, value: Math.round(200 + Math.random() * 160) }));
-
-const pad = (value: number) => value.toString().padStart(2, "0");
-
-const formatLogTimestamp = (date: Date) =>
-  `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
-    date.getSeconds()
-  )}.${date.getMilliseconds().toString().padStart(3, "0")}`;
-
-const formatLogLine = (message: string, offsetMs = 0) => {
-  const time = new Date(Date.now() - offsetMs);
-  return `[${formatLogTimestamp(time)}] ${message}`;
-};
-
-const buildProjectPool = (records: ProjectRecord[]): ProjectItem[] => {
-  const pool: ProjectItem[] = [];
-  const base = records.slice(0, DEFAULT_PROJECT_COUNT);
-
-  const ensureLength = Math.max(DEFAULT_PROJECT_COUNT, base.length || DEFAULT_PROJECT_COUNT);
-  for (let i = 0; i < ensureLength; i += 1) {
-    const record = base[i % (base.length || 1)];
-    pool.push({
-      id: record?.id ?? `WH-2025-${String(1000 + i).padStart(4, "0")}`,
-      stage: TICKER_STAGES[i % TICKER_STAGES.length],
-      result: RESULT_PATTERN[i % RESULT_PATTERN.length]
-    });
-  }
-  return pool;
-};
-
-const records = staticRecords as ProjectRecord[];
+import Card from "../components/Layout/Card";
+import type { CommandCenterSnapshot, DeviceSnapshot } from "@/types/platform";
 
 export default function VisualizePage() {
-  const [trend, setTrend] = useState(makeTrend());
-  const [projects, setProjects] = useState<ProjectItem[]>(() => buildProjectPool(records));
-  const [windowIndex, setWindowIndex] = useState(0);
-
-  const [logs, setLogs] = useState<string[]>(SEED_LOGS);
+  const [snapshot, setSnapshot] = useState<CommandCenterSnapshot | null>(null);
+  const [error, setError] = useState("");
+  const [logs, setLogs] = useState<string[]>([]);
   const logBoxRef = useRef<HTMLDivElement>(null);
-  const logCursorRef = useRef(SEED_LOGS.length);
 
   useEffect(() => {
-    setProjects(buildProjectPool(records));
-    setWindowIndex(0);
+    let active = true;
+
+    const load = async () => {
+      try {
+        const response = await fetch("/api/command-center", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("无法加载指挥中心数据");
+        }
+        const payload = (await response.json()) as CommandCenterSnapshot;
+        if (!active) return;
+        setSnapshot(payload);
+        setLogs(payload.logs);
+      } catch (requestError) {
+        if (!active) return;
+        console.error(requestError);
+        setError("指挥中心数据加载失败，请稍后重试。");
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 12000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
-    const labels = buildLabels();
-    const timer = window.setInterval(() => {
-      setTrend((prev) =>
-        prev.slice(1).concat({
-          name: labels[Math.floor(Math.random() * labels.length)],
-          value: Math.round(200 + Math.random() * 160)
-        })
-      );
-    }, 2500);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!projects.length) {
+    if (!snapshot?.logs.length) {
       return;
     }
-    const timer = window.setInterval(() => {
-      setWindowIndex((prev) => (prev + 1) % projects.length);
-    }, PROJECT_ROLL_INTERVAL);
-    return () => window.clearInterval(timer);
-  }, [projects.length]);
 
-  useEffect(() => {
-    const baseLogs = Array.from({ length: INITIAL_LOG_COUNT }).map((_, idx) =>
-      formatLogLine(LOG_MESSAGES[idx % LOG_MESSAGES.length], (INITIAL_LOG_COUNT - idx) * LOG_APPEND_INTERVAL)
-    );
-    setLogs(baseLogs);
-    logCursorRef.current = baseLogs.length;
-
+    setLogs(snapshot.logs);
     const timer = window.setInterval(() => {
-      setLogs((prev) => {
-        const message = LOG_MESSAGES[logCursorRef.current % LOG_MESSAGES.length];
-        logCursorRef.current += 1;
-        const next = [...prev, formatLogLine(message)];
-        return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
+      setLogs((previous) => {
+        const nextLine = snapshot.logs[(previous.length + 1) % snapshot.logs.length];
+        const next = [...previous, nextLine];
+        return next.length > 12 ? next.slice(next.length - 12) : next;
       });
-    }, LOG_APPEND_INTERVAL);
+    }, 2400);
+
     return () => window.clearInterval(timer);
-  }, []);
+  }, [snapshot]);
 
   useEffect(() => {
     if (logBoxRef.current) {
@@ -165,143 +65,180 @@ export default function VisualizePage() {
     }
   }, [logs]);
 
-  // 预留实时接口，接入后端后取消注释即可。
-  /*
-  useEffect(() => {
-    const refreshLive = async () => {
-      try {
-        const response = await fetch("/api/live");
-        if (!response.ok) return;
-        const payload = await response.json();
-        if (Array.isArray(payload.projects)) {
-          setProjects(buildProjectPool(payload.projects));
-          setWindowIndex(0);
-        }
-        if (Array.isArray(payload.logs)) {
-          setLogs((prev) => {
-            const appended = payload.logs.map((msg: string) => `[${formatLogTimestamp(new Date())}] ${msg}`);
-            const combined = [...prev, ...appended];
-            return combined.length > MAX_LOG_LINES ? combined.slice(combined.length - MAX_LOG_LINES) : combined;
-          });
-        }
-        if (typeof payload.step === "number" && typeof window !== "undefined" && typeof (window as any).setCurrentStep === "function") {
-          (window as any).setCurrentStep(payload.step);
-        }
-      } catch (error) {
-        console.warn("live feed unavailable", error);
-      }
-    };
-    const liveTimer = window.setInterval(refreshLive, 2500);
-    return () => window.clearInterval(liveTimer);
-  }, []);
-  */
-
-  const visibleProjects = useMemo(() => {
-    if (!projects.length) {
-      return [];
-    }
-    const length = Math.min(PROJECT_WINDOW, projects.length);
-    return Array.from({ length }, (_, idx) => projects[(windowIndex + idx) % projects.length]);
-  }, [projects, windowIndex]);
+  const highlightedDevice = useMemo<DeviceSnapshot | null>(() => snapshot?.devices[0] ?? null, [snapshot]);
 
   return (
-    <div className="page-shell pt-0 pb-10 space-y-6">
+    <div className="page-shell command-center-shell pt-0 pb-10">
       <BackButton fallbackHref="/home" />
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--text-secondary)]">可视化平台 / 统计分析</span>
-          <h1 className="text-2xl font-semibold text-white md:text-3xl">统计分析总览</h1>
-        </div>
-        <p className="text-sm text-[var(--text-secondary)]">多维掌握轮毂检测实时指标、趋势曲线与 3D 模型，辅助快速调度。</p>
-      </div>
-      <Card className="p-5 md:p-6">
-        <div className="flex flex-col gap-5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-white md:text-2xl">三维模型展示</h1>
-            <span className="text-xs text-[var(--text-secondary)] md:text-sm">交互旋转 / 缩放 / 平移</span>
+
+      <section className="command-hero">
+        <div className="command-copy">
+          <span className="eyebrow">{snapshot?.headline.subtitle ?? "Command Center / Inspection Intelligence"}</span>
+          <h1>{snapshot?.headline.title ?? "轮毂检测 IoT 指挥中心"}</h1>
+          <p>
+            {snapshot?.headline.description ??
+              "围绕检测、数字孪生、监控与运营联动打造统一指挥台，支持本地演示数据与数据库驱动的双模式运行。"}
+          </p>
+          <div className="command-metric-row">
+            {snapshot?.metrics.map((metric) => (
+              <div key={metric.label} className="command-metric-tile">
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+                <em className={`trend-${metric.trend}`}>{metric.delta}</em>
+              </div>
+            )) ?? (
+              <div className="loading-state">正在加载经营指标...</div>
+            )}
           </div>
-          <div className="h-[340px] rounded-2xl border border-[rgba(91,189,247,0.14)] bg-[#0a1b31]/80 p-3 md:h-[380px]">
+        </div>
+
+        <Card className="command-hero-visual">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">3D Digital Twin</span>
+              <h2>装备状态总览</h2>
+            </div>
+            <span className="status-chip status-success">实时同步</span>
+          </div>
+          <div className="command-model-frame">
             <ModelViewer />
           </div>
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 md:col-span-12">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">关键指标</h2>
-            <span className="text-xs text-[var(--text-secondary)]">实时同步 · 更新频率 5s</span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {METRICS.map((metric) => (
-              <div key={metric.label} className="rounded-2xl border border-[rgba(91,189,247,0.18)] bg-[rgba(91,189,247,0.08)] px-4 py-3 shadow-[0_12px_22px_rgba(5,31,57,0.38)]">
-                <span className="text-sm text-[var(--text-secondary)]">{metric.label}</span>
-                <span className="block text-3xl font-bold text-white">{metric.value}</span>
+          {highlightedDevice && (
+            <div className="command-hero-footer">
+              <div>
+                <span>重点设备</span>
+                <strong>{highlightedDevice.name}</strong>
               </div>
-            ))}
+              <div>
+                <span>利用率</span>
+                <strong>{highlightedDevice.utilization}%</strong>
+              </div>
+              <div>
+                <span>温度</span>
+                <strong>{highlightedDevice.temperature}°C</strong>
+              </div>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      {error ? <div className="empty-state"><span>!</span>{error}</div> : null}
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-4 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Quality Mix</span>
+              <h2>质量结构分布</h2>
+            </div>
+          </div>
+          <div className="chart-body">{snapshot ? <PieChart title="质量结构" data={snapshot.quality} /> : <div className="loading-state">图表加载中...</div>}</div>
+        </Card>
+
+        <Card className="xl:col-span-8 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">30 Day Throughput</span>
+              <h2>近 30 天检测趋势</h2>
+            </div>
+            <span className="panel-caption">每 12 秒自动刷新</span>
+          </div>
+          <div className="chart-body">{snapshot ? <LineChart data={snapshot.trend} /> : <div className="loading-state">趋势加载中...</div>}</div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-5">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Live Queue</span>
+              <h2>实时工单队列</h2>
+            </div>
+            <span className="panel-caption">滚动展示当前批次</span>
+          </div>
+          <div className="live-queue">
+            {snapshot?.liveProjects.map((project) => (
+              <div key={project.id} className="live-queue-item">
+                <div>
+                  <strong>{project.id}</strong>
+                  <span>
+                    {project.stage} · {project.model}
+                  </span>
+                </div>
+                <div className="live-queue-meta">
+                  <span>{project.eta}</span>
+                  <span className={`badge ${project.result === "FAIL" ? "fail" : project.result === "PASS" ? "pass" : ""}`}>
+                    {project.result || "进行中"}
+                  </span>
+                </div>
+              </div>
+            )) ?? <div className="loading-state">队列加载中...</div>}
+          </div>
+        </Card>
+
+        <Card className="xl:col-span-4">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Device Matrix</span>
+              <h2>设备健康矩阵</h2>
+            </div>
+          </div>
+          <div className="device-stack">
+            {snapshot?.devices.map((device) => (
+              <div key={device.name} className="device-item">
+                <div className="device-item-top">
+                  <strong>{device.name}</strong>
+                  <span className={`status-chip ${device.status === "运行中" ? "status-success" : device.status === "维护中" ? "status-warning" : "status-danger"}`}>
+                    {device.status}
+                  </span>
+                </div>
+                <div className="device-gauge">
+                  <span style={{ width: `${device.utilization}%` }} />
+                </div>
+                <div className="device-item-meta">
+                  <span>利用率 {device.utilization}%</span>
+                  <span>{device.temperature}°C</span>
+                  <span>{device.note}</span>
+                </div>
+              </div>
+            )) ?? <div className="loading-state">设备状态加载中...</div>}
+          </div>
+        </Card>
+
+        <Card className="xl:col-span-3">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Alarm Center</span>
+              <h2>告警中心</h2>
+            </div>
+          </div>
+          <div className="alert-stack compact">
+            {snapshot?.alerts.map((alert) => (
+              <div key={alert.id} className="alert-item">
+                <div className="alert-level">{alert.level}</div>
+                <div>
+                  <strong>{alert.title}</strong>
+                  <span>
+                    {alert.station} · {alert.timestamp}
+                  </span>
+                  <p>{alert.detail}</p>
+                </div>
+              </div>
+            )) ?? <div className="loading-state">告警加载中...</div>}
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="chart-card col-span-1 md:col-span-6">
-          <div className="chart-header">
-            <div>
-              <h2>合格率占比</h2>
-              <p>抽检批次 · 当日累计（数量为可视化口径）</p>
-            </div>
+      <Card>
+        <div className="panel-heading">
+          <div>
+            <span className="panel-kicker">Execution Log</span>
+            <h2>实时日志流</h2>
           </div>
-          <div className="chart-body">
-            <PieChart title="合格率占比" data={DONUT_DATA} />
-          </div>
-        </Card>
-        <Card className="chart-card col-span-1 md:col-span-6">
-          <div className="chart-header">
-            <div>
-              <h2>检测量走势（近 30 天）</h2>
-            </div>
-            <button
-              type="button"
-              className="rounded-full border border-[rgba(91,189,247,0.3)] px-3 py-1 text-xs text-[rgba(232,243,255,0.78)] transition hover:border-[rgba(91,189,247,0.6)]"
-              onClick={() => setTrend(makeTrend())}
-            >
-              刷新数据
-            </button>
-          </div>
-          <div className="chart-body">
-            <LineChart data={trend} />
-          </div>
-        </Card>
-      </div>
-
-      <Card className="live-card">
-        <div className="live-column">
-          <h3>实时项目</h3>
-          <ul className="live-list">
-            {visibleProjects.map((item) => (
-              <li key={`${item.id}-${item.stage}`}>
-                <span className="live-id">
-                  <span className="font-mono">{item.id}</span>
-                  <span className="live-stage">{item.stage}</span>
-                </span>
-                <span className="live-result">
-                  {item.result ? (
-                    <span className={`badge ${item.result === "PASS" ? "pass" : "fail"}`}>{item.result}</span>
-                  ) : (
-                    "—"
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <span className="panel-caption">日志滚动模拟当前设备与算法联动</span>
         </div>
-        <div className="live-column">
-          <h3>日志预览</h3>
-          <div ref={logBoxRef} className="logbox">
-            {logs.map((line, index) => (
-              <div key={`${line}-${index}`}>{line}</div>
-            ))}
-          </div>
+        <div ref={logBoxRef} className="logbox command-logbox">
+          {logs.length ? logs.map((line, index) => <div key={`${line}-${index}`}>{line}</div>) : <div className="loading-state">日志初始化中...</div>}
         </div>
       </Card>
     </div>

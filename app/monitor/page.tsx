@@ -1,46 +1,46 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
 import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
-import BackButton from "../components/Layout/BackButton";
-
-const SIZE_DONUT = [
-  { name: "15寸", value: 12 },
-  { name: "16寸", value: 17 },
-  { name: "17寸", value: 28 },
-  { name: "18寸", value: 20 },
-  { name: "19寸", value: 23 }
-];
-
-const MODEL_DONUT = [
-  { name: "型号 A", value: 18 },
-  { name: "型号 B", value: 8 },
-  { name: "型号 C", value: 22 },
-  { name: "型号 D", value: 13 },
-  { name: "型号 E", value: 39 }
-];
-
-const buildLabels = () => {
-  const labels: string[] = [];
-  const now = new Date();
-  for (let i = 29; i >= 0; i -= 1) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    labels.push(`${d.getMonth() + 1}/${d.getDate()}`);
-  }
-  return labels;
-};
-
-const buildTrend = () => buildLabels().map((label) => ({ name: label, value: Math.round(40 + Math.random() * 60) }));
+import type { MonitorSnapshot } from "@/types/platform";
 
 export default function MonitorPage() {
-  const trendData = useMemo(buildTrend, []);
-  const videoRefs = [useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null)];
+  const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null);
+  const [error, setError] = useState("");
+  const videoRefs = [
+    useRef<HTMLVideoElement>(null),
+    useRef<HTMLVideoElement>(null),
+    useRef<HTMLVideoElement>(null),
+    useRef<HTMLVideoElement>(null),
+  ];
 
   useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        const response = await fetch("/api/monitor", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("监控数据加载失败");
+        }
+        const payload = (await response.json()) as MonitorSnapshot;
+        if (!active) return;
+        setSnapshot(payload);
+      } catch (requestError) {
+        if (!active) return;
+        console.error(requestError);
+        setError("监控中心数据暂时不可用，请稍后刷新。");
+      }
+    };
+
+    load();
+    const timer = window.setInterval(load, 12000);
     return () => {
+      active = false;
+      window.clearInterval(timer);
       videoRefs.forEach((ref) => {
         const stream = ref.current?.srcObject as MediaStream | undefined;
         stream?.getTracks().forEach((track) => track.stop());
@@ -50,76 +50,156 @@ export default function MonitorPage() {
 
   const startCamera = async (index: number) => {
     const target = videoRefs[index].current;
-    if (!target) return;
+    if (!target) {
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       target.srcObject = stream;
       await target.play();
-    } catch (error) {
-      alert("无法打开摄像头，请检查浏览器权限设置。");
+    } catch (requestError) {
+      console.error(requestError);
+      window.alert("无法打开摄像头，请检查浏览器权限设置。");
     }
   };
 
   return (
-    <div className="page-shell pt-0 pb-10 space-y-6">
+    <div className="page-shell monitor-shell pt-0 pb-10">
       <BackButton fallbackHref="/visualize" />
-      <Card>
-        <h1 className="mb-4 text-lg font-semibold text-white md:text-xl">摄像头接入（四路）</h1>
-        <div className="grid gap-4 md:grid-cols-2">
-          {videoRefs.map((ref, idx) => (
-            <div key={idx} className="relative aspect-video overflow-hidden rounded-2xl border border-[rgba(91,189,247,0.16)] bg-black/80">
-              <video ref={ref} className="h-full w-full object-cover" muted playsInline></video>
-              <button
-                type="button"
-                onClick={() => startCamera(idx)}
-                className="absolute bottom-3 right-3 rounded-full bg-gradient-to-r from-[#5bbdf7] to-[#4f82f4] px-4 py-2 text-sm font-semibold text-[#041629] shadow-[0_8px_20px_rgba(91,189,247,0.25)]"
-              >
-                查看监控
-              </button>
+
+      <section className="monitor-header">
+        <div>
+          <span className="eyebrow">{snapshot?.headline.title ?? "生产监控与异常追踪"}</span>
+          <h1>实时巡检中心</h1>
+          <p>{snapshot?.headline.description ?? "多路视频、设备状态、趋势曲线和告警并行展示，服务班组长与运维协同排障。"}</p>
+        </div>
+        <div className="monitor-summary">
+          {snapshot?.devices.slice(0, 3).map((device) => (
+            <div key={device.name}>
+              <span>{device.name}</span>
+              <strong>{device.utilization}%</strong>
+              <em>{device.status}</em>
             </div>
-          ))}
+          )) ?? <div className="loading-state">设备摘要加载中...</div>}
+        </div>
+      </section>
+
+      {error ? <div className="empty-state"><span>!</span>{error}</div> : null}
+
+      <Card>
+        <div className="panel-heading">
+          <div>
+            <span className="panel-kicker">Camera Wall</span>
+            <h2>四路监控窗口</h2>
+          </div>
+        </div>
+        <div className="camera-grid">
+          {videoRefs.map((ref, index) => {
+            const camera = snapshot?.cameras[index];
+            return (
+              <div key={camera?.id ?? index} className="camera-card">
+                <video ref={ref} className="camera-frame" muted playsInline />
+                <div className="camera-overlay">
+                  <div>
+                    <strong>{camera?.title ?? `摄像头 ${index + 1}`}</strong>
+                    <span>{camera?.location ?? "产线侧采集点"}</span>
+                    <p>{camera?.description ?? "等待实时视频接入"}</p>
+                  </div>
+                  <button type="button" onClick={() => startCamera(index)}>
+                    {camera?.status === "待命" ? "启动预览" : "查看监控"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 md:col-span-7">
-          <h2 className="mb-3 text-lg font-semibold text-white">上周检测趋势</h2>
-          <div className="h-[320px]">
-            <LineChart data={trendData} />
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-7 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Throughput Monitor</span>
+              <h2>产线负载趋势</h2>
+            </div>
+          </div>
+          <div className="chart-body">{snapshot ? <LineChart data={snapshot.trend} /> : <div className="loading-state">趋势加载中...</div>}</div>
+        </Card>
+
+        <Card className="xl:col-span-5">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Device Watch</span>
+              <h2>设备巡检清单</h2>
+            </div>
+          </div>
+          <div className="device-stack">
+            {snapshot?.devices.map((device) => (
+              <div key={device.name} className="device-item">
+                <div className="device-item-top">
+                  <strong>{device.name}</strong>
+                  <span className={`status-chip ${device.status === "运行中" ? "status-success" : device.status === "维护中" ? "status-warning" : "status-danger"}`}>
+                    {device.status}
+                  </span>
+                </div>
+                <div className="device-gauge">
+                  <span style={{ width: `${device.utilization}%` }} />
+                </div>
+                <div className="device-item-meta">
+                  <span>连续运行 {device.runtimeHours}h</span>
+                  <span>温度 {device.temperature}°C</span>
+                  <span>{device.note}</span>
+                </div>
+              </div>
+            )) ?? <div className="loading-state">设备清单加载中...</div>}
           </div>
         </Card>
-        <Card className="col-span-1 md:col-span-5">
-          <h2 className="mb-4 text-lg font-semibold text-white">状态总览</h2>
-          <ul className="space-y-3 text-sm text-[rgba(232,243,255,0.85)]">
-            {[
-              { name: "传送机构", status: "正常" },
-              { name: "中心夹具", status: "正常" },
-              { name: "侧面夹具", status: "正常" },
-              { name: "检测机构", status: "正常" }
-            ].map((item) => (
-              <li key={item.name} className="flex items-center gap-3 rounded-xl border border-[rgba(91,189,247,0.14)] bg-[rgba(91,189,247,0.06)] px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-[#51d3c3]"></span>
-                <span className="text-base text-white">{item.name}</span>
-                <span className="ml-auto flex items-center gap-2 text-sm text-[#51d3c3]">
-                  <span className="h-2 w-2 rounded-full bg-[#51d3c3]"></span>
-                  {item.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-        <Card className="col-span-1 md:col-span-6">
-          <h2 className="mb-3 text-lg font-semibold text-white">尺寸分类占比</h2>
-          <PieChart title="尺寸分类" data={SIZE_DONUT} />
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Card className="xl:col-span-6 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Size Mix</span>
+              <h2>尺寸占比</h2>
+            </div>
+          </div>
+          <div className="chart-body">{snapshot ? <PieChart title="尺寸占比" data={snapshot.sizeDistribution} /> : <div className="loading-state">图表加载中...</div>}</div>
         </Card>
-        <Card className="col-span-1 md:col-span-6">
-          <h2 className="mb-3 text-lg font-semibold text-white">型号分类占比</h2>
-          <PieChart title="型号分类" data={MODEL_DONUT} />
+
+        <Card className="xl:col-span-6 chart-card">
+          <div className="panel-heading">
+            <div>
+              <span className="panel-kicker">Model Mix</span>
+              <h2>型号占比</h2>
+            </div>
+          </div>
+          <div className="chart-body">{snapshot ? <PieChart title="型号占比" data={snapshot.modelDistribution} /> : <div className="loading-state">图表加载中...</div>}</div>
         </Card>
-      </div>
+      </section>
+
+      <Card>
+        <div className="panel-heading">
+          <div>
+            <span className="panel-kicker">Exception Feed</span>
+            <h2>告警事件流</h2>
+          </div>
+        </div>
+        <div className="alert-stack">
+          {snapshot?.alerts.map((alert) => (
+            <div key={alert.id} className="alert-item">
+              <div className="alert-level">{alert.level}</div>
+              <div>
+                <strong>{alert.title}</strong>
+                <span>
+                  {alert.station} · {alert.timestamp}
+                </span>
+                <p>{alert.detail}</p>
+              </div>
+            </div>
+          )) ?? <div className="loading-state">事件流加载中...</div>}
+        </div>
+      </Card>
     </div>
   );
 }

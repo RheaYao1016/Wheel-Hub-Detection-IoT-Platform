@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(){
   const now = new Date();
   const items = Array.from({length: 36}, (_,i)=>{
