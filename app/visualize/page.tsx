@@ -57,6 +57,10 @@ const LOG_APPEND_INTERVAL = 1200;
 const INITIAL_LOG_COUNT = 3;
 const MAX_LOG_LINES = 240;
 
+const SEED_LOGS = LOG_MESSAGES.slice(0, INITIAL_LOG_COUNT).map(
+  (message, index) => `预置日志 ${index + 1}：${message}`
+);
+
 const buildLabels = () => {
   const labels: string[] = [];
   const now = new Date();
@@ -105,16 +109,9 @@ export default function VisualizePage() {
   const [projects, setProjects] = useState<ProjectItem[]>(() => buildProjectPool(records));
   const [windowIndex, setWindowIndex] = useState(0);
 
-  const initialLogs = useMemo(
-    () =>
-      Array.from({ length: INITIAL_LOG_COUNT }).map((_, idx) =>
-        formatLogLine(LOG_MESSAGES[idx % LOG_MESSAGES.length], (INITIAL_LOG_COUNT - idx) * LOG_APPEND_INTERVAL)
-      ),
-    []
-  );
-  const [logs, setLogs] = useState<string[]>(initialLogs);
+  const [logs, setLogs] = useState<string[]>(SEED_LOGS);
   const logBoxRef = useRef<HTMLDivElement>(null);
-  const logCursorRef = useRef(initialLogs.length);
+  const logCursorRef = useRef(SEED_LOGS.length);
 
   useEffect(() => {
     setProjects(buildProjectPool(records));
@@ -145,6 +142,12 @@ export default function VisualizePage() {
   }, [projects.length]);
 
   useEffect(() => {
+    const baseLogs = Array.from({ length: INITIAL_LOG_COUNT }).map((_, idx) =>
+      formatLogLine(LOG_MESSAGES[idx % LOG_MESSAGES.length], (INITIAL_LOG_COUNT - idx) * LOG_APPEND_INTERVAL)
+    );
+    setLogs(baseLogs);
+    logCursorRef.current = baseLogs.length;
+
     const timer = window.setInterval(() => {
       setLogs((prev) => {
         const message = LOG_MESSAGES[logCursorRef.current % LOG_MESSAGES.length];

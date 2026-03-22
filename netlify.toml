@@ -1,0 +1,5 @@
+[build]
+  # 明确指定构建命令，确保在 Next.js 构建前运行 Prisma generate
+  command = "npm install && npx prisma generate && npm run build"
+  # 明确指定发布目录，对于 Next.js 项目通常是 .next
+  publish = ".next"
