@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang=\"zh-CN\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>轮毂检测数字孪生平台 · 可视化平台</title>
+    <link rel=\"stylesheet\" href=\"css/common.css\">
+    <link rel=\"stylesheet\" href=\"css/visualize.css\">
+</head>
+<body class=\"page\">
+    <header class=\"topbar\">
+        <div class=\"brand\">
+            <span class=\"brand-circle\">W</span>
+            <span>轮毂检测数字孪生平台</span>
+        </div>
+        <nav id=\"topNav\" class=\"nav\"></nav>
+        <div id=\"accountMenu\"></div>
+    </header>
+
+    <main class=\"page-content\">
+        <section class=\"card visualize-hero\">
+            <div class=\"card-header\">三维模型展示</div>
+            <div class=\"hero-media\">
+                <img src=\"public/images/TianXiaWuShuang.png\" alt=\"Model Rendering\" title=\"TianXiaWuShuang\">
+            </div>
+        </section>
+
+        <section class=\"grid-12 visualize-row\">
+            <article class=\"card col-span-6 statistics-card\">
+                <div class=\"card-header\">生产统计</div>
+                <div class=\"metrics metrics-condensed\">
+                    <div class=\"metric\">
+                        <span class=\"metric-label\">轮毂总数</span>
+                        <span class=\"metric-value\">3100</span>
+                    </div>
+                    <div class=\"metric\">
+                        <span class=\"metric-label\">已检测</span>
+                        <span class=\"metric-value\">3000</span>
+                    </div>
+                    <div class=\"metric\">
+                        <span class=\"metric-label\">未检测</span>
+                        <span class=\"metric-value\">100</span>
+                    </div>
+                    <div class=\"metric\">
+                        <span class=\"metric-label\">完成率 (%)</span>
+                        <span class=\"metric-value\">97</span>
+                    </div>
+                </div>
+                <div class=\"chart-block\">
+                    <div class=\"chart-title\">合格率占比</div>
+                    <div id=\"qualityDonut\" class=\"chart donut\"></div>
+                </div>
+            </article>
+
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">检测量走势</div>
+                <div id=\"volumeTrend\" class=\"chart large\"></div>
+            </article>
+        </section>
+
+        <!-- REALTIME_PROJECTS_START -->
+        <section class=\"card\">
+            <h3>实时项目</h3>
+            <div class=\"ticker\" id=\"projTicker\"><ul id=\"projList\"></ul></div>
+        </section>
+        <!-- REALTIME_PROJECTS_END -->
+
+        <!-- LOGS_START -->
+        <section class=\"card\" style=\"margin-top:16px\">
+            <h3>日志预览</h3>
+            <div class=\"logbox\" id=\"logBox\"></div>
+        </section>
+        <!-- LOGS_END -->
+
+        <script>
+        (function(){
+          const ticker=document.getElementById('projTicker');
+          const projList=document.getElementById('projList');
+          const logBox=document.getElementById('logBox');
+          if(!ticker||!projList||!logBox){return;}
+          const stages=['入站','采集','翻转','判定','联动'];
+          const flags=['—','—','—','—','PASS','FAIL'];
+          const projSeed=Array.from({length:20}).map((_,i)=>({
+            name:`WH-2025-${String(i+1).padStart(3,'0')}`,
+            stage:stages[i%stages.length],
+            flag:flags[i%flags.length]
+          }));
+          function renderProjects(items){
+            projList.innerHTML=items.map(p=>`<li><span class=\"name\">${p.name}</span><span>${p.stage}</span><span>${p.flag||''}</span></li>`).join('');
+          }
+          renderProjects(projSeed);
+          let offset=0;
+          let rowHeight=projList.firstElementChild?projList.firstElementChild.offsetHeight:34;
+          function scrollTicker(){
+            offset+=1;
+            if(offset>=rowHeight){
+              offset=0;
+              const first=projSeed.shift();
+              projSeed.push(first);
+              renderProjects(projSeed);
+              rowHeight=projList.firstElementChild?projList.firstElementChild.offsetHeight:rowHeight;
+              ticker.scrollTop=0;
+            }else{
+              ticker.scrollTop=offset;
+            }
+            requestAnimationFrame(scrollTicker);
+          }
+          requestAnimationFrame(scrollTicker);
+          const msgs=['相机完成曝光与取像','边缘检测完成，直径=566.3mm','孔距 PCD=114.28mm 在容差内','同轴度 0.12mm，跳动 0.11mm','判定 PASS，推送到看板','上传至 /api/result 成功'];
+          function now(){
+            const d=new Date();
+            const pad=(n)=>String(n).padStart(2,'0');
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,'0')}`;
+          }
+          function pushLog(text){
+            const item=document.createElement('div');
+            item.textContent=`[${now()}] ${text}`;
+            logBox.appendChild(item);
+            logBox.scrollTop=logBox.scrollHeight;
+          }
+          msgs.slice(0,3).forEach(pushLog);
+          let idx=3;
+          setInterval(()=>{
+            pushLog(msgs[idx%msgs.length]);
+            idx+=1;
+          },1200);
+          /*
+          async function refresh(){
+            try{
+              const res=await fetch('/api/live');
+              const data=await res.json();
+              if(Array.isArray(data.projects)){
+                projSeed.length=0;
+                data.projects.forEach(item=>projSeed.push(item));
+                renderProjects(projSeed);
+                rowHeight=projList.firstElementChild?projList.firstElementChild.offsetHeight:rowHeight;
+              }
+              if(Array.isArray(data.logs)){
+                data.logs.forEach(pushLog);
+              }
+              if(typeof data.step==='number' && typeof window.setFlowStep==='function'){
+                window.setFlowStep(data.step);
+              }
+            }catch(err){
+              console.warn('live feed unavailable', err);
+            }
+          }
+          // setInterval(refresh,2000);
+          */
+        })();
+        </script>
+    </main>
+
+    <footer class=\"site-footer\">
+        ? 2025 轮毂检测数字孪生平台 · All Rights Reserved.<span>项目合作/建议请联系：ruyiyao@stumail.ysu.edu.cn</span>
+    </footer>
+
+    <script src=\"js/app-shell.js\"></script>
+    <script src=\"js/echarts.min.js\"></script>
+    <script src=\"js/visual.js\"></script>
+</body>
+</html>

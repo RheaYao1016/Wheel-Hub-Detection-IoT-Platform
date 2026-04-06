@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang=\"zh-CN\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>轮毂检测数字孪生平台 · 实时监控</title>
+    <link rel=\"stylesheet\" href=\"css/common.css\">
+    <link rel=\"stylesheet\" href=\"css/monitor.css\">
+</head>
+<body class=\"page\">
+    <header class=\"topbar\">
+        <div class=\"brand\">
+            <span class=\"brand-circle\">W</span>
+            <span>轮毂检测数字孪生平台</span>
+        </div>
+        <nav id=\"topNav\" class=\"nav\"></nav>
+        <div id=\"accountMenu\"></div>
+    </header>
+
+    <main class=\"page-content\">
+        <section class=\"card camera-card\">
+            <div class=\"card-header\">摄像头接入（四路）</div>
+            <div class=\"camera-grid\">
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo1\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn1\" class=\"camera-btn\">查看监控</button>
+                </div>
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo2\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn2\" class=\"camera-btn\">查看监控</button>
+                </div>
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo3\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn3\" class=\"camera-btn\">查看监控</button>
+                </div>
+                <div class=\"camera-slot\">
+                    <video id=\"cameraVideo4\" autoplay muted playsinline></video>
+                    <button id=\"cameraBtn4\" class=\"camera-btn\">查看监控</button>
+                </div>
+            </div>
+        </section>
+
+        <section class=\"grid-12 monitor-row\">
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">昨日检测量趋势</div>
+                <div id=\"monitorTrend\" class=\"chart large\"></div>
+            </article>
+            <article class=\"card col-span-6 status-card\">
+                <div class=\"card-header\">状态总览</div>
+                <ul class=\"status-list\">
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>传送机构</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>正常</span>
+                    </li>
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>中心夹具</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>正常</span>
+                    </li>
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>侧面夹具</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>正常</span>
+                    </li>
+                    <li>
+                        <div class=\"status-icon\"></div>
+                        <span>检测机构</span>
+                        <span class=\"status-pill success\"><span class=\"status-dot\"></span>正常</span>
+                    </li>
+                </ul>
+            </article>
+        </section>
+
+        <section class=\"grid-12 monitor-row\">
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">尺寸分类</div>
+                <div id=\"sizeDonut\" class=\"chart donut\"></div>
+            </article>
+            <article class=\"card col-span-6\">
+                <div class=\"card-header\">型号分类</div>
+                <div id=\"modelDonut\" class=\"chart donut\"></div>
+            </article>
+        </section>
+    </main>
+
+    <footer class=\"site-footer\">
+        ? 2025 轮毂检测数字孪生平台 · All Rights Reserved.<span>项目合作/建议请联系：ruyiyao@stumail.ysu.edu.cn</span>
+    </footer>
+
+    <script src=\"js/app-shell.js\"></script>
+    <script src=\"js/echarts.min.js\"></script>
+    <script src=\"js/monitor.js\"></script>
+</body>
+</html>

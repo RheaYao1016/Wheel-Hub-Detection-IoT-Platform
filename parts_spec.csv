@@ -1,0 +1,2 @@
+﻿product_code,spec_diameter_mm,tol_diameter_mm,spec_pcd_mm,tol_pcd_mm,spec_width_mm,tol_width_mm,spec_concentricity_mm,tol_concentricity_mm,spec_runout_mm,tol_runout_mm,other_spec
+HUB-7J17,566.0,0.5,114.3,0.2,215.0,0.3,0.15,0.05,0.12,0.03,孔位数量=5; 材质=Al

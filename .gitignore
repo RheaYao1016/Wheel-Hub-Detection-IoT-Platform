@@ -1,0 +1,53 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/backend/data/
+/backend/data-smoketest/
+/backend/*.log
+/services/ai-ml/.venv/
+/services/ai-ml/runtime/
+/services/ai-ml/__pycache__/
+/services/ai-ml/*.pt
+/logs/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# prisma
+prisma/migrations
+
+# logs and temp files
+*.log
+.playwright-cli/
+ai-ml-restart*.log
+backend-restart*.log
+backend-wmi.log
+

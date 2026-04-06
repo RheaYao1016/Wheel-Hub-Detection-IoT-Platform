@@ -1,0 +1,133 @@
+.camera-card {
+    gap: 18px;
+}
+
+.camera-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.camera-slot {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(6, 19, 36, 0.82);
+    border: 1px solid rgba(91, 189, 247, 0.12);
+    aspect-ratio: 16 / 9;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+}
+
+.camera-slot video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+}
+
+.camera-btn {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #5bbdf7, #4f82f4);
+    color: #041629;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 8px 18px rgba(91, 189, 247, 0.25);
+}
+
+.camera-btn::before {
+    content: '\25B6';
+    margin-right: 6px;
+    font-size: 12px;
+}
+
+.monitor-row {
+    align-items: stretch;
+}
+
+.chart {
+    width: 100%;
+    height: 280px;
+}
+
+.chart.large {
+    height: 320px;
+}
+
+.chart.donut {
+    height: 300px;
+}
+
+.status-card {
+    gap: 16px;
+}
+
+.status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status-list li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(91, 189, 247, 0.08);
+    border: 1px solid rgba(91, 189, 247, 0.1);
+}
+
+.status-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(91, 189, 247, 0.3), rgba(81, 211, 195, 0.3));
+}
+
+.status-pill {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+}
+
+.status-pill.success {
+    background: rgba(81, 211, 195, 0.18);
+    color: #51d3c3;
+}
+
+.status-pill .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+@media (max-width: 960px) {
+    .camera-grid {
+        grid-template-columns: 1fr;
+    }
+    .chart {
+        height: 260px;
+    }
+}
+
+@media (max-width: 640px) {
+    .camera-btn {
+        bottom: 12px;
+        right: 12px;
+    }
+    .status-list li {
+        flex-direction: row;
+    }
+}

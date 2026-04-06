@@ -1,0 +1,2 @@
+﻿inspection_id,hub_serial,defect_code,defect_desc,severity,x_px,y_px,bbox_w_px,bbox_h_px,evidence_path
+INSP-0002,HUBSN-000002,E-EDGE-OVAL,边缘椭圆度超差,M,834,412,120,60,/data/images/WH-2025-001/HUBSN-000002_A1_defect.png
