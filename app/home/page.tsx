@@ -1,158 +1,370 @@
 "use client";
 
+import { useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
+import WorkflowSteps, {
+  type WorkflowStep,
+} from "../components/Layout/WorkflowSteps";
+import CoreFlowHeader, {
+  type CoreFlowMetric,
+  type CoreFlowStage,
+} from "../components/Layout/CoreFlowHeader";
 import { Badge } from "../components/ui/Badge";
-import { Progress } from "../components/ui/Progress";
 
 const HERO_PARAGRAPHS = [
-  "本项目围绕工业表面缺陷检测，构建了一套从机械执行、视觉算法、数字孪生到运营看板的一体化工业平台。",
-  "我们保留原有检测逻辑与技术底座，在此基础上强化交付表达、管理视角和前后端联动能力，使它更接近可落地的商业化项目形态。",
+  "This platform links wheel-hub inspection hardware, AI vision, digital-twin mapping, and operation governance into one practical delivery story.",
+  "The redesigned UX focuses on a clear demo path and a usable action path: explain value fast, execute decisions quickly, and close governance reliably.",
 ];
 
 const VALUE_CARDS = [
-  { value: "01", title: "一体化工位设计", detail: "对中、夹紧、旋转、翻转整合为单工位执行闭环，缩短切换链路。", progress: 85 },
-  { value: "02", title: "视觉算法链路", detail: "从边缘识别到尺寸测量形成标准化流程，便于后续接入 AI 分割模型。", progress: 72 },
-  { value: "03", title: "运营级看板", detail: "不仅展示检测结果，也展示设备状态、告警闭环和数字孪生映射。", progress: 90 },
+  {
+    value: "03",
+    title: "Core domains",
+    detail: "Command, Monitor, and Digital Twin are aligned as one continuous process chain.",
+  },
+  {
+    value: "12s",
+    title: "Decision refresh",
+    detail: "Operational snapshots are refreshed for shift-level incident handling rhythm.",
+  },
+  {
+    value: "4-step",
+    title: "Story framework",
+    detail: "Observe, diagnose, act, and close loop for both demo and daily operation.",
+  },
+  {
+    value: "1 route",
+    title: "Action continuity",
+    detail: "Each domain page keeps one role, reducing context switching and duplicate charts.",
+  },
 ];
 
-const FEATURE_CARDS = [
+const MODULE_CARDS = [
   {
-    title: "单工位模块化设备",
-    body: "对中、夹紧、旋转与翻转动作统一编排，便于形成稳定节拍与标准接口。",
+    title: "Command Center",
+    body: "Executive overview of quality mix, throughput trend, queue status, and execution logs.",
+    href: "/visualize",
+    tag: "Overview",
+    image: "/images/technical-solution-roadmap.png",
+  },
+  {
+    title: "Operations Hub",
+    body: "Unified handoff page to Monitoring and Digital Twin domains.",
+    href: "/operations",
+    tag: "Operations",
     image: "/images/innovation/center-clamp.png",
-    tag: "机械设计",
   },
   {
-    title: "侧向夹持与传感协同",
-    body: "侧面夹具与检测传感器同步布局，在有限空间里兼顾推力、精度与维护便利性。",
-    image: "/images/innovation/side-module.png",
-    tag: "执行机构",
-  },
-  {
-    title: "机器视觉检测链路",
-    body: "围绕灰度化、阈值、边缘与尺寸测量建立完整的视觉处理路径，为复杂场景升级预留接口。",
+    title: "Monitoring Center",
+    body: "Camera wall, alert queue triage, and frontline device checks for rapid response.",
+    href: "/monitor",
+    tag: "Realtime",
     image: "/images/innovation/vision-inspection.png",
-    tag: "算法能力",
   },
   {
-    title: "PLC 与控制台方案",
-    body: "以 PLC、触摸屏与执行单元的协同控制为核心，强调安全互锁、可维护性和远程监控能力。",
+    title: "Digital Twin",
+    body: "3D scene diagnostics, sensor mapping, process interpretation, and device lattice context.",
+    href: "/digital-twin",
+    tag: "Twin",
+    image: "/images/innovation/side-module.png",
+  },
+  {
+    title: "AI Workspace",
+    body: "AI assistant, data hub, report center, and training chain in one productivity space.",
+    href: "/workspace",
+    tag: "AI Workflow",
     image: "/images/innovation/plc-solution.png",
-    tag: "控制系统",
+  },
+  {
+    title: "Admin Governance",
+    body: "System governance, import quality controls, and enterprise-level operational policy.",
+    href: "/admin",
+    tag: "Governance",
+    image: "/images/wheel-manufacturing-trends-overview.png",
   },
 ];
 
-const TIMELINE = [
-  { title: "机械结构定型", text: "完成 3D 建模、关键参数定义与治具动作关系确认。", status: "completed" },
-  { title: "视觉检测流程", text: "建立尺寸测量与缺陷检测的核心算法处理路径。", status: "completed" },
-  { title: "数字孪生映射", text: "把 3D 模型、设备工况和工艺步骤映射到可视化界面。", status: "in_progress" },
-  { title: "运营与交付包装", text: "形成适合展示、汇报和落地扩展的商业化平台形态。", status: "pending" },
+const ROADMAP = [
+  {
+    title: "Mechanical and Fixture Foundation",
+    text: "Complete fixture strategy, key movement definitions, and execution baseline.",
+    status: "completed",
+  },
+  {
+    title: "Vision Detection Chain",
+    text: "Establish standardized pre-processing and measurement pipeline for inspection tasks.",
+    status: "completed",
+  },
+  {
+    title: "Digital Twin and Operations UX",
+    text: "Map devices, sensors, and process stages into role-oriented interaction flows.",
+    status: "in_progress",
+  },
+  {
+    title: "Enterprise Delivery Package",
+    text: "Finalize deployment narrative, governance controls, and cross-team reporting assets.",
+    status: "pending",
+  },
 ];
 
 export default function HomeIntro() {
+  const router = useRouter();
+
+  const workflowSteps = useMemo<WorkflowStep[]>(
+    () => [
+      {
+        id: "home-step-brief",
+        title: "Read project brief",
+        detail: "Understand scope and value narrative",
+        state: "active",
+      },
+      {
+        id: "home-step-command",
+        title: "Open command center",
+        detail: "Start from overview and KPI story",
+        state: "upcoming",
+        onClick: () => router.push("/visualize"),
+      },
+      {
+        id: "home-step-operations",
+        title: "Enter execution domains",
+        detail: "Branch into Monitoring or Twin for deep work",
+        state: "upcoming",
+        onClick: () => router.push("/operations"),
+      },
+      {
+        id: "home-step-workspace",
+        title: "Close loop in workspace",
+        detail: "Use AI and governance modules for follow-up actions",
+        state: "upcoming",
+        onClick: () => router.push("/workspace"),
+      },
+    ],
+    [router],
+  );
+
+  const coreMetrics = useMemo<CoreFlowMetric[]>(
+    () =>
+      VALUE_CARDS.map((item) => ({
+        label: item.title,
+        value: item.value,
+        note: item.detail,
+      })),
+    [],
+  );
+
+  const coreStages = useMemo<CoreFlowStage[]>(
+    () => [
+      {
+        id: "home-core-observe",
+        title: "Observe platform outcome",
+        detail: "Lead with quality, throughput, and business impact in command center.",
+        state: "done",
+      },
+      {
+        id: "home-core-diagnose",
+        title: "Diagnose by domain",
+        detail: "Choose monitoring for live incidents or twin for process and space context.",
+        state: "active",
+      },
+      {
+        id: "home-core-act",
+        title: "Execute role action",
+        detail: "Operators triage alerts and engineers verify process deviations.",
+        state: "upcoming",
+      },
+      {
+        id: "home-core-close",
+        title: "Close with governance",
+        detail: "Summarize findings in workspace and admin governance tracks.",
+        state: "upcoming",
+      },
+    ],
+    [],
+  );
+
+  const scrollToSection = (id: string) => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="page-shell innovation-shell pt-0 pb-10">
       <BackButton fallbackHref="/visualize" />
 
-      <section className="innovation-hero animate-fade-in-up">
-        <div className="innovation-copy">
-          <span className="eyebrow text-gradient">Innovation Showcase / Product Story</span>
-          <h1 className="text-gradient">创新特色</h1>
-          {HERO_PARAGRAPHS.map((paragraph, index) => (
-            <p key={paragraph} className={`stagger-${index + 1}`}>{paragraph}</p>
-          ))}
-          <div className="innovation-stat-grid">
-            {VALUE_CARDS.map((item, index) => (
-              <div key={item.title} className={`innovation-stat-card hover-lift stagger-${index + 1}`}>
-                <span className="text-gradient">{item.value}</span>
-                <strong>{item.title}</strong>
-                <p>{item.detail}</p>
-                <Progress value={item.progress} className="mt-3" />
-              </div>
-            ))}
-          </div>
-        </div>
+      <WorkflowSteps
+        title="Demo Story Flow"
+        subtitle="Use this path to present the platform from value to execution."
+        steps={workflowSteps}
+      />
 
-        <Card className="innovation-roadmap-card glow-border animate-scale-in stagger-2">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Solution Roadmap</span>
-              <h2>技术方案总览</h2>
-            </div>
-          </div>
-          <div className="innovation-roadmap-media">
-            <img src="/images/technical-solution-roadmap.png" alt="技术方案总览" className="media-contain" loading="lazy" />
-          </div>
-        </Card>
-      </section>
+      <div className="quick-jump-strip">
+        <button
+          type="button"
+          className="enterprise-secondary-button"
+          onClick={() => scrollToSection("home-core")}
+        >
+          Core Flow
+        </button>
+        <button
+          type="button"
+          className="enterprise-secondary-button"
+          onClick={() => scrollToSection("home-lanes")}
+        >
+          Action Lanes
+        </button>
+        <button
+          type="button"
+          className="enterprise-secondary-button"
+          onClick={() => scrollToSection("home-modules")}
+        >
+          Module Tour
+        </button>
+        <button
+          type="button"
+          className="enterprise-secondary-button"
+          onClick={() => scrollToSection("home-roadmap")}
+        >
+          Delivery Path
+        </button>
+      </div>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <Card className="xl:col-span-7 innovation-purpose-card animate-fade-in-up stagger-1">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Research Purpose</span>
-              <h2>研究目的与行业价值</h2>
-            </div>
-          </div>
-          <div className="innovation-purpose-layout">
-            <div className="innovation-purpose-text">
-              <p>随着汽车制造对效率、精度和追溯能力提出更高要求，轮毂检测已不再只是单点测量，而是需要同时具备数据联动、设备可视化与质量管理能力。</p>
-              <p>本平台希望解决"设备、算法、数据、管理"之间长期割裂的问题，让检测流程不仅能运行，还能被看见、被度量、被复盘。</p>
-            </div>
-            <div className="innovation-purpose-media">
-              <img src="/images/wheel-manufacturing-trends-overview.png" alt="轮毂制造发展趋势" className="media-contain" loading="lazy" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="xl:col-span-5 innovation-highlights-card animate-fade-in-up stagger-2">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Why It Matters</span>
-              <h2>平台优势</h2>
-            </div>
-          </div>
+      <CoreFlowHeader
+        id="home-core"
+        eyebrow="Platform Narrative / Demo Entry"
+        title="Wheel Hub Detection IoT Platform"
+        description={HERO_PARAGRAPHS.join(" ")}
+        metrics={coreMetrics}
+        stages={coreStages}
+        actions={
+          <>
+            <Link href="/visualize" className="enterprise-primary-button">
+              Start from Command Center
+            </Link>
+            <Link href="/operations" className="enterprise-secondary-button">
+              Jump to Operations Hub
+            </Link>
+            <Link href="/monitor" className="enterprise-secondary-button">
+              Open Monitoring
+            </Link>
+            <Link href="/digital-twin" className="enterprise-secondary-button">
+              Open Digital Twin
+            </Link>
+          </>
+        }
+        sideNote={
           <div className="innovation-highlight-list">
-            <div className="hover-lift">
-              <strong className="text-gradient">卡片化交互</strong>
-              <p>大字号、清晰区块和统一卡片风格，适合演示和汇报场景。</p>
+            <div>
+              <strong>Minute 1: Outcome</strong>
+              <p>Show command center metrics and quality distribution.</p>
             </div>
-            <div className="hover-lift">
-              <strong className="text-gradient">前后端互通</strong>
-              <p>前端已可直连 Spring Boot 后端，同时保留 Next API 兜底能力。</p>
+            <div>
+              <strong>Minute 2: Execution</strong>
+              <p>Open monitor and digital twin for root-cause context.</p>
             </div>
-            <div className="hover-lift">
-              <strong className="text-gradient">后续可扩展</strong>
-              <p>便于继续接真实数据库、设备接口、用户鉴权和导入流程。</p>
+            <div>
+              <strong>Minute 3: Closure</strong>
+              <p>Finish with workspace reports and admin governance actions.</p>
             </div>
+          </div>
+        }
+      />
+
+      <section id="home-lanes" className="core-flow-lane-grid">
+        <Card className="core-flow-lane-card">
+          <span className="core-flow-lane-kicker">Observe</span>
+          <h3>Executive showcase lane</h3>
+          <p>
+            Start with command KPIs, then explain how this architecture improves
+            speed, traceability, and decision confidence.
+          </p>
+          <div className="core-flow-lane-actions">
+            <Link href="/visualize" className="enterprise-primary-button">
+              Open KPI Story
+            </Link>
+            <Link href="/home" className="enterprise-secondary-button">
+              Stay on Brief
+            </Link>
+          </div>
+        </Card>
+
+        <Card className="core-flow-lane-card">
+          <span className="core-flow-lane-kicker">Diagnose + Act</span>
+          <h3>Domain execution lane</h3>
+          <p>
+            Route issues to monitor for incident response or to digital twin for
+            spatial and process diagnostics.
+          </p>
+          <div className="core-flow-lane-actions">
+            <Link href="/monitor" className="enterprise-primary-button">
+              Go Monitoring
+            </Link>
+            <Link href="/digital-twin" className="enterprise-secondary-button">
+              Go Twin
+            </Link>
+          </div>
+        </Card>
+
+        <Card className="core-flow-lane-card">
+          <span className="core-flow-lane-kicker">Close</span>
+          <h3>Governance closure lane</h3>
+          <p>
+            Convert diagnosis into reports, action owners, and policy updates in
+            AI workspace and admin modules.
+          </p>
+          <div className="core-flow-lane-actions">
+            <Link href="/workspace" className="enterprise-primary-button">
+              Open Workspace
+            </Link>
+            <Link href="/admin" className="enterprise-secondary-button">
+              Open Governance
+            </Link>
           </div>
         </Card>
       </section>
 
-      <section className="innovation-feature-grid">
-        {FEATURE_CARDS.map((card, index) => (
-          <Card key={card.title} className={`innovation-feature-card hover-lift animate-fade-in-up stagger-${index + 1}`}>
-            <Badge variant="glow" className="mb-3">{card.tag}</Badge>
+      <section id="home-modules" className="innovation-feature-grid">
+        {MODULE_CARDS.map((card, index) => (
+          <Card
+            key={card.title}
+            className={`innovation-feature-card hover-lift animate-fade-in-up stagger-${
+              (index % 5) + 1
+            }`}
+          >
+            <span className="innovation-feature-tag">{card.tag}</span>
             <div className="innovation-feature-image">
               <img src={card.image} alt={card.title} loading="lazy" />
             </div>
             <h3 className="text-gradient">{card.title}</h3>
             <p>{card.body}</p>
+            <div className="workspace-capability-actions mt-3">
+              <Link href={card.href} className="enterprise-secondary-button">
+                Open Module
+              </Link>
+            </div>
           </Card>
         ))}
       </section>
 
-      <Card className="innovation-timeline-card glow-border animate-scale-in">
+      <Card id="home-roadmap" className="innovation-timeline-card glow-border animate-scale-in">
         <div className="panel-heading">
           <div>
             <span className="panel-kicker">Delivery Journey</span>
-            <h2>从装备设计到平台落地</h2>
+            <h2>From prototype to enterprise operation</h2>
           </div>
         </div>
         <div className="innovation-timeline">
-          {TIMELINE.map((item, index) => (
-            <div key={item.title} className={`innovation-timeline-item animate-slide-in-right stagger-${index + 1}`}>
+          {ROADMAP.map((item, index) => (
+            <div
+              key={item.title}
+              className={`innovation-timeline-item animate-slide-in-right stagger-${
+                (index % 5) + 1
+              }`}
+            >
               <div className="innovation-timeline-index">
                 <span className={`status-indicator ${item.status}`} />
                 {String(index + 1).padStart(2, "0")}
@@ -160,17 +372,21 @@ export default function HomeIntro() {
               <div>
                 <strong>{item.title}</strong>
                 <p>{item.text}</p>
-                <Badge 
+                <Badge
                   variant={
-                    item.status === "completed" ? "success" : 
-                    item.status === "in_progress" ? "warning" : 
-                    "secondary"
+                    item.status === "completed"
+                      ? "success"
+                      : item.status === "in_progress"
+                        ? "warning"
+                        : "secondary"
                   }
                   className="mt-2"
                 >
-                  {item.status === "completed" ? "已完成" : 
-                   item.status === "in_progress" ? "进行中" : 
-                   "待开始"}
+                  {item.status === "completed"
+                    ? "Completed"
+                    : item.status === "in_progress"
+                      ? "In Progress"
+                      : "Planned"}
                 </Badge>
               </div>
             </div>
