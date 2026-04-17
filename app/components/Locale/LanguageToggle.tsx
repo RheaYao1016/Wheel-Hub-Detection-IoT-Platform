@@ -6,7 +6,10 @@ export default function LanguageToggle() {
   const { locale, setLocale, locales, text } = useLocale();
 
   return (
-    <div className="theme-toggle-shell" aria-label={text("切换语言", "Switch language")}>
+    <div
+      className="theme-toggle-shell"
+      aria-label={text("切换语言", "Switch language")}
+    >
       {locales.map((option) => {
         const active = locale === option.id;
         return (

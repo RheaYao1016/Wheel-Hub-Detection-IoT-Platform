@@ -1,8 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { clearAuthSession } from "@/lib/auth-session";
-import { AppLocale, DEFAULT_LOCALE, isAppLocale, LOCALE_OPTIONS, LOCALE_STORAGE_KEY, pickLocaleText } from "@/lib/locale";
+import {
+  AppLocale,
+  DEFAULT_LOCALE,
+  isAppLocale,
+  LOCALE_OPTIONS,
+  LOCALE_STORAGE_KEY,
+} from "@/lib/locale";
+import { ensureI18n, translate, translateInline } from "@/lib/i18n/client";
 import { clearRuntimeCaches } from "@/lib/runtime-cache";
 
 type LocaleContextValue = {
@@ -10,6 +16,11 @@ type LocaleContextValue = {
   setLocale: (locale: AppLocale) => void;
   locales: typeof LOCALE_OPTIONS;
   text: (zh: string, en: string) => string;
+  t: (
+    key: string,
+    values?: Record<string, string | number>,
+    fallback?: string,
+  ) => string;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -19,12 +30,19 @@ function applyLocale(locale: AppLocale) {
   document.documentElement.dataset.locale = locale;
 }
 
-export default function LocaleProvider({ children }: { children: React.ReactNode }) {
+export default function LocaleProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [locale, setLocaleState] = useState<AppLocale>(DEFAULT_LOCALE);
 
   useEffect(() => {
+    ensureI18n();
     const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    const initialLocale = isAppLocale(storedLocale) ? storedLocale : DEFAULT_LOCALE;
+    const initialLocale = isAppLocale(storedLocale)
+      ? storedLocale
+      : DEFAULT_LOCALE;
     setLocaleState(initialLocale);
     window.localStorage.setItem(LOCALE_STORAGE_KEY, initialLocale);
     applyLocale(initialLocale);
@@ -38,9 +56,9 @@ export default function LocaleProvider({ children }: { children: React.ReactNode
     setLocaleState(nextLocale);
     window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
     applyLocale(nextLocale);
+    ensureI18n();
+    translate(nextLocale, "common.loading");
     clearRuntimeCaches();
-    clearAuthSession();
-    window.location.assign(`/login?locale=${encodeURIComponent(nextLocale)}&reload=1`);
   };
 
   const value = useMemo(
@@ -48,12 +66,19 @@ export default function LocaleProvider({ children }: { children: React.ReactNode
       locale,
       setLocale,
       locales: LOCALE_OPTIONS,
-      text: (zh: string, en: string) => pickLocaleText(locale, zh, en),
+      text: (zh: string, en: string) => translateInline(locale, zh, en),
+      t: (
+        key: string,
+        values?: Record<string, string | number>,
+        fallback?: string,
+      ) => translate(locale, key, values, fallback),
     }),
     [locale],
   );
 
-  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+  return (
+    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+  );
 }
 
 export function useLocale() {

@@ -15,6 +15,7 @@ import PageLoadFallback from "../components/Layout/PageLoadFallback";
 import { PlatformAuthError, fetchPlatformData } from "@/lib/dashboard-client";
 import { clearAuthSession } from "@/lib/auth-session";
 import { useSessionGuard } from "../hooks/useSessionGuard";
+import { useLocale } from "../components/Locale/LocaleProvider";
 import type { MonitorSnapshot } from "@/types/platform";
 
 function resolveAlertTone(level: string, index: number) {
@@ -44,10 +45,13 @@ function resolveDeviceTone(temperature: number) {
 export default function MonitorPage() {
   const router = useRouter();
   const ready = useSessionGuard(["admin", "user"]);
+  const { text, t } = useLocale();
   const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null);
   const [error, setError] = useState("");
   const [cameraToast, setCameraToast] = useState<string | null>(null);
-  const [openedPreviews, setOpenedPreviews] = useState<Record<number, true>>({});
+  const [openedPreviews, setOpenedPreviews] = useState<Record<number, true>>(
+    {},
+  );
   const [activeAlertLevel, setActiveAlertLevel] = useState("all");
   const videoRefs = useRef<Array<HTMLVideoElement | null>>([]);
 
@@ -73,9 +77,7 @@ export default function MonitorPage() {
           return;
         }
         console.error(requestError);
-        setError(
-          "Monitoring data is temporarily unavailable. Please retry in a moment.",
-        );
+        setError(t("pages.monitor.copy001"));
       }
     };
 
@@ -126,58 +128,64 @@ export default function MonitorPage() {
     return [
       {
         id: "monitor-step-overview",
-        title: "Review summary",
-        detail: hasSnapshot ? "Snapshot is ready for this shift" : "Waiting for feed",
+        title: t("pages.monitor.copy002"),
+        detail: hasSnapshot
+          ? t("pages.monitor.copy003")
+          : t("pages.monitor.copy004"),
         state: hasSnapshot ? "done" : "active",
       },
       {
         id: "monitor-step-cameras",
-        title: "Open camera previews",
+        title: t("pages.monitor.copy005"),
         detail:
           previewCount > 0
-            ? `${previewCount} local preview(s) opened`
-            : "Start at least one preview for visual validation",
+            ? t("pages.monitor.copy006", { p1: previewCount })
+            : t("pages.monitor.copy007"),
         state: previewCount > 0 ? "done" : hasSnapshot ? "active" : "upcoming",
       },
       {
         id: "monitor-step-alerts",
-        title: "Triage alert queue",
-        detail: alertCount ? `${alertCount} event(s) in queue` : "No pending events",
+        title: t("pages.monitor.copy008"),
+        detail: alertCount
+          ? t("pages.monitor.copy009", { p1: alertCount })
+          : t("pages.monitor.copy010"),
         state: alertCount ? "active" : hasSnapshot ? "done" : "upcoming",
       },
       {
         id: "monitor-step-devices",
-        title: "Confirm device health",
-        detail: deviceCount ? `${deviceCount} nodes to verify` : "Waiting for device stream",
+        title: t("pages.monitor.copy011"),
+        detail: deviceCount
+          ? t("pages.monitor.copy012", { p1: deviceCount })
+          : t("pages.monitor.copy013"),
         state: deviceCount ? "active" : "upcoming",
       },
     ];
-  }, [previewCount, snapshot]);
+  }, [previewCount, snapshot, text]);
 
   const coreMetrics = useMemo<CoreFlowMetric[]>(() => {
     return [
       {
-        label: "Camera channels",
+        label: t("pages.monitor.copy014"),
         value: String(snapshot?.cameras.length ?? 0),
-        note: "Live wall channels available for operator inspection.",
+        note: t("pages.monitor.copy015"),
       },
       {
-        label: "Preview sessions",
+        label: t("pages.monitor.copy016"),
         value: String(previewCount),
-        note: "Opened local video previews for this shift.",
+        note: t("pages.monitor.copy017"),
       },
       {
-        label: "Alert queue",
+        label: t("pages.monitor.copy018"),
         value: String(snapshot?.alerts.length ?? 0),
-        note: "Events requiring triage by shift lead and line engineers.",
+        note: t("pages.monitor.copy019"),
       },
       {
-        label: "Tracked devices",
+        label: t("pages.monitor.copy020"),
         value: String(snapshot?.devices.length ?? 0),
-        note: "Machine nodes mapped to this monitor domain.",
+        note: t("pages.monitor.copy021"),
       },
     ];
-  }, [previewCount, snapshot]);
+  }, [previewCount, snapshot, text]);
 
   const coreStages = useMemo<CoreFlowStage[]>(() => {
     const hasSnapshot = Boolean(snapshot);
@@ -187,36 +195,36 @@ export default function MonitorPage() {
     return [
       {
         id: "monitor-core-observe",
-        title: "Observe camera wall",
+        title: t("pages.monitor.copy022"),
         detail: hasSnapshot
-          ? "Use channel previews to validate actual line condition."
-          : "Waiting for monitoring feed.",
+          ? t("pages.monitor.copy023")
+          : t("pages.monitor.copy024"),
         state: hasSnapshot ? "done" : "active",
       },
       {
         id: "monitor-core-diagnose",
-        title: "Diagnose alert context",
+        title: t("pages.monitor.copy025"),
         detail: hasAlerts
-          ? "Prioritize by severity, station and timestamp."
-          : "No pending alerts in current queue.",
+          ? t("pages.monitor.copy026")
+          : t("pages.monitor.copy027"),
         state: hasAlerts ? "active" : hasSnapshot ? "done" : "upcoming",
       },
       {
         id: "monitor-core-act",
-        title: "Act on device health",
+        title: t("pages.monitor.copy028"),
         detail: hasDevices
-          ? "Validate utilization and thermal risk for each asset."
-          : "Device telemetry is still loading.",
+          ? t("pages.monitor.copy029")
+          : t("pages.monitor.copy030"),
         state: hasDevices ? "active" : "upcoming",
       },
       {
         id: "monitor-core-close",
-        title: "Close with escalation",
-        detail: "Escalate spatial or process root-cause to Digital Twin when needed.",
+        title: t("pages.monitor.copy031"),
+        detail: t("pages.monitor.copy032"),
         state: hasSnapshot ? "upcoming" : "upcoming",
       },
     ];
-  }, [snapshot]);
+  }, [snapshot, text]);
 
   const startCamera = async (index: number) => {
     const target = videoRefs.current[index];
@@ -228,11 +236,13 @@ export default function MonitorPage() {
       await target.play();
       setOpenedPreviews((previous) => ({ ...previous, [index]: true }));
 
-      const title = snapshot?.cameras[index]?.title ?? `Camera ${index + 1}`;
-      setCameraToast(`Preview connected: ${title}`);
+      const title =
+        snapshot?.cameras[index]?.title ??
+        t("pages.monitor.copy033", { p1: index + 1 });
+      setCameraToast(t("pages.monitor.copy034", { p1: title }));
     } catch (requestError) {
       console.error(requestError);
-      setCameraToast("Camera preview failed. Check browser media permissions.");
+      setCameraToast(t("pages.monitor.copy035"));
     }
   };
 
@@ -246,8 +256,8 @@ export default function MonitorPage() {
     return (
       <PageLoadFallback
         fallbackHref="/operations"
-        title="Loading Monitoring Center"
-        description="Preparing the live camera wall and triage workspace..."
+        title={t("pages.monitor.copy036")}
+        description={t("pages.monitor.copy037")}
       />
     );
   }
@@ -257,8 +267,8 @@ export default function MonitorPage() {
       <BackButton fallbackHref="/operations" />
 
       <WorkflowSteps
-        title="Monitoring Flow"
-        subtitle="Use this order to keep incident handling consistent across shifts."
+        title={t("pages.monitor.copy038")}
+        subtitle={t("pages.monitor.copy039")}
         steps={workflowSteps}
       />
 
@@ -268,45 +278,44 @@ export default function MonitorPage() {
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("monitor-core")}
         >
-          Core Flow
+          {t("pages.digital_twin.copy037")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("monitor-lanes")}
         >
-          Action Lanes
+          {t("pages.digital_twin.copy038")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("monitor-cameras")}
         >
-          Camera Wall
+          {t("pages.monitor.copy040")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("monitor-alerts")}
         >
-          Alert Queue
+          {t("pages.monitor.copy041")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("monitor-devices")}
         >
-          Device Health
+          {t("pages.monitor.copy042")}
         </button>
       </div>
 
       <CoreFlowHeader
         id="monitor-core"
-        eyebrow="Monitoring Domain / Shift Console"
-        title="Real-time Camera and Incident Triage"
+        eyebrow={t("pages.monitor.copy043")}
+        title={t("pages.monitor.copy044")}
         description={
-          snapshot?.headline.description ??
-          "This page is designed for frontline execution: capture evidence, classify alerts, and dispatch actions without context switching."
+          snapshot?.headline.description ?? t("pages.monitor.copy045")
         }
         metrics={coreMetrics}
         stages={coreStages}
@@ -317,33 +326,33 @@ export default function MonitorPage() {
               className="enterprise-primary-button"
               onClick={() => scrollToSection("monitor-alerts")}
             >
-              Start Alert Triage
+              {t("pages.monitor.copy046")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => scrollToSection("monitor-cameras")}
             >
-              Open Camera Wall
+              {t("pages.monitor.copy047")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => router.push("/digital-twin")}
             >
-              Escalate to Twin
+              {t("pages.monitor.copy048")}
             </button>
           </>
         }
         sideNote={
           <div className="enterprise-highlight-list">
             <div>
-              <strong>Role focus</strong>
-              <p>Keep live incident handling in monitoring and avoid duplicate analysis views.</p>
+              <strong>{t("pages.monitor.copy049")}</strong>
+              <p>{t("pages.monitor.copy050")}</p>
             </div>
             <div>
-              <strong>Handoff rule</strong>
-              <p>When root-cause needs process-space interpretation, jump to digital twin immediately.</p>
+              <strong>{t("pages.monitor.copy051")}</strong>
+              <p>{t("pages.monitor.copy052")}</p>
             </div>
           </div>
         }
@@ -351,62 +360,59 @@ export default function MonitorPage() {
 
       <section id="monitor-lanes" className="core-flow-lane-grid">
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Observe</span>
-          <h3>Camera validation lane</h3>
-          <p>
-            Open one or more channel previews and confirm physical line behavior
-            before triaging the event queue.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy053")}
+          </span>
+          <h3>{t("pages.monitor.copy053")}</h3>
+          <p>{t("pages.monitor.copy054")}</p>
           <div className="core-flow-lane-actions">
             <button
               type="button"
               className="enterprise-primary-button"
               onClick={() => scrollToSection("monitor-cameras")}
             >
-              Review Cameras
+              {t("pages.monitor.copy055")}
             </button>
           </div>
         </Card>
 
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Diagnose</span>
-          <h3>Alert investigation lane</h3>
-          <p>
-            Classify severity, identify station impact, and isolate the shortest
-            path to containment for the current shift.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy057")}
+          </span>
+          <h3>{t("pages.monitor.copy056")}</h3>
+          <p>{t("pages.monitor.copy057")}</p>
           <div className="core-flow-lane-actions">
             <button
               type="button"
               className="enterprise-primary-button"
               onClick={() => scrollToSection("monitor-alerts")}
             >
-              Triage Alerts
+              {t("pages.monitor.copy058")}
             </button>
           </div>
         </Card>
 
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Act + Close</span>
-          <h3>Device response lane</h3>
-          <p>
-            Verify thermal and utilization states, then escalate to twin domain
-            for process-space root-cause and closure decisions.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy062")}
+          </span>
+          <h3>{t("pages.monitor.copy059")}</h3>
+          <p>{t("pages.monitor.copy060")}</p>
           <div className="core-flow-lane-actions">
             <button
               type="button"
               className="enterprise-primary-button"
               onClick={() => scrollToSection("monitor-devices")}
             >
-              Inspect Devices
+              {t("pages.digital_twin.copy065")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => router.push("/digital-twin")}
             >
-              Open Digital Twin
+              {t("pages.home.copy026")}
             </button>
           </div>
         </Card>
@@ -422,49 +428,51 @@ export default function MonitorPage() {
       <Card id="monitor-cameras">
         <div className="panel-heading">
           <div>
-            <span className="panel-kicker">Camera Wall</span>
-            <h2>Multi-channel preview workspace</h2>
+            <span className="panel-kicker">{t("pages.monitor.copy040")}</span>
+            <h2>{t("pages.monitor.copy061")}</h2>
           </div>
-          <span className="panel-caption">
-            Open local previews per channel to validate operator-visible evidence.
-          </span>
+          <span className="panel-caption">{t("pages.monitor.copy062")}</span>
         </div>
 
         <div className="camera-grid">
-          {(snapshot?.cameras.length ? snapshot.cameras : new Array(4).fill(null)).map(
-            (camera, index) => {
-              const cameraLabel = camera?.title ?? `Camera ${index + 1}`;
-              const locationLabel = camera?.location ?? "Production line zone";
-              const statusLabel = camera?.status ?? "Standby";
-              const descLabel =
-                camera?.description ?? "Waiting for live feed assignment.";
+          {(snapshot?.cameras.length
+            ? snapshot.cameras
+            : new Array(4).fill(null)
+          ).map((camera, index) => {
+            const cameraLabel =
+              camera?.title ?? t("pages.monitor.copy033", { p1: index + 1 });
+            const locationLabel =
+              camera?.location ?? t("pages.monitor.copy063");
+            const statusLabel = camera?.status ?? t("pages.monitor.copy064");
+            const descLabel = camera?.description ?? t("pages.monitor.copy065");
 
-              return (
-                <div key={camera?.id ?? index} className="camera-card">
-                  <video
-                    ref={(node) => {
-                      videoRefs.current[index] = node;
-                    }}
-                    className="camera-frame"
-                    muted
-                    playsInline
-                  />
-                  <div className="camera-status-chip">{statusLabel}</div>
+            return (
+              <div key={camera?.id ?? index} className="camera-card">
+                <video
+                  ref={(node) => {
+                    videoRefs.current[index] = node;
+                  }}
+                  className="camera-frame"
+                  muted
+                  playsInline
+                />
+                <div className="camera-status-chip">{statusLabel}</div>
 
-                  <div className="camera-overlay">
-                    <div>
-                      <strong>{cameraLabel}</strong>
-                      <span>{locationLabel}</span>
-                      <p>{descLabel}</p>
-                    </div>
-                    <button type="button" onClick={() => startCamera(index)}>
-                      {openedPreviews[index] ? "Refresh preview" : "Open preview"}
-                    </button>
+                <div className="camera-overlay">
+                  <div>
+                    <strong>{cameraLabel}</strong>
+                    <span>{locationLabel}</span>
+                    <p>{descLabel}</p>
                   </div>
+                  <button type="button" onClick={() => startCamera(index)}>
+                    {openedPreviews[index]
+                      ? t("pages.monitor.copy066")
+                      : t("pages.monitor.copy067")}
+                  </button>
                 </div>
-              );
-            },
-          )}
+              </div>
+            );
+          })}
         </div>
       </Card>
 
@@ -472,8 +480,8 @@ export default function MonitorPage() {
         <Card id="monitor-alerts" className="xl:col-span-7">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">Exception Feed</span>
-              <h2>Alert queue and response context</h2>
+              <span className="panel-kicker">{t("pages.monitor.copy068")}</span>
+              <h2>{t("pages.monitor.copy069")}</h2>
             </div>
           </div>
 
@@ -487,7 +495,7 @@ export default function MonitorPage() {
                 }`}
                 onClick={() => setActiveAlertLevel(level)}
               >
-                {level === "all" ? "All levels" : level}
+                {level === "all" ? t("pages.monitor.copy070") : level}
               </button>
             ))}
           </div>
@@ -514,9 +522,7 @@ export default function MonitorPage() {
                 </div>
               ))
             ) : (
-              <div className="loading-state">
-                No alert found for this filter.
-              </div>
+              <div className="loading-state">{t("pages.monitor.copy071")}</div>
             )}
           </div>
         </Card>
@@ -524,8 +530,8 @@ export default function MonitorPage() {
         <Card id="monitor-devices" className="xl:col-span-5">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">Device Watch</span>
-              <h2>Line-side machine health checks</h2>
+              <span className="panel-kicker">{t("pages.monitor.copy072")}</span>
+              <h2>{t("pages.monitor.copy073")}</h2>
             </div>
           </div>
           <div className="device-stack">
@@ -546,20 +552,26 @@ export default function MonitorPage() {
                     <span style={{ width: `${device.utilization}%` }} />
                   </div>
                   <div className="device-item-meta">
-                    <span>Utilization {device.utilization}%</span>
-                    <span>Temperature {device.temperature} C</span>
+                    <span>
+                      {t("pages.digital_twin.copy083")} {device.utilization}%
+                    </span>
+                    <span>
+                      {t("pages.digital_twin.copy084")} {device.temperature} C
+                    </span>
                     <span>{device.note}</span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="loading-state">Device feed is loading...</div>
+              <div className="loading-state">{t("pages.monitor.copy074")}</div>
             )}
           </div>
         </Card>
       </section>
 
-      {cameraToast ? <div className="floating-toast success">{cameraToast}</div> : null}
+      {cameraToast ? (
+        <div className="floating-toast success">{cameraToast}</div>
+      ) : null}
     </div>
   );
 }

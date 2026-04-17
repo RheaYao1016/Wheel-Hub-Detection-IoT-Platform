@@ -13,36 +13,114 @@ import CoreFlowHeader, {
   type CoreFlowStage,
 } from "../components/Layout/CoreFlowHeader";
 import { Badge } from "../components/ui/Badge";
+import { useLocale } from "../components/Locale/LocaleProvider";
 
-const HERO_PARAGRAPHS = [
+const HERO_PARAGRAPHS_ZH = [
+  "本平台将轮毂检测硬件、AI视觉、数字孪生映射和运营治理整合为一个实用的交付方案。",
+  "重新设计的UX专注于清晰的演示路径和可用的操作路径：快速解释价值、快速执行决策、可靠地关闭治理。",
+];
+
+const HERO_PARAGRAPHS_EN = [
   "This platform links wheel-hub inspection hardware, AI vision, digital-twin mapping, and operation governance into one practical delivery story.",
   "The redesigned UX focuses on a clear demo path and a usable action path: explain value fast, execute decisions quickly, and close governance reliably.",
 ];
 
-const VALUE_CARDS = [
+const VALUE_CARDS_ZH = [
+  {
+    value: "03",
+    title: "核心域",
+    detail: "指挥中心、监控和数字孪生对齐为一条连续的处理链。",
+  },
+  {
+    value: "12s",
+    title: "决策刷新",
+    detail: "操作快照按班次级事件处理节奏刷新。",
+  },
+  {
+    value: "4步",
+    title: "故事框架",
+    detail: "观察、诊断、行动和闭环，适用于演示和日常操作。",
+  },
+  {
+    value: "1条路径",
+    title: "行动连续性",
+    detail: "每个域页面保持一个角色，减少上下文切换和重复图表。",
+  },
+];
+
+const VALUE_CARDS_EN = [
   {
     value: "03",
     title: "Core domains",
-    detail: "Command, Monitor, and Digital Twin are aligned as one continuous process chain.",
+    detail:
+      "Command, Monitor, and Digital Twin are aligned as one continuous process chain.",
   },
   {
     value: "12s",
     title: "Decision refresh",
-    detail: "Operational snapshots are refreshed for shift-level incident handling rhythm.",
+    detail:
+      "Operational snapshots are refreshed for shift-level incident handling rhythm.",
   },
   {
     value: "4-step",
     title: "Story framework",
-    detail: "Observe, diagnose, act, and close loop for both demo and daily operation.",
+    detail:
+      "Observe, diagnose, act, and close loop for both demo and daily operation.",
   },
   {
     value: "1 route",
     title: "Action continuity",
-    detail: "Each domain page keeps one role, reducing context switching and duplicate charts.",
+    detail:
+      "Each domain page keeps one role, reducing context switching and duplicate charts.",
   },
 ];
 
-const MODULE_CARDS = [
+const MODULE_CARDS_ZH = [
+  {
+    title: "指挥中心",
+    body: "质量组合、吞吐趋势、队列状态和执行日志的高管概览。",
+    href: "/visualize",
+    tag: "总览",
+    image: "/images/technical-solution-roadmap.png",
+  },
+  {
+    title: "现场中台",
+    body: "监控和数字孪生域的统一交接页面。",
+    href: "/operations",
+    tag: "运营",
+    image: "/images/innovation/center-clamp.png",
+  },
+  {
+    title: "监控中心",
+    body: "相机墙、警报分类队列和前线设备检查，用于快速响应。",
+    href: "/monitor",
+    tag: "实时",
+    image: "/images/innovation/vision-inspection.png",
+  },
+  {
+    title: "数字孪生",
+    body: "3D场景诊断、传感器映射、流程解释和设备网格上下文。",
+    href: "/digital-twin",
+    tag: "孪生",
+    image: "/images/innovation/side-module.png",
+  },
+  {
+    title: "AI工作台",
+    body: "AI助手、数据中心、报告中心和训练链集成在一个生产力空间。",
+    href: "/workspace",
+    tag: "AI工作流",
+    image: "/images/innovation/plc-solution.png",
+  },
+  {
+    title: "管理治理",
+    body: "系统治理、导入质量控制和企业管理级运营策略。",
+    href: "/admin",
+    tag: "治理",
+    image: "/images/wheel-manufacturing-trends-overview.png",
+  },
+];
+
+const MODULE_CARDS_EN = [
   {
     title: "Command Center",
     body: "Executive overview of quality mix, throughput trend, queue status, and execution logs.",
@@ -87,7 +165,30 @@ const MODULE_CARDS = [
   },
 ];
 
-const ROADMAP = [
+const ROADMAP_ZH = [
+  {
+    title: "机械与夹具基础",
+    text: "完成夹具策略、关键动作定义和执行基线。",
+    status: "completed",
+  },
+  {
+    title: "视觉检测链",
+    text: "建立标准化的预处理和测量管道用于检测任务。",
+    status: "completed",
+  },
+  {
+    title: "数字孪生与运营UX",
+    text: "将设备、传感器和流程阶段映射到面向角色的交互流程。",
+    status: "in_progress",
+  },
+  {
+    title: "企业交付包",
+    text: "最终确定部署叙述、治理控制和跨团队报告资产。",
+    status: "pending",
+  },
+];
+
+const ROADMAP_EN = [
   {
     title: "Mechanical and Fixture Foundation",
     text: "Complete fixture strategy, key movement definitions, and execution baseline.",
@@ -112,33 +213,34 @@ const ROADMAP = [
 
 export default function HomeIntro() {
   const router = useRouter();
+  const { text, locale, t } = useLocale();
 
   const workflowSteps = useMemo<WorkflowStep[]>(
     () => [
       {
         id: "home-step-brief",
-        title: "Read project brief",
-        detail: "Understand scope and value narrative",
+        title: t("pages.home.copy001"),
+        detail: t("pages.home.copy002"),
         state: "active",
       },
       {
         id: "home-step-command",
-        title: "Open command center",
-        detail: "Start from overview and KPI story",
+        title: t("pages.home.copy003"),
+        detail: t("pages.home.copy004"),
         state: "upcoming",
         onClick: () => router.push("/visualize"),
       },
       {
         id: "home-step-operations",
-        title: "Enter execution domains",
-        detail: "Branch into Monitoring or Twin for deep work",
+        title: t("pages.home.copy005"),
+        detail: t("pages.home.copy006"),
         state: "upcoming",
         onClick: () => router.push("/operations"),
       },
       {
         id: "home-step-workspace",
-        title: "Close loop in workspace",
-        detail: "Use AI and governance modules for follow-up actions",
+        title: t("pages.home.copy007"),
+        detail: t("pages.home.copy008"),
         state: "upcoming",
         onClick: () => router.push("/workspace"),
       },
@@ -148,42 +250,42 @@ export default function HomeIntro() {
 
   const coreMetrics = useMemo<CoreFlowMetric[]>(
     () =>
-      VALUE_CARDS.map((item) => ({
+      (locale === "zh-CN" ? VALUE_CARDS_ZH : VALUE_CARDS_EN).map((item) => ({
         label: item.title,
         value: item.value,
         note: item.detail,
       })),
-    [],
+    [locale],
   );
 
   const coreStages = useMemo<CoreFlowStage[]>(
     () => [
       {
         id: "home-core-observe",
-        title: "Observe platform outcome",
-        detail: "Lead with quality, throughput, and business impact in command center.",
+        title: t("pages.home.copy009"),
+        detail: t("pages.home.copy010"),
         state: "done",
       },
       {
         id: "home-core-diagnose",
-        title: "Diagnose by domain",
-        detail: "Choose monitoring for live incidents or twin for process and space context.",
+        title: t("pages.home.copy011"),
+        detail: t("pages.home.copy012"),
         state: "active",
       },
       {
         id: "home-core-act",
-        title: "Execute role action",
-        detail: "Operators triage alerts and engineers verify process deviations.",
+        title: t("pages.home.copy013"),
+        detail: t("pages.home.copy014"),
         state: "upcoming",
       },
       {
         id: "home-core-close",
-        title: "Close with governance",
-        detail: "Summarize findings in workspace and admin governance tracks.",
+        title: t("pages.home.copy015"),
+        detail: t("pages.home.copy016"),
         state: "upcoming",
       },
     ],
-    [],
+    [text],
   );
 
   const scrollToSection = (id: string) => {
@@ -197,8 +299,8 @@ export default function HomeIntro() {
       <BackButton fallbackHref="/visualize" />
 
       <WorkflowSteps
-        title="Demo Story Flow"
-        subtitle="Use this path to present the platform from value to execution."
+        title={t("pages.home.copy017")}
+        subtitle={t("pages.home.copy018")}
         steps={workflowSteps}
       />
 
@@ -208,67 +310,70 @@ export default function HomeIntro() {
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("home-core")}
         >
-          Core Flow
+          {t("pages.digital_twin.copy037")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("home-lanes")}
         >
-          Action Lanes
+          {t("pages.digital_twin.copy038")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("home-modules")}
         >
-          Module Tour
+          {t("pages.home.copy019")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("home-roadmap")}
         >
-          Delivery Path
+          {t("pages.home.copy020")}
         </button>
       </div>
 
       <CoreFlowHeader
         id="home-core"
-        eyebrow="Platform Narrative / Demo Entry"
-        title="Wheel Hub Detection IoT Platform"
-        description={HERO_PARAGRAPHS.join(" ")}
+        eyebrow={t("pages.home.copy021")}
+        title={t("pages.home.copy022")}
+        description={(locale === "zh-CN"
+          ? HERO_PARAGRAPHS_ZH
+          : HERO_PARAGRAPHS_EN
+        ).join(" ")}
         metrics={coreMetrics}
         stages={coreStages}
         actions={
           <>
             <Link href="/visualize" className="enterprise-primary-button">
-              Start from Command Center
+              {t("pages.home.copy023")}
             </Link>
             <Link href="/operations" className="enterprise-secondary-button">
-              Jump to Operations Hub
+              {t("pages.home.copy024")}
             </Link>
             <Link href="/monitor" className="enterprise-secondary-button">
-              Open Monitoring
+              {t("pages.home.copy025")}
             </Link>
             <Link href="/digital-twin" className="enterprise-secondary-button">
-              Open Digital Twin
+              {t("pages.home.copy026")}
             </Link>
           </>
         }
         sideNote={
           <div className="innovation-highlight-list">
             <div>
-              <strong>Minute 1: Outcome</strong>
-              <p>Show command center metrics and quality distribution.</p>
+              <strong>{t("pages.home.copy027")}</strong>
+              <p>{t("pages.home.copy028")}</p>
             </div>
             <div>
-              <strong>Minute 2: Execution</strong>
-              <p>Open monitor and digital twin for root-cause context.</p>
+              <strong>{t("pages.home.copy029")}</strong>
+              <p>{t("pages.home.copy030")}</p>
             </div>
             <div>
-              <strong>Minute 3: Closure</strong>
-              <p>Finish with workspace reports and admin governance actions.</p>
+              <strong>{t("pages.home.copy031")}</strong>
+              <p>{t("pages.home.copy032")}</p>
             </div>
           </div>
         }
@@ -276,89 +381,91 @@ export default function HomeIntro() {
 
       <section id="home-lanes" className="core-flow-lane-grid">
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Observe</span>
-          <h3>Executive showcase lane</h3>
-          <p>
-            Start with command KPIs, then explain how this architecture improves
-            speed, traceability, and decision confidence.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy053")}
+          </span>
+          <h3>{t("pages.home.copy033")}</h3>
+          <p>{t("pages.home.copy034")}</p>
           <div className="core-flow-lane-actions">
             <Link href="/visualize" className="enterprise-primary-button">
-              Open KPI Story
+              {t("pages.home.copy035")}
             </Link>
             <Link href="/home" className="enterprise-secondary-button">
-              Stay on Brief
+              {t("pages.home.copy036")}
             </Link>
           </div>
         </Card>
 
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Diagnose + Act</span>
-          <h3>Domain execution lane</h3>
-          <p>
-            Route issues to monitor for incident response or to digital twin for
-            spatial and process diagnostics.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.home.copy037")}
+          </span>
+          <h3>{t("pages.home.copy038")}</h3>
+          <p>{t("pages.home.copy039")}</p>
           <div className="core-flow-lane-actions">
             <Link href="/monitor" className="enterprise-primary-button">
-              Go Monitoring
+              {t("pages.home.copy040")}
             </Link>
             <Link href="/digital-twin" className="enterprise-secondary-button">
-              Go Twin
+              {t("pages.home.copy041")}
             </Link>
           </div>
         </Card>
 
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Close</span>
-          <h3>Governance closure lane</h3>
-          <p>
-            Convert diagnosis into reports, action owners, and policy updates in
-            AI workspace and admin modules.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.home.copy042")}
+          </span>
+          <h3>{t("pages.home.copy043")}</h3>
+          <p>{t("pages.home.copy044")}</p>
           <div className="core-flow-lane-actions">
             <Link href="/workspace" className="enterprise-primary-button">
-              Open Workspace
+              {t("pages.home.copy045")}
             </Link>
             <Link href="/admin" className="enterprise-secondary-button">
-              Open Governance
+              {t("pages.home.copy046")}
             </Link>
           </div>
         </Card>
       </section>
 
       <section id="home-modules" className="innovation-feature-grid">
-        {MODULE_CARDS.map((card, index) => (
-          <Card
-            key={card.title}
-            className={`innovation-feature-card hover-lift animate-fade-in-up stagger-${
-              (index % 5) + 1
-            }`}
-          >
-            <span className="innovation-feature-tag">{card.tag}</span>
-            <div className="innovation-feature-image">
-              <img src={card.image} alt={card.title} loading="lazy" />
-            </div>
-            <h3 className="text-gradient">{card.title}</h3>
-            <p>{card.body}</p>
-            <div className="workspace-capability-actions mt-3">
-              <Link href={card.href} className="enterprise-secondary-button">
-                Open Module
-              </Link>
-            </div>
-          </Card>
-        ))}
+        {(locale === "zh-CN" ? MODULE_CARDS_ZH : MODULE_CARDS_EN).map(
+          (card, index) => (
+            <Card
+              key={card.title}
+              className={`innovation-feature-card hover-lift animate-fade-in-up stagger-${
+                (index % 5) + 1
+              }`}
+            >
+              <span className="innovation-feature-tag">{card.tag}</span>
+              <div className="innovation-feature-image">
+                <img src={card.image} alt={card.title} loading="lazy" />
+              </div>
+              <h3 className="text-gradient">{card.title}</h3>
+              <p>{card.body}</p>
+              <div className="workspace-capability-actions mt-3">
+                <Link href={card.href} className="enterprise-secondary-button">
+                  {t("pages.home.copy047")}
+                </Link>
+              </div>
+            </Card>
+          ),
+        )}
       </section>
 
-      <Card id="home-roadmap" className="innovation-timeline-card glow-border animate-scale-in">
+      <Card
+        id="home-roadmap"
+        className="innovation-timeline-card glow-border animate-scale-in"
+      >
         <div className="panel-heading">
           <div>
-            <span className="panel-kicker">Delivery Journey</span>
-            <h2>From prototype to enterprise operation</h2>
+            <span className="panel-kicker">{t("pages.home.copy048")}</span>
+            <h2>{t("pages.home.copy049")}</h2>
           </div>
         </div>
         <div className="innovation-timeline">
-          {ROADMAP.map((item, index) => (
+          {(locale === "zh-CN" ? ROADMAP_ZH : ROADMAP_EN).map((item, index) => (
             <div
               key={item.title}
               className={`innovation-timeline-item animate-slide-in-right stagger-${
@@ -383,10 +490,10 @@ export default function HomeIntro() {
                   className="mt-2"
                 >
                   {item.status === "completed"
-                    ? "Completed"
+                    ? t("pages.home.copy050")
                     : item.status === "in_progress"
-                      ? "In Progress"
-                      : "Planned"}
+                      ? t("pages.home.copy051")
+                      : t("pages.home.copy052")}
                 </Badge>
               </div>
             </div>

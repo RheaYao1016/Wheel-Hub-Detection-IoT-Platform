@@ -20,12 +20,24 @@ type NavItem = {
 const CORE_ITEMS: NavItem[] = [
   { href: "/home", labelZh: "项目总览", labelEn: "Overview" },
   { href: "/visualize", labelZh: "指挥中心", labelEn: "Command Center" },
-  { href: "/operations", labelZh: "现场中台", labelEn: "Operations Hub", aliases: ["/monitor", "/digital-twin"] },
+  {
+    href: "/operations",
+    labelZh: "现场中台",
+    labelEn: "Operations Hub",
+    aliases: ["/monitor", "/digital-twin"],
+  },
   {
     href: "/workspace",
     labelZh: "智能工作台",
-    labelEn: "AI Workspace",
-    aliases: ["/ai-assistant", "/data-hub", "/reports", "/training", "/annotation"],
+    labelEn: "Intelligence Workspace",
+    aliases: [
+      "/ai-assistant",
+      "/data-hub",
+      "/reports",
+      "/training",
+      "/annotation",
+      "/platform-config",
+    ],
   },
 ];
 
@@ -34,7 +46,13 @@ const ADMIN_ITEMS: NavItem[] = [
     href: "/admin",
     labelZh: "运营后台",
     labelEn: "Admin Console",
-    aliases: ["/admin/alerts", "/admin/data-import", "/admin/inspections", "/admin/storage", "/admin/wheels"],
+    aliases: [
+      "/admin/alerts",
+      "/admin/data-import",
+      "/admin/inspections",
+      "/admin/storage",
+      "/admin/wheels",
+    ],
   },
 ];
 
@@ -47,11 +65,15 @@ function matchesRoute(currentPath: string, item: NavItem) {
     return true;
   }
 
-  return item.aliases?.some((alias) => currentPath === alias || currentPath.startsWith(`${alias}/`)) ?? false;
+  return (
+    item.aliases?.some(
+      (alias) => currentPath === alias || currentPath.startsWith(`${alias}/`),
+    ) ?? false
+  );
 }
 
 export default function Navigation() {
-  const { locale } = useLocale();
+  const { text } = useLocale();
   const pathname = usePathname();
   const currentPath = pathname === "/" ? "/home" : pathname;
   const [role, setRole] = useState<RoleState>(null);
@@ -86,15 +108,17 @@ export default function Navigation() {
     }
 
     if (normalizedRole === "engineer" || normalizedRole === "viewer") {
-      return CORE_ITEMS.filter((item) => item.href !== "/visualize" && item.href !== "/operations");
+      return CORE_ITEMS.filter(
+        (item) => item.href !== "/visualize" && item.href !== "/operations",
+      );
     }
 
     return CORE_ITEMS;
   }, [role]);
 
   return (
-    <nav className="flex flex-1 justify-center">
-      <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
+    <nav className="header-nav-row">
+      <div className="header-nav-track">
         {navItems.map((item) => {
           const isActive = matchesRoute(currentPath, item);
           return (
@@ -102,22 +126,22 @@ export default function Navigation() {
               key={item.href}
               href={item.href}
               className={cn(
-                "nav-pill relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300",
+                "nav-pill relative rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300 whitespace-nowrap shrink-0",
                 "hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2",
                 isActive && [
                   "nav-pill-active",
+                  "border border-[var(--accent)]/30",
                   "bg-gradient-to-r from-[var(--accent)]/20 to-[var(--accent-strong)]/20",
                   "text-[var(--accent)]",
-                  "border border-[var(--accent)]/30",
                   "shadow-[0_0_20px_var(--accent)]/10",
-                ]
+                ],
               )}
             >
-              {locale === "zh-CN" ? item.labelZh : item.labelEn}
-              {isActive && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-strong)] rounded-full" />
-              )}
+              {text(item.labelZh, item.labelEn)}
+              {isActive ? (
+                <span className="absolute bottom-0 left-1/2 h-0.5 w-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-strong)]" />
+              ) : null}
             </TransitionLink>
           );
         })}

@@ -3,12 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
-import PagedBlockControls, { getPagedItems } from "../components/Layout/PagedBlockControls";
+import PagedBlockControls, {
+  getPagedItems,
+} from "../components/Layout/PagedBlockControls";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useLocale } from "../components/Locale/LocaleProvider";
-import { enterpriseErrorMessage, enterpriseGet, enterprisePost } from "@/lib/enterprise-client";
-import type { DataSourceProfile, ModelVersion, TrainingJob } from "@/types/enterprise";
+import {
+  enterpriseErrorMessage,
+  enterpriseGet,
+  enterprisePost,
+} from "@/lib/enterprise-client";
+import type {
+  DataSourceProfile,
+  ModelVersion,
+  TrainingJob,
+} from "@/types/enterprise";
 
 const MODEL_OPTIONS = [
   "yolov10n.pt",
@@ -29,7 +39,9 @@ const DEVICE_OPTIONS = [
 ];
 
 function detectTrainingMode(job: TrainingJob) {
-  const warningArtifact = job.artifacts.find((item) => item.endsWith("training_mode.txt"));
+  const warningArtifact = job.artifacts.find((item) =>
+    item.endsWith("training_mode.txt"),
+  );
   if (warningArtifact) return { key: "warning", statusClass: "status-warning" };
   const bestWeight = job.artifacts.find((item) => item.endsWith("best.pt"));
   if (bestWeight) return { key: "completed", statusClass: "status-success" };
@@ -42,7 +54,7 @@ export default function TrainingPage() {
 
 function TrainingContent() {
   const ready = useSessionGuard(["admin", "engineer"]);
-  const { text } = useLocale();
+  const { text, t } = useLocale();
   const [sources, setSources] = useState<DataSourceProfile[]>([]);
   const [jobs, setJobs] = useState<TrainingJob[]>([]);
   const [models, setModels] = useState<ModelVersion[]>([]);
@@ -64,18 +76,24 @@ function TrainingContent() {
       enterpriseGet<TrainingJob[]>("/training/jobs"),
       enterpriseGet<ModelVersion[]>("/model-ops/versions"),
     ]);
-    const trainingSources = sourceData.filter((item) => item.type === "annotation-yolo" || item.schemaProfile === "yolo_v10_detect");
+    const trainingSources = sourceData.filter(
+      (item) =>
+        item.type === "annotation-yolo" ||
+        item.schemaProfile === "yolo_v10_detect",
+    );
     setSources(trainingSources.length ? trainingSources : sourceData);
     setJobs(jobData);
     setModels(modelData);
-    setDatasetId((current) => current || trainingSources[0]?.id || sourceData[0]?.id || "");
+    setDatasetId(
+      (current) => current || trainingSources[0]?.id || sourceData[0]?.id || "",
+    );
   };
 
   useEffect(() => {
     if (!ready) return;
     load().catch((error) => {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("加载训练中心失败，请确认后端和 AI 服务已经启动。", "Failed to load the Training Center. Make sure the backend and AI service are running.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.training.copy001")));
     });
   }, [ready, text]);
 
@@ -104,9 +122,18 @@ function TrainingContent() {
     }
   }, []);
 
-  const selectedDataset = useMemo(() => sources.find((item) => item.id === datasetId) ?? null, [sources, datasetId]);
-  const pagedJobs = useMemo(() => getPagedItems(jobs, jobPage, 4), [jobs, jobPage]);
-  const pagedModels = useMemo(() => getPagedItems(models, modelPage, 6), [models, modelPage]);
+  const selectedDataset = useMemo(
+    () => sources.find((item) => item.id === datasetId) ?? null,
+    [sources, datasetId],
+  );
+  const pagedJobs = useMemo(
+    () => getPagedItems(jobs, jobPage, 4),
+    [jobs, jobPage],
+  );
+  const pagedModels = useMemo(
+    () => getPagedItems(models, modelPage, 6),
+    [models, modelPage],
+  );
 
   const handleCreate = async () => {
     setLoading(true);
@@ -121,14 +148,15 @@ function TrainingContent() {
       });
       await load();
       setMessage(
-        text(
-          `训练已提交：${baseModel} / ${deviceMode}。后端会至少执行 ${Math.max(10, epochs)} 轮，并启动真实 Ultralytics 训练。`,
-          `Training submitted with ${baseModel} on ${deviceMode}. The backend will keep at least ${Math.max(10, epochs)} epochs and run a real Ultralytics job.`,
-        ),
+        t("pages.training.copy002", {
+          p1: baseModel,
+          p2: deviceMode,
+          p3: Math.max(10, epochs),
+        }),
       );
     } catch (error) {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("提交训练任务失败，请确认导出的数据集完整且 AI/ML 服务可达。", "Failed to submit the training job. Make sure the exported dataset is complete and the AI/ML service is reachable.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.training.copy003")));
     } finally {
       setLoading(false);
     }
@@ -138,8 +166,8 @@ function TrainingContent() {
     return (
       <PageLoadFallback
         fallbackHref="/workspace"
-        title={text("正在加载训练中心", "Loading Training Center")}
-        description={text("正在校验权限并准备数据集、训练任务与模型版本布局...", "Verifying access and preparing datasets, training jobs, and model version layout...")}
+        title={t("pages.training.copy004")}
+        description={t("pages.training.copy005")}
       />
     );
   }
@@ -150,26 +178,21 @@ function TrainingContent() {
 
       <section className="enterprise-hero">
         <div>
-          <span className="eyebrow">{text("训练中心", "Training Center")}</span>
-          <h1>{text("真实 YOLO 训练发起中心", "Real YOLO training launcher")}</h1>
-          <p>
-            {text(
-              "先在标注工作台导出数据集，再在这里发起 YOLO 训练。后端会强制至少 10 轮，并且只执行真实 Ultralytics 训练。若本机支持 CUDA，可以直接选择 CUDA；设备不可用时会返回可执行的修复建议。",
-              "Export a labeled project from the Annotation Studio, then start YOLO training here. The backend keeps a minimum of 10 epochs and runs real Ultralytics training only. CUDA can be selected when the local environment supports it, and the request fails with an actionable error if the selected device is unavailable.",
-            )}
-          </p>
+          <span className="eyebrow">{t("pages.training.copy006")}</span>
+          <h1>{t("pages.training.copy007")}</h1>
+          <p>{t("pages.training.copy008")}</p>
         </div>
         <div className="enterprise-hero-metrics">
           <div>
-            <span>{text("数据集", "Datasets")}</span>
+            <span>{t("pages.training.copy009")}</span>
             <strong>{sources.length}</strong>
           </div>
           <div>
-            <span>{text("训练任务", "Training jobs")}</span>
+            <span>{t("pages.training.copy010")}</span>
             <strong>{jobs.length}</strong>
           </div>
           <div>
-            <span>{text("模型版本", "Model versions")}</span>
+            <span>{t("pages.training.copy011")}</span>
             <strong>{models.length}</strong>
           </div>
         </div>
@@ -177,19 +200,24 @@ function TrainingContent() {
 
       {message ? <div className="auth-message">{message}</div> : null}
 
-      <div className="enterprise-grid">
+      <div className="enterprise-grid training-grid">
         <Card className="enterprise-side-card">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">{text("训练启动", "Launcher")}</span>
-              <h2>{text("创建训练任务", "Create a training run")}</h2>
+              <span className="panel-kicker">
+                {t("pages.training.copy012")}
+              </span>
+              <h2>{t("pages.training.copy013")}</h2>
             </div>
           </div>
 
           <div className="enterprise-form-grid">
             <label>
-              <span>{text("数据集", "Dataset")}</span>
-              <select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>
+              <span>{t("pages.training.copy014")}</span>
+              <select
+                value={datasetId}
+                onChange={(event) => setDatasetId(event.target.value)}
+              >
                 {sources.map((source) => (
                   <option key={source.id} value={source.id}>
                     {source.name}
@@ -199,8 +227,11 @@ function TrainingContent() {
             </label>
 
             <label>
-              <span>{text("基础模型", "Base model")}</span>
-              <select value={baseModel} onChange={(event) => setBaseModel(event.target.value)}>
+              <span>{t("pages.training.copy015")}</span>
+              <select
+                value={baseModel}
+                onChange={(event) => setBaseModel(event.target.value)}
+              >
                 {MODEL_OPTIONS.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -210,8 +241,11 @@ function TrainingContent() {
             </label>
 
             <label>
-              <span>{text("设备", "Device")}</span>
-              <select value={deviceMode} onChange={(event) => setDeviceMode(event.target.value)}>
+              <span>{t("pages.training.copy016")}</span>
+              <select
+                value={deviceMode}
+                onChange={(event) => setDeviceMode(event.target.value)}
+              >
                 {DEVICE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -221,8 +255,11 @@ function TrainingContent() {
             </label>
 
             <label>
-              <span>{text("训练预设", "Preset")}</span>
-              <select value={preset} onChange={(event) => setPreset(event.target.value)}>
+              <span>{t("pages.training.copy017")}</span>
+              <select
+                value={preset}
+                onChange={(event) => setPreset(event.target.value)}
+              >
                 <option value="yolov10-balanced">YOLOv10 balanced</option>
                 <option value="cpu-safe-demo">CPU safe</option>
                 <option value="quick-inspection">Quick inspection</option>
@@ -230,8 +267,11 @@ function TrainingContent() {
             </label>
 
             <label>
-              <span>{text("训练轮数", "Epochs")}</span>
-              <select value={epochs} onChange={(event) => setEpochs(Number(event.target.value))}>
+              <span>{t("pages.training.copy018")}</span>
+              <select
+                value={epochs}
+                onChange={(event) => setEpochs(Number(event.target.value))}
+              >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
                 <option value={30}>30</option>
@@ -241,138 +281,198 @@ function TrainingContent() {
           </div>
 
           <div className="enterprise-note-card">
-            <strong>{text("当前数据集", "Selected dataset")}</strong>
-            <span>{selectedDataset?.name ?? text("尚未选择数据集", "No dataset selected")}</span>
+            <strong>{t("pages.training.copy019")}</strong>
+            <span>{selectedDataset?.name ?? t("pages.training.copy020")}</span>
           </div>
 
           <div className="enterprise-note-card">
-            <strong>{text("数据集摘要", "Dataset summary")}</strong>
-            <span>{selectedDataset?.connectionMeta.analysisSummary ?? text("请先在标注工作台导出一个带标签的数据集。", "Export a labeled project from the Annotation Studio first.")}</span>
+            <strong>{t("pages.training.copy021")}</strong>
+            <span>
+              {selectedDataset?.connectionMeta.analysisSummary ??
+                t("pages.training.copy022")}
+            </span>
           </div>
 
-          <button type="button" className="enterprise-primary-button" onClick={handleCreate} disabled={!datasetId || loading}>
-            {loading ? text("提交中...", "Submitting...") : text("开始训练", "Start training")}
+          <button
+            type="button"
+            className="enterprise-primary-button"
+            onClick={handleCreate}
+            disabled={!datasetId || loading}
+          >
+            {loading
+              ? t("pages.admin.data_import.copy046")
+              : t("pages.training.copy023")}
           </button>
         </Card>
 
-        <div className="enterprise-card-stack enterprise-panel-scroll">
-          <PagedBlockControls
-            count={jobs.length}
-            page={pagedJobs.safePage}
-            pageCount={pagedJobs.pageCount}
-            expanded={jobsExpanded}
-            onPrev={() => setJobPage((current) => Math.max(0, current - 1))}
-            onNext={() => setJobPage((current) => Math.min(pagedJobs.pageCount - 1, current + 1))}
-            onToggle={() => setJobsExpanded((current) => !current)}
-            labels={{
-              total: text("共", "Total"),
-              items: text("项", "items"),
-              expand: text("展开", "Expand"),
-              collapse: text("收起", "Collapse"),
-              prev: text("上一页", "Prev"),
-              next: text("下一页", "Next"),
-            }}
-          />
-          {jobsExpanded ? pagedJobs.items.map((job) => {
-            const trainingMode = detectTrainingMode(job);
-            const trainingModeLabel =
-              trainingMode.key === "warning"
-                ? text("训练警告", "Training warning")
-                : trainingMode.key === "completed"
-                  ? text("Ultralytics 已完成", "Ultralytics completed")
-                  : text("进行中或等待中", "In progress or pending");
-            return (
-              <Card key={job.id} className="enterprise-training-card">
-                <div className="enterprise-data-card-top">
-                  <div>
-                    <strong>{job.baseModel}</strong>
-                    <span>
-                      {job.preset} / {job.deviceMode} / {job.epochCount} epochs
-                    </span>
-                  </div>
-                  <div className={`status-chip ${job.status === "completed" ? "status-success" : job.status === "stopped" ? "status-danger" : "status-warning"}`}>
-                    {job.status}
-                  </div>
-                </div>
-
-                <div className="enterprise-note-card">
-                  <strong>{text("执行结果", "Execution result")}</strong>
-                  <span className={trainingMode.statusClass}>{trainingModeLabel}</span>
-                </div>
-
-                <div className="enterprise-progress-shell">
-                  <div className="enterprise-progress-bar" style={{ width: `${job.progress}%` }} />
-                </div>
-
-                <details className="enterprise-card-details">
-                  <summary>{text("查看训练指标、产物与执行说明", "View metrics, artifacts, and execution notes")}</summary>
-                  <div className="enterprise-chart-mini-grid">
-                    {job.metrics.map((metric) => (
-                      <div key={`${job.id}-${metric.epoch}`} className="enterprise-mini-metric">
-                        <span>{text("轮次", "Epoch")} {metric.epoch}</span>
-                        <strong>mAP50 {metric.map50.toFixed(2)}</strong>
-                        <em>{text("损失", "Loss")} {metric.loss.toFixed(2)}</em>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="enterprise-note-card">
-                    <strong>{text("训练产物", "Artifacts")}</strong>
-                    <span>{job.artifacts.join(" | ") || text("训练开始后会在这里出现产物文件。", "Artifacts will appear here after training starts.")}</span>
-                  </div>
-
-                  <div className="enterprise-note-card">
-                    <strong>{text("执行说明", "Execution note")}</strong>
-                    <span>
-                      {text(
-                        "当前企业版演示环境中的训练任务会同步执行。你可以连续发起多次训练，对比不同预设、模型和设备组合。",
-                        "Training runs synchronously in the current enterprise build. Start a new run to compare presets, models, or devices.",
-                      )}
-                    </span>
-                  </div>
-                </details>
-              </Card>
-            );
-          }) : <div className="enterprise-collapsed-note">{text("训练列表已折叠", "Training list collapsed")}</div>}
-        </div>
-
-        <Card className="enterprise-side-card">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">{text("模型运维", "Model Ops")}</span>
-              <h2>{text("已登记模型版本", "Registered model versions")}</h2>
-            </div>
-          </div>
-
-          <PagedBlockControls
-            count={models.length}
-            page={pagedModels.safePage}
-            pageCount={pagedModels.pageCount}
-            expanded={modelsExpanded}
-            onPrev={() => setModelPage((current) => Math.max(0, current - 1))}
-            onNext={() => setModelPage((current) => Math.min(pagedModels.pageCount - 1, current + 1))}
-            onToggle={() => setModelsExpanded((current) => !current)}
-            labels={{
-              total: text("共", "Total"),
-              items: text("项", "items"),
-              expand: text("展开", "Expand"),
-              collapse: text("收起", "Collapse"),
-              prev: text("上一页", "Prev"),
-              next: text("下一页", "Next"),
-            }}
-          />
-          <div className="enterprise-list enterprise-panel-scroll">
-            {modelsExpanded ? pagedModels.items.map((model) => (
-              <div key={model.id} className="enterprise-list-item enterprise-list-item-static">
-                <strong>{model.name}</strong>
-                <span>{model.metricsSummary}</span>
+        <div className="enterprise-card-stack training-stack">
+          <Card className="enterprise-main-card">
+            <div className="panel-heading">
+              <div>
+                <span className="panel-kicker">
+                  {t("pages.training.copy010")}
+                </span>
+                <h2>{t("pages.training.copy024")}</h2>
               </div>
-            )) : <div className="enterprise-collapsed-note">{text("模型列表已折叠", "Model list collapsed")}</div>}
-          </div>
-        </Card>
+            </div>
+            <PagedBlockControls
+              count={jobs.length}
+              page={pagedJobs.safePage}
+              pageCount={pagedJobs.pageCount}
+              expanded={jobsExpanded}
+              showToggle={false}
+              onPrev={() => setJobPage((current) => Math.max(0, current - 1))}
+              onNext={() =>
+                setJobPage((current) =>
+                  Math.min(pagedJobs.pageCount - 1, current + 1),
+                )
+              }
+              onToggle={() => setJobsExpanded((current) => !current)}
+              labels={{
+                total: t("pages.ai_assistant.copy011"),
+                items: t("pages.ai_assistant.copy012"),
+                expand: t("pages.ai_assistant.copy014"),
+                collapse: t("pages.ai_assistant.copy013"),
+                prev: t("pages.ai_assistant.copy015"),
+                next: t("pages.ai_assistant.copy016"),
+              }}
+            />
+            {jobsExpanded ? (
+              <div className="enterprise-card-stack">
+                {pagedJobs.items.map((job) => {
+                  const trainingMode = detectTrainingMode(job);
+                  const trainingModeLabel =
+                    trainingMode.key === "warning"
+                      ? t("pages.training.copy025")
+                      : trainingMode.key === "completed"
+                        ? t("pages.training.copy026")
+                        : t("pages.training.copy027");
+                  return (
+                    <Card key={job.id} className="enterprise-training-card">
+                      <div className="enterprise-data-card-top">
+                        <div>
+                          <strong>{job.baseModel}</strong>
+                          <span>
+                            {job.preset} / {job.deviceMode} / {job.epochCount}{" "}
+                            epochs
+                          </span>
+                        </div>
+                        <div
+                          className={`status-chip ${job.status === "completed" ? "status-success" : job.status === "stopped" ? "status-danger" : "status-warning"}`}
+                        >
+                          {job.status}
+                        </div>
+                      </div>
+
+                      <div className="enterprise-note-card">
+                        <strong>{t("pages.training.copy028")}</strong>
+                        <span className={trainingMode.statusClass}>
+                          {trainingModeLabel}
+                        </span>
+                      </div>
+
+                      <div className="enterprise-progress-shell">
+                        <div
+                          className="enterprise-progress-bar"
+                          style={{ width: `${job.progress}%` }}
+                        />
+                      </div>
+
+                      <details className="enterprise-card-details">
+                        <summary>{t("pages.training.copy029")}</summary>
+                        <div className="enterprise-chart-mini-grid">
+                          {job.metrics.map((metric) => (
+                            <div
+                              key={`${job.id}-${metric.epoch}`}
+                              className="enterprise-mini-metric"
+                            >
+                              <span>
+                                {t("pages.training.copy030")} {metric.epoch}
+                              </span>
+                              <strong>mAP50 {metric.map50.toFixed(2)}</strong>
+                              <em>
+                                {t("pages.training.copy031")}{" "}
+                                {metric.loss.toFixed(2)}
+                              </em>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="enterprise-note-card">
+                          <strong>{t("pages.training.copy032")}</strong>
+                          <span>
+                            {job.artifacts.join(" | ") ||
+                              t("pages.training.copy033")}
+                          </span>
+                        </div>
+
+                        <div className="enterprise-note-card">
+                          <strong>{t("pages.training.copy034")}</strong>
+                          <span>{t("pages.training.copy035")}</span>
+                        </div>
+                      </details>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="enterprise-collapsed-note">
+                {t("pages.training.copy036")}
+              </div>
+            )}
+          </Card>
+
+          <Card className="enterprise-side-card">
+            <div className="panel-heading">
+              <div>
+                <span className="panel-kicker">
+                  {t("pages.training.copy037")}
+                </span>
+                <h2>{t("pages.training.copy038")}</h2>
+              </div>
+            </div>
+            <PagedBlockControls
+              count={models.length}
+              page={pagedModels.safePage}
+              pageCount={pagedModels.pageCount}
+              expanded={modelsExpanded}
+              showToggle={false}
+              onPrev={() => setModelPage((current) => Math.max(0, current - 1))}
+              onNext={() =>
+                setModelPage((current) =>
+                  Math.min(pagedModels.pageCount - 1, current + 1),
+                )
+              }
+              onToggle={() => setModelsExpanded((current) => !current)}
+              labels={{
+                total: t("pages.ai_assistant.copy011"),
+                items: t("pages.ai_assistant.copy012"),
+                expand: t("pages.ai_assistant.copy014"),
+                collapse: t("pages.ai_assistant.copy013"),
+                prev: t("pages.ai_assistant.copy015"),
+                next: t("pages.ai_assistant.copy016"),
+              }}
+            />
+            <div className="enterprise-list">
+              {modelsExpanded ? (
+                pagedModels.items.map((model) => (
+                  <div
+                    key={model.id}
+                    className="enterprise-list-item enterprise-list-item-static"
+                  >
+                    <strong>{model.name}</strong>
+                    <span>{model.metricsSummary}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="enterprise-collapsed-note">
+                  {t("pages.training.copy039")}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
 }
-
-

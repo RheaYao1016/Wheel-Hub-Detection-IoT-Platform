@@ -13,18 +13,21 @@ type GlobalWithStore = typeof globalThis & {
 
 const OPERATORS = ["李雷", "韩梅梅", "张伟", "王芳", "赵敏", "刘洋"];
 
-const STATUS_COPY: Record<ImportBatchStatus, string> = {
-  成功: "导入成功，已写入数据库",
-  失败: "导入失败，已终止流程",
-  部分成功: "部分记录导入，存在异常待复核"
+const STATUS_COPY: Record<string, string> = {
+  SUCCESS: "Import succeeded and records were committed.",
+  FAILED: "Import failed and the pipeline was aborted.",
+  PARTIAL_SUCCESS: "Import partially succeeded and requires review.",
+  成功: "Import succeeded and records were committed.",
+  失败: "Import failed and the pipeline was aborted.",
+  部分成功: "Import partially succeeded and requires review.",
 };
 
 export function getImportStore(): ImportStore {
   const globalRef = globalThis as GlobalWithStore;
-  if (!globalRef.__IMPORT_HISTORY_STORE__) {
-    globalRef.__IMPORT_HISTORY_STORE__ = { seeded: false, items: [] };
+  if (!globalRef[STORE_KEY]) {
+    globalRef[STORE_KEY] = { seeded: false, items: [] };
   }
-  const store = globalRef.__IMPORT_HISTORY_STORE__!;
+  const store = globalRef[STORE_KEY]!;
   if (!store.seeded) {
     store.items = buildSeedData();
     store.seeded = true;
@@ -73,58 +76,58 @@ function buildSeedData(): ImportBatch[] {
       sizeMB: 2.3,
       rows: 5200,
       duration: 8800,
-      status: "成功",
+      status: "SUCCESS",
       offsetHours: 4,
-      note: "夜班导入完毕"
+      note: "Night-shift import completed.",
     },
     {
       filename: "2025-03-12-recheck.csv",
       sizeMB: 1.1,
       rows: 1900,
       duration: 5100,
-      status: "部分成功",
+      status: "PARTIAL_SUCCESS",
       offsetHours: 10,
-      note: "存在 8 条待复核",
-      errorDetails: "校验失败行号：233、455、732 等"
+      note: "8 rows require recheck.",
+      errorDetails: "Validation failed for rows 133, 255, and 432.",
     },
     {
       filename: "2025-03-11-morning.csv",
       sizeMB: 2.8,
       rows: 6100,
       duration: 10200,
-      status: "成功",
+      status: "SUCCESS",
       offsetHours: 30,
-      note: "按计划批量入库"
+      note: "Scheduled morning import.",
     },
     {
       filename: "2025-03-10-lab.csv",
       sizeMB: 0.9,
       rows: 1200,
       duration: 4200,
-      status: "失败",
+      status: "FAILED",
       offsetHours: 45,
-      note: "CSV 列缺失",
-      errorDetails: "缺少 diameter, center 列，已终止导入"
+      note: "CSV missing required columns.",
+      errorDetails: "Missing columns: diameter, center_hole.",
     },
     {
       filename: "2025-03-10-shiftC.csv",
       sizeMB: 1.7,
       rows: 3500,
       duration: 6900,
-      status: "成功",
+      status: "SUCCESS",
       offsetHours: 50,
-      note: "人工抽检通过"
+      note: "Manual sampling passed.",
     },
     {
       filename: "2025-03-09-trace.csv",
       sizeMB: 3.1,
       rows: 7500,
       duration: 11800,
-      status: "部分成功",
+      status: "PARTIAL_SUCCESS",
       offsetHours: 66,
-      note: "PCD 异常 5 条",
-      errorDetails: "PCD 超差 5 条记录，需人工确认"
-    }
+      note: "5 abnormal PCD records.",
+      errorDetails: "PCD out-of-range for 5 records.",
+    },
   ];
 
   return templates.map((tpl, index) => {
@@ -141,19 +144,25 @@ function buildSeedData(): ImportBatch[] {
       importedBy: operator,
       note: tpl.note,
       errorDetails: tpl.errorDetails,
-      log: buildLog(tpl.status, operator, tpl.filename, importedAt, tpl.errorDetails)
+      log: buildLog(tpl.status, operator, tpl.filename, importedAt, tpl.errorDetails),
     } satisfies ImportBatch;
   });
 }
 
-function buildLog(status: ImportBatchStatus, operator: string, filename: string, importedAt: string, errorDetails?: string) {
+function buildLog(
+  status: ImportBatchStatus,
+  operator: string,
+  filename: string,
+  importedAt: string,
+  errorDetails?: string,
+) {
   const lines = [
-    `[${importedAt}] ${operator} 提交导入任务：${filename}`,
-    `[${importedAt}] 系统校验字段完整性`,
-    `[${importedAt}] ${STATUS_COPY[status]}`
+    `[${importedAt}] ${operator} submitted import job: ${filename}`,
+    `[${importedAt}] schema validation completed`,
+    `[${importedAt}] ${STATUS_COPY[status]}`,
   ];
   if (errorDetails) {
-    lines.push(`[${importedAt}] 异常详情：${errorDetails}`);
+    lines.push(`[${importedAt}] error details: ${errorDetails}`);
   }
   return lines.join("\n");
 }

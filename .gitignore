@@ -51,3 +51,18 @@ ai-ml-restart*.log
 backend-restart*.log
 backend-wmi.log
 
+# build outputs
+/output/
+/test-screenshots/
+/workspace_bad_lines.txt
+
+# claude code
+.claude/
+
+# resources temp
+resourse/
+
+# installer binaries
+installer/*.exe
+installer/output/
+

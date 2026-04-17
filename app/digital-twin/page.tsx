@@ -16,6 +16,7 @@ import ModelViewer from "../components/ThreeViewer/ModelViewer";
 import { PlatformAuthError, fetchPlatformData } from "@/lib/dashboard-client";
 import { clearAuthSession } from "@/lib/auth-session";
 import { useSessionGuard } from "../hooks/useSessionGuard";
+import { useLocale } from "../components/Locale/LocaleProvider";
 import type { DigitalTwinSnapshot } from "@/types/platform";
 
 function resolveSensorTone(status: string, value: number) {
@@ -42,6 +43,7 @@ function resolveDeviceTone(temperature: number) {
 export default function DigitalTwinPage() {
   const router = useRouter();
   const ready = useSessionGuard(["admin", "user"]);
+  const { text, t } = useLocale();
   const [snapshot, setSnapshot] = useState<DigitalTwinSnapshot | null>(null);
   const [error, setError] = useState("");
   const [activeSensorStatus, setActiveSensorStatus] = useState("all");
@@ -68,9 +70,7 @@ export default function DigitalTwinPage() {
           return;
         }
         console.error(requestError);
-        setError(
-          "Digital twin data is currently unavailable. Please retry shortly.",
-        );
+        setError(t("pages.digital_twin.copy001"));
       }
     };
 
@@ -98,7 +98,9 @@ export default function DigitalTwinPage() {
   const filteredSensors = useMemo(() => {
     if (!snapshot) return [];
     if (activeSensorStatus === "all") return snapshot.sensors;
-    return snapshot.sensors.filter((sensor) => sensor.status === activeSensorStatus);
+    return snapshot.sensors.filter(
+      (sensor) => sensor.status === activeSensorStatus,
+    );
   }, [activeSensorStatus, snapshot]);
 
   const workflowSteps = useMemo<WorkflowStep[]>(() => {
@@ -110,55 +112,63 @@ export default function DigitalTwinPage() {
     return [
       {
         id: "twin-step-scene",
-        title: "Load 3D scene",
-        detail: hasSnapshot ? "Scene and context loaded" : "Waiting for twin feed",
+        title: t("pages.digital_twin.copy002"),
+        detail: hasSnapshot
+          ? t("pages.digital_twin.copy003")
+          : t("pages.digital_twin.copy004"),
         state: hasSnapshot ? "done" : "active",
       },
       {
         id: "twin-step-sensors",
-        title: "Inspect sensors",
-        detail: sensorCount ? `${sensorCount} sensor nodes available` : "No sensor nodes",
+        title: t("pages.digital_twin.copy005"),
+        detail: sensorCount
+          ? t("pages.digital_twin.copy006", { p1: sensorCount })
+          : t("pages.digital_twin.copy007"),
         state: sensorCount ? "active" : "upcoming",
       },
       {
         id: "twin-step-flow",
-        title: "Review process flow",
-        detail: flowCount ? `${flowCount} mapped process step(s)` : "Flow map pending",
+        title: t("pages.digital_twin.copy008"),
+        detail: flowCount
+          ? t("pages.digital_twin.copy009", { p1: flowCount })
+          : t("pages.digital_twin.copy010"),
         state: flowCount ? "active" : "upcoming",
       },
       {
         id: "twin-step-devices",
-        title: "Check device lattice",
-        detail: deviceCount ? `${deviceCount} mapped asset(s)` : "Device map pending",
+        title: t("pages.digital_twin.copy011"),
+        detail: deviceCount
+          ? t("pages.digital_twin.copy012", { p1: deviceCount })
+          : t("pages.digital_twin.copy013"),
         state: deviceCount ? "active" : "upcoming",
       },
     ];
-  }, [snapshot]);
+  }, [snapshot, text]);
 
   const coreMetrics = useMemo<CoreFlowMetric[]>(() => {
     return [
       {
-        label: "Sensors tracked",
+        label: t("pages.digital_twin.copy014"),
         value: String(snapshot?.sensors.length ?? 0),
-        note: "Realtime points currently mapped in the twin layer.",
+        note: t("pages.digital_twin.copy015"),
       },
       {
-        label: "Process steps",
+        label: t("pages.digital_twin.copy016"),
         value: String(snapshot?.flowSteps.length ?? 0),
-        note: "Procedure segments available for flow diagnostics.",
+        note: t("pages.digital_twin.copy017"),
       },
       {
-        label: "Mapped devices",
+        label: t("pages.digital_twin.copy018"),
         value: String(snapshot?.devices.length ?? 0),
-        note: "Assets bound to 3D coordinates and process context.",
+        note: t("pages.digital_twin.copy019"),
       },
       {
-        label: "Linked alerts",
+        label: t("pages.digital_twin.copy020"),
         value: String(snapshot?.alerts.length ?? 0),
-        note: "Exception references inherited from monitoring domain.",
+        note: t("pages.digital_twin.copy021"),
       },
     ];
-  }, [snapshot]);
+  }, [snapshot, text]);
 
   const coreStages = useMemo<CoreFlowStage[]>(() => {
     const hasSnapshot = Boolean(snapshot);
@@ -168,36 +178,36 @@ export default function DigitalTwinPage() {
     return [
       {
         id: "twin-core-observe",
-        title: "Observe 3D space",
+        title: t("pages.digital_twin.copy022"),
         detail: hasSnapshot
-          ? "Use twin scene to locate physical context for anomalies."
-          : "Waiting for twin scene feed.",
+          ? t("pages.digital_twin.copy023")
+          : t("pages.digital_twin.copy024"),
         state: hasSnapshot ? "done" : "active",
       },
       {
         id: "twin-core-diagnose",
-        title: "Diagnose sensor behavior",
+        title: t("pages.digital_twin.copy025"),
         detail: hasSensors
-          ? "Filter sensor states to isolate deviations and drift."
-          : "Sensor map is still loading.",
+          ? t("pages.digital_twin.copy026")
+          : t("pages.digital_twin.copy027"),
         state: hasSensors ? "active" : "upcoming",
       },
       {
         id: "twin-core-act",
-        title: "Act through process map",
+        title: t("pages.digital_twin.copy028"),
         detail: hasFlow
-          ? "Correlate step duration with sensor deviations and device state."
-          : "Process mapping is pending.",
+          ? t("pages.digital_twin.copy029")
+          : t("pages.digital_twin.copy030"),
         state: hasFlow ? "active" : "upcoming",
       },
       {
         id: "twin-core-close",
-        title: "Close with monitor handoff",
-        detail: "Push confirmed findings back to monitoring and governance loops.",
+        title: t("pages.digital_twin.copy031"),
+        detail: t("pages.digital_twin.copy032"),
         state: hasSnapshot ? "upcoming" : "upcoming",
       },
     ];
-  }, [snapshot]);
+  }, [snapshot, text]);
 
   const scrollToSection = (id: string) => {
     const target = document.getElementById(id);
@@ -209,8 +219,8 @@ export default function DigitalTwinPage() {
     return (
       <PageLoadFallback
         fallbackHref="/operations"
-        title="Loading Digital Twin"
-        description="Preparing 3D scene, sensor map, and process workflow..."
+        title={t("pages.digital_twin.copy033")}
+        description={t("pages.digital_twin.copy034")}
       />
     );
   }
@@ -220,8 +230,8 @@ export default function DigitalTwinPage() {
       <BackButton fallbackHref="/operations" />
 
       <WorkflowSteps
-        title="Digital Twin Flow"
-        subtitle="Keep this page focused on space mapping and process diagnostics."
+        title={t("pages.digital_twin.copy035")}
+        subtitle={t("pages.digital_twin.copy036")}
         steps={workflowSteps}
       />
 
@@ -231,52 +241,53 @@ export default function DigitalTwinPage() {
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-core")}
         >
-          Core Flow
+          {t("pages.digital_twin.copy037")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-lanes")}
         >
-          Action Lanes
+          {t("pages.digital_twin.copy038")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-scene")}
         >
-          3D Scene
+          {t("pages.digital_twin.copy039")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-sensors")}
         >
-          Sensors
+          {t("pages.digital_twin.copy040")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-flow")}
         >
-          Process Flow
+          {t("pages.digital_twin.copy041")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-devices")}
         >
-          Device Lattice
+          {t("pages.digital_twin.copy042")}
         </button>
       </div>
 
       <CoreFlowHeader
         id="twin-core"
-        eyebrow={snapshot?.summary.sceneLabel ?? "Twin Mesh and Process Mapping"}
-        title={snapshot?.summary.title ?? "Digital Twin Operations Unit"}
+        eyebrow={
+          snapshot?.summary.sceneLabel ?? t("pages.digital_twin.copy043")
+        }
+        title={snapshot?.summary.title ?? t("pages.digital_twin.copy044")}
         description={
-          snapshot?.summary.description ??
-          "Use this page as the spatial and procedural diagnostic layer, while alert triage remains in monitoring domain."
+          snapshot?.summary.description ?? t("pages.digital_twin.copy045")
         }
         metrics={coreMetrics}
         stages={coreStages}
@@ -287,33 +298,33 @@ export default function DigitalTwinPage() {
               className="enterprise-primary-button"
               onClick={() => scrollToSection("twin-sensors")}
             >
-              Start Sensor Diagnosis
+              {t("pages.digital_twin.copy046")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => scrollToSection("twin-scene")}
             >
-              Open 3D Scene
+              {t("pages.digital_twin.copy047")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => router.push("/monitor")}
             >
-              Back to Monitoring
+              {t("pages.digital_twin.copy048")}
             </button>
           </>
         }
         sideNote={
           <div className="enterprise-highlight-list">
             <div>
-              <strong>Spatial ownership</strong>
-              <p>Device nodes, sensor points, and process paths are mapped in one coherent coordinate system.</p>
+              <strong>{t("pages.digital_twin.copy049")}</strong>
+              <p>{t("pages.digital_twin.copy050")}</p>
             </div>
             <div>
-              <strong>Execution boundary</strong>
-              <p>Live camera triage remains in monitor to keep operational roles and data ownership clear.</p>
+              <strong>{t("pages.digital_twin.copy051")}</strong>
+              <p>{t("pages.digital_twin.copy052")}</p>
             </div>
           </div>
         }
@@ -321,69 +332,66 @@ export default function DigitalTwinPage() {
 
       <section id="twin-lanes" className="core-flow-lane-grid">
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Observe</span>
-          <h3>Scene interpretation lane</h3>
-          <p>
-            Inspect the 3D model to anchor where the issue happened before
-            comparing sensor and process evidence.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy053")}
+          </span>
+          <h3>{t("pages.digital_twin.copy054")}</h3>
+          <p>{t("pages.digital_twin.copy055")}</p>
           <div className="core-flow-lane-actions">
             <button
               type="button"
               className="enterprise-primary-button"
               onClick={() => scrollToSection("twin-scene")}
             >
-              Review Scene
+              {t("pages.digital_twin.copy056")}
             </button>
           </div>
         </Card>
 
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Diagnose</span>
-          <h3>Sensor and process lane</h3>
-          <p>
-            Filter sensor statuses, then validate against process-step duration to
-            isolate root-cause candidates.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy057")}
+          </span>
+          <h3>{t("pages.digital_twin.copy058")}</h3>
+          <p>{t("pages.digital_twin.copy059")}</p>
           <div className="core-flow-lane-actions">
             <button
               type="button"
               className="enterprise-primary-button"
               onClick={() => scrollToSection("twin-sensors")}
             >
-              Analyze Sensors
+              {t("pages.digital_twin.copy060")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => scrollToSection("twin-flow")}
             >
-              Review Flow
+              {t("pages.digital_twin.copy061")}
             </button>
           </div>
         </Card>
 
         <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Act + Close</span>
-          <h3>Asset response lane</h3>
-          <p>
-            Check lattice device states and pass confirmed corrective actions back
-            to monitor and governance loops.
-          </p>
+          <span className="core-flow-lane-kicker">
+            {t("pages.digital_twin.copy062")}
+          </span>
+          <h3>{t("pages.digital_twin.copy063")}</h3>
+          <p>{t("pages.digital_twin.copy064")}</p>
           <div className="core-flow-lane-actions">
             <button
               type="button"
               className="enterprise-primary-button"
               onClick={() => scrollToSection("twin-devices")}
             >
-              Inspect Devices
+              {t("pages.digital_twin.copy065")}
             </button>
             <button
               type="button"
               className="enterprise-secondary-button"
               onClick={() => router.push("/monitor")}
             >
-              Handoff to Monitor
+              {t("pages.digital_twin.copy066")}
             </button>
           </div>
         </Card>
@@ -400,10 +408,14 @@ export default function DigitalTwinPage() {
         <Card id="twin-scene" className="twin-stage-card">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">Realtime 3D</span>
-              <h2>Interactive scene stage</h2>
+              <span className="panel-kicker">
+                {t("pages.digital_twin.copy067")}
+              </span>
+              <h2>{t("pages.digital_twin.copy068")}</h2>
             </div>
-            <span className="status-chip status-success">Interactive</span>
+            <span className="status-chip status-success">
+              {t("pages.digital_twin.copy069")}
+            </span>
           </div>
 
           <div className="twin-stage-frame">
@@ -414,8 +426,10 @@ export default function DigitalTwinPage() {
         <Card id="twin-flow" className="xl:col-span-5">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">Workflow</span>
-              <h2>Mapped process sequence</h2>
+              <span className="panel-kicker">
+                {t("pages.digital_twin.copy070")}
+              </span>
+              <h2>{t("pages.digital_twin.copy071")}</h2>
             </div>
           </div>
 
@@ -437,16 +451,15 @@ export default function DigitalTwinPage() {
                 </div>
               ))
             ) : (
-              <div className="loading-state">Process flow is loading...</div>
+              <div className="loading-state">
+                {t("pages.digital_twin.copy072")}
+              </div>
             )}
           </div>
 
           <div className="enterprise-note-card">
-            <strong>Flow interpretation tip</strong>
-            <span>
-              Start from duration anomalies, then cross-check sensor deviation and
-              mapped asset condition in the lattice panel.
-            </span>
+            <strong>{t("pages.digital_twin.copy073")}</strong>
+            <span>{t("pages.digital_twin.copy074")}</span>
           </div>
         </Card>
       </section>
@@ -455,8 +468,10 @@ export default function DigitalTwinPage() {
         <Card id="twin-sensors" className="xl:col-span-7">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">Sensor Map</span>
-              <h2>Realtime sensor condition panel</h2>
+              <span className="panel-kicker">
+                {t("pages.digital_twin.copy075")}
+              </span>
+              <h2>{t("pages.digital_twin.copy076")}</h2>
             </div>
           </div>
 
@@ -470,7 +485,7 @@ export default function DigitalTwinPage() {
                 }`}
                 onClick={() => setActiveSensorStatus(status)}
               >
-                {status === "all" ? "All states" : status}
+                {status === "all" ? t("pages.digital_twin.copy077") : status}
               </button>
             ))}
           </div>
@@ -495,13 +510,19 @@ export default function DigitalTwinPage() {
                     <small>{sensor.unit}</small>
                   </strong>
                   <div className="sensor-meta">
-                    <span>Target {sensor.target}</span>
-                    <span>Deviation {sensor.deviation}</span>
+                    <span>
+                      {t("pages.digital_twin.copy078")} {sensor.target}
+                    </span>
+                    <span>
+                      {t("pages.digital_twin.copy079")} {sensor.deviation}
+                    </span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="loading-state">No sensors in this status filter.</div>
+              <div className="loading-state">
+                {t("pages.digital_twin.copy080")}
+              </div>
             )}
           </div>
         </Card>
@@ -509,11 +530,13 @@ export default function DigitalTwinPage() {
         <Card id="twin-devices" className="xl:col-span-5">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">Device Lattice</span>
-              <h2>Asset state mapping</h2>
+              <span className="panel-kicker">
+                {t("pages.digital_twin.copy042")}
+              </span>
+              <h2>{t("pages.digital_twin.copy081")}</h2>
             </div>
             <span className="panel-caption">
-              Device health is shown here for twin-space interpretation and action handoff.
+              {t("pages.digital_twin.copy082")}
             </span>
           </div>
           <div className="device-stack">
@@ -534,14 +557,20 @@ export default function DigitalTwinPage() {
                     <span style={{ width: `${device.utilization}%` }} />
                   </div>
                   <div className="device-item-meta">
-                    <span>Utilization {device.utilization}%</span>
-                    <span>Temperature {device.temperature} C</span>
+                    <span>
+                      {t("pages.digital_twin.copy083")} {device.utilization}%
+                    </span>
+                    <span>
+                      {t("pages.digital_twin.copy084")} {device.temperature} C
+                    </span>
                     <span>{device.note}</span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="loading-state">Device lattice is loading...</div>
+              <div className="loading-state">
+                {t("pages.digital_twin.copy085")}
+              </div>
             )}
           </div>
         </Card>

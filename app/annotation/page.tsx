@@ -1,19 +1,36 @@
 "use client";
 
-import { type ChangeEvent, type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type PointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Card from "../components/Layout/Card";
 import BackButton from "../components/Layout/BackButton";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useLocale } from "../components/Locale/LocaleProvider";
-import { enterpriseDownload, enterpriseErrorMessage, enterpriseGet, enterprisePost, enterpriseUpload } from "@/lib/enterprise-client";
-import type { AnnotationAsset, AnnotationLabel, AnnotationProject } from "@/types/enterprise";
+import {
+  enterpriseDownload,
+  enterpriseErrorMessage,
+  enterpriseGet,
+  enterprisePost,
+  enterpriseUpload,
+} from "@/lib/enterprise-client";
+import type {
+  AnnotationAsset,
+  AnnotationLabel,
+  AnnotationProject,
+} from "@/types/enterprise";
 
 type DraftBox = { x: number; y: number; width: number; height: number } | null;
 
 export default function AnnotationPage() {
   const ready = useSessionGuard(["admin", "engineer", "operator"]);
-  const { text } = useLocale();
+  const { text, t } = useLocale();
   const [projects, setProjects] = useState<AnnotationProject[]>([]);
   const [assets, setAssets] = useState<AnnotationAsset[]>([]);
   const [labels, setLabels] = useState<AnnotationLabel[]>([]);
@@ -24,18 +41,26 @@ export default function AnnotationPage() {
   const [uploadSplit, setUploadSplit] = useState("train");
   const [message, setMessage] = useState("");
   const [draftBox, setDraftBox] = useState<DraftBox>(null);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const loadProjects = async () => {
-    const projectData = await enterpriseGet<AnnotationProject[]>("/annotation/projects");
+    const projectData = await enterpriseGet<AnnotationProject[]>(
+      "/annotation/projects",
+    );
     setProjects(projectData);
     const nextProject = activeProjectId || projectData[0]?.id || "";
     setActiveProjectId(nextProject);
     if (nextProject) {
       const [assetData, labelData] = await Promise.all([
-        enterpriseGet<AnnotationAsset[]>(`/annotation/projects/${nextProject}/assets`),
-        enterpriseGet<AnnotationLabel[]>(`/annotation/projects/${nextProject}/labels`),
+        enterpriseGet<AnnotationAsset[]>(
+          `/annotation/projects/${nextProject}/assets`,
+        ),
+        enterpriseGet<AnnotationLabel[]>(
+          `/annotation/projects/${nextProject}/labels`,
+        ),
       ]);
       setAssets(assetData);
       setLabels(labelData);
@@ -47,7 +72,7 @@ export default function AnnotationPage() {
     if (!ready) return;
     loadProjects().catch((error) => {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("加载标注工作台失败。", "Failed to load the Annotation Studio.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy001")));
     });
   }, [ready, text]);
 
@@ -55,8 +80,12 @@ export default function AnnotationPage() {
     if (!activeProjectId) return;
     const loadProjectData = async () => {
       const [assetData, labelData] = await Promise.all([
-        enterpriseGet<AnnotationAsset[]>(`/annotation/projects/${activeProjectId}/assets`),
-        enterpriseGet<AnnotationLabel[]>(`/annotation/projects/${activeProjectId}/labels`),
+        enterpriseGet<AnnotationAsset[]>(
+          `/annotation/projects/${activeProjectId}/assets`,
+        ),
+        enterpriseGet<AnnotationLabel[]>(
+          `/annotation/projects/${activeProjectId}/labels`,
+        ),
       ]);
       setAssets(assetData);
       setLabels(labelData);
@@ -64,7 +93,7 @@ export default function AnnotationPage() {
     };
     loadProjectData().catch((error) => {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("加载当前标注项目失败。", "Failed to load the selected annotation project.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy002")));
     });
   }, [activeProjectId, text]);
 
@@ -76,7 +105,9 @@ export default function AnnotationPage() {
     let current = true;
     const loadAsset = async () => {
       try {
-        const blob = await enterpriseDownload(`/annotation/assets/${activeAssetId}/content`);
+        const blob = await enterpriseDownload(
+          `/annotation/assets/${activeAssetId}/content`,
+        );
         if (!current) return;
         const objectUrl = URL.createObjectURL(blob);
         setAssetUrl((previous) => {
@@ -97,22 +128,31 @@ export default function AnnotationPage() {
     };
   }, [activeAssetId]);
 
-  const activeProject = useMemo(() => projects.find((item) => item.id === activeProjectId) ?? null, [projects, activeProjectId]);
-  const activeAsset = useMemo(() => assets.find((item) => item.id === activeAssetId) ?? null, [assets, activeAssetId]);
-  const activeLabels = useMemo(() => labels.filter((item) => item.assetId === activeAssetId), [labels, activeAssetId]);
+  const activeProject = useMemo(
+    () => projects.find((item) => item.id === activeProjectId) ?? null,
+    [projects, activeProjectId],
+  );
+  const activeAsset = useMemo(
+    () => assets.find((item) => item.id === activeAssetId) ?? null,
+    [assets, activeAssetId],
+  );
+  const activeLabels = useMemo(
+    () => labels.filter((item) => item.assetId === activeAssetId),
+    [labels, activeAssetId],
+  );
 
   const handleCreateProject = async () => {
     try {
       await enterprisePost("/annotation/projects", {
         name: `Annotation Project ${projects.length + 1}`,
-        description: text("用于 YOLO 缺陷训练的轻量标注项目。", "Lightweight project for YOLO-ready wheel hub annotations."),
+        description: t("pages.annotation.copy003"),
         categories: ["scratch", "dent", "hole_defect"],
       });
       await loadProjects();
-      setMessage(text("标注项目已创建。", "Annotation project created."));
+      setMessage(t("pages.annotation.copy004"));
     } catch (error) {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("创建标注项目失败。", "Failed to create the annotation project.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy005")));
     }
   };
 
@@ -123,12 +163,15 @@ export default function AnnotationPage() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("split", uploadSplit);
-      await enterpriseUpload(`/annotation/projects/${activeProjectId}/assets`, formData);
+      await enterpriseUpload(
+        `/annotation/projects/${activeProjectId}/assets`,
+        formData,
+      );
       await loadProjects();
-      setMessage(text(`标注图片已上传到 ${uploadSplit} 分组。`, `Annotation asset uploaded to the ${uploadSplit} split.`));
+      setMessage(t("pages.annotation.copy006", { p1: uploadSplit }));
     } catch (error) {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("上传标注图片失败。", "Failed to upload the annotation image.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy007")));
     } finally {
       event.target.value = "";
     }
@@ -159,7 +202,8 @@ export default function AnnotationPage() {
   };
 
   const handleSaveLabel = async () => {
-    if (!activeProjectId || !activeAssetId || !draftBox || !canvasRef.current) return;
+    if (!activeProjectId || !activeAssetId || !draftBox || !canvasRef.current)
+      return;
     const rect = canvasRef.current.getBoundingClientRect();
     try {
       await enterprisePost(`/annotation/projects/${activeProjectId}/labels`, {
@@ -170,13 +214,15 @@ export default function AnnotationPage() {
         width: Number((draftBox.width / rect.width).toFixed(4)),
         height: Number((draftBox.height / rect.height).toFixed(4)),
       });
-      const labelData = await enterpriseGet<AnnotationLabel[]>(`/annotation/projects/${activeProjectId}/labels`);
+      const labelData = await enterpriseGet<AnnotationLabel[]>(
+        `/annotation/projects/${activeProjectId}/labels`,
+      );
       setLabels(labelData);
       setDraftBox(null);
-      setMessage(text("标注框已保存。", "Annotation box saved."));
+      setMessage(t("pages.annotation.copy008"));
     } catch (error) {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("保存标注框失败。", "Failed to save the annotation box.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy009")));
     }
   };
 
@@ -190,14 +236,15 @@ export default function AnnotationPage() {
         dataSource: { id: string; name: string };
       }>(`/annotation/projects/${activeProjectId}/export-yolo`);
       setMessage(
-        text(
-          `YOLO 数据集已导出，共 ${result.assetCount} 张图片、${result.labelCount} 条标签。现在可在训练中心选择“${result.dataSource.name}”。`,
-          `YOLO dataset exported with ${result.assetCount} images and ${result.labelCount} labels. You can now select "${result.dataSource.name}" in the Training Center.`,
-        ),
+        t("pages.annotation.copy010", {
+          p1: result.assetCount,
+          p2: result.labelCount,
+          p3: result.dataSource.name,
+        }),
       );
     } catch (error) {
       console.error(error);
-      setMessage(enterpriseErrorMessage(error, text("导出 YOLO 数据集失败，请确认项目中已有图片和标签。", "Failed to export the YOLO dataset. Make sure the project has both images and labels.")));
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy011")));
     }
   };
 
@@ -205,8 +252,8 @@ export default function AnnotationPage() {
     return (
       <PageLoadFallback
         fallbackHref="/workspace"
-        title={text("正在加载标注工作台", "Loading Annotation Studio")}
-        description={text("正在校验会话并准备项目、素材与标注画布布局...", "Verifying the session and preparing project, asset, and annotation canvas layout...")}
+        title={t("pages.annotation.copy012")}
+        description={t("pages.annotation.copy013")}
       />
     );
   }
@@ -216,26 +263,21 @@ export default function AnnotationPage() {
       <BackButton fallbackHref="/workspace" />
       <section className="enterprise-hero">
         <div>
-          <span className="eyebrow">{text("标注工作台", "Annotation Studio")}</span>
-          <h1>{text("在同一条流程里完成标注、导出与训练衔接", "Label, export, and train from the same workflow")}</h1>
-          <p>
-            {text(
-              "把图片放入 train、val 或 test 分组，绘制框并保存标签，然后导出为 YOLO 数据集。导出的数据集会直接出现在训练中心。",
-              "Upload images into train, val, or test, draw bounding boxes, save the labels, and export a YOLO-ready dataset. The exported dataset appears directly in the Training Center.",
-            )}
-          </p>
+          <span className="eyebrow">{t("pages.annotation.copy014")}</span>
+          <h1>{t("pages.annotation.copy015")}</h1>
+          <p>{t("pages.annotation.copy016")}</p>
         </div>
         <div className="enterprise-hero-metrics">
           <div>
-            <span>{text("项目数", "Projects")}</span>
+            <span>{t("pages.annotation.copy017")}</span>
             <strong>{projects.length}</strong>
           </div>
           <div>
-            <span>{text("图片数", "Assets")}</span>
+            <span>{t("pages.annotation.copy018")}</span>
             <strong>{assets.length}</strong>
           </div>
           <div>
-            <span>{text("当前图片标签数", "Labels on asset")}</span>
+            <span>{t("pages.annotation.copy019")}</span>
             <strong>{activeLabels.length}</strong>
           </div>
         </div>
@@ -247,8 +289,10 @@ export default function AnnotationPage() {
         <Card className="enterprise-side-card">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">{text("项目", "Projects")}</span>
-              <h2>{text("项目与素材管理", "Project and asset management")}</h2>
+              <span className="panel-kicker">
+                {t("pages.annotation.copy020")}
+              </span>
+              <h2>{t("pages.annotation.copy021")}</h2>
             </div>
           </div>
 
@@ -268,8 +312,11 @@ export default function AnnotationPage() {
 
           <div className="enterprise-form-grid">
             <label>
-              <span>{text("上传分组", "Upload split")}</span>
-              <select value={uploadSplit} onChange={(event) => setUploadSplit(event.target.value)}>
+              <span>{t("pages.annotation.copy022")}</span>
+              <select
+                value={uploadSplit}
+                onChange={(event) => setUploadSplit(event.target.value)}
+              >
                 <option value="train">train</option>
                 <option value="val">val</option>
                 <option value="test">test</option>
@@ -278,17 +325,31 @@ export default function AnnotationPage() {
           </div>
 
           <div className="enterprise-action-row">
-            <button type="button" className="enterprise-secondary-button" onClick={handleCreateProject}>
-              {text("新建项目", "New project")}
+            <button
+              type="button"
+              className="enterprise-secondary-button"
+              onClick={handleCreateProject}
+            >
+              {t("pages.annotation.copy023")}
             </button>
             <label className="enterprise-secondary-button enterprise-upload-button">
-              {text("上传图片", "Upload image")}
-              <input type="file" accept=".png,.jpg,.jpeg" onChange={handleUpload} hidden />
+              {t("pages.annotation.copy024")}
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg"
+                onChange={handleUpload}
+                hidden
+              />
             </label>
           </div>
 
-          <button type="button" className="enterprise-primary-button" onClick={handleExportYolo} disabled={!activeProjectId || !assets.length}>
-            {text("导出 YOLO 数据集", "Export YOLO dataset")}
+          <button
+            type="button"
+            className="enterprise-primary-button"
+            onClick={handleExportYolo}
+            disabled={!activeProjectId || !assets.length}
+          >
+            {t("pages.annotation.copy025")}
           </button>
 
           <div className="enterprise-list">
@@ -311,10 +372,14 @@ export default function AnnotationPage() {
         <Card className="enterprise-main-card">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">{text("画布", "Canvas")}</span>
-              <h2>{activeProject?.name ?? text("先选择一个项目", "Select a project to begin")}</h2>
+              <span className="panel-kicker">
+                {t("pages.annotation.copy026")}
+              </span>
+              <h2>{activeProject?.name ?? t("pages.annotation.copy027")}</h2>
             </div>
-            <span className="panel-caption">{text("拖动创建标注框，然后选择类别并保存。", "Drag to create a bounding box, then choose a category and save it.")}</span>
+            <span className="panel-caption">
+              {t("pages.annotation.copy028")}
+            </span>
           </div>
 
           <div className="annotation-workbench">
@@ -326,11 +391,15 @@ export default function AnnotationPage() {
               onPointerUp={handlePointerUp}
             >
               {assetUrl ? (
-                <img src={assetUrl} alt={activeAsset?.filename ?? "annotation asset"} className="annotation-image" />
+                <img
+                  src={assetUrl}
+                  alt={activeAsset?.filename ?? "annotation asset"}
+                  className="annotation-image"
+                />
               ) : (
                 <div className="empty-state">
-                  <span>{text("图片", "Image")}</span>
-                  {text("请选择一张已上传图片，或者先上传新的图片开始标注。", "Select an uploaded image or add a new one to begin labeling.")}
+                  <span>{t("pages.annotation.copy029")}</span>
+                  {t("pages.annotation.copy030")}
                 </div>
               )}
 
@@ -350,15 +419,32 @@ export default function AnnotationPage() {
               ))}
 
               {draftBox ? (
-                <div className="annotation-box annotation-box-draft" style={{ left: draftBox.x, top: draftBox.y, width: draftBox.width, height: draftBox.height }} />
+                <div
+                  className="annotation-box annotation-box-draft"
+                  style={{
+                    left: draftBox.x,
+                    top: draftBox.y,
+                    width: draftBox.width,
+                    height: draftBox.height,
+                  }}
+                />
               ) : null}
             </div>
 
             <aside className="annotation-sidebar">
               <label>
-                <span>{text("类别", "Category")}</span>
-                <select value={category} onChange={(event) => setCategory(event.target.value)}>
-                  {(activeProject?.categories ?? ["scratch", "dent", "hole_defect"]).map((item) => (
+                <span>{t("pages.annotation.copy031")}</span>
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                >
+                  {(
+                    activeProject?.categories ?? [
+                      "scratch",
+                      "dent",
+                      "hole_defect",
+                    ]
+                  ).map((item) => (
                     <option key={item} value={item}>
                       {item}
                     </option>
@@ -366,17 +452,24 @@ export default function AnnotationPage() {
                 </select>
               </label>
 
-              <button type="button" className="enterprise-primary-button" onClick={handleSaveLabel} disabled={!draftBox}>
-                {text("保存标签", "Save label")}
+              <button
+                type="button"
+                className="enterprise-primary-button"
+                onClick={handleSaveLabel}
+                disabled={!draftBox}
+              >
+                {t("pages.annotation.copy032")}
               </button>
 
               <div className="enterprise-note-card">
-                <strong>{text("当前素材", "Active asset")}</strong>
-                <span>{activeAsset?.filename ?? text("尚未选择素材", "No asset selected")}</span>
+                <strong>{t("pages.annotation.copy033")}</strong>
+                <span>
+                  {activeAsset?.filename ?? t("pages.annotation.copy034")}
+                </span>
               </div>
 
               <div className="enterprise-note-card">
-                <strong>{text("当前分组", "Current split")}</strong>
+                <strong>{t("pages.annotation.copy035")}</strong>
                 <span>{activeAsset?.split ?? uploadSplit}</span>
               </div>
             </aside>

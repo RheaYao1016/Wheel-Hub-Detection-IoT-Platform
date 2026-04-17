@@ -1,7 +1,7 @@
 export default function InfoSection() {
   return (
     <div className="w-[73%] h-[91%] mt-[2%] mr-[2%] overflow-y-auto bg-white box-border leading-[2.5] text-base p-[5%]">
-      <h1 className="font-bold text-lg text-[#228cba] mt-4">项目简介</h1>
+      <h1 className="font-bold text-lg mt-4" style={{ color: 'var(--accent)' }}>项目简介</h1>
       <br />
       <p className="indent-8">
         本项目将设计一种多功能工业表面缺陷智能检测装置，为自动化、智能化检测工业表面缺陷项目提供一种可行的方案。
@@ -14,7 +14,7 @@ export default function InfoSection() {
       <hr />
       <br />
 
-      <h1 className="font-bold text-lg text-[#228cba] mt-4">研究目的</h1>
+      <h1 className="font-bold text-lg mt-4" style={{ color: 'var(--accent)' }}>研究目的</h1>
       <br />
       <p className="indent-8">
         随着工业制造技术的不断发展，国内工业产品的保有量急剧增长。工业产品保有量的增加意味着工业产品的生产需要更高效、更精确的流程。
@@ -29,7 +29,7 @@ export default function InfoSection() {
       <hr />
       <br />
 
-      <h1 className="font-bold text-lg text-[#228cba] mt-4">创新特色</h1>
+      <h1 className="font-bold text-lg mt-4" style={{ color: 'var(--accent)' }}>创新特色</h1>
       <br />
       <h2 className="font-bold">创新点1. 单工位模块化工件检测方案</h2>
       <p className="indent-8">

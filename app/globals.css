@@ -1969,11 +1969,19 @@ table {
 
 .ai-assistant-layout {
   display: grid;
-  grid-template-columns: minmax(24rem, 28rem) minmax(0, 1.6fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: var(--space-6);
   align-items: start;
   max-width: var(--content-max-width);
   margin: 0 auto;
+}
+
+.ai-assistant-control-grid {
+  display: contents;
+}
+
+.ai-assistant-main-grid {
+  display: contents;
 }
 
 .ai-assistant-advanced {
@@ -2010,11 +2018,9 @@ table {
 }
 
 .ai-assistant-column {
-  display: flex;
+  display: contents;
   min-width: 0;
   min-height: 0;
-  flex-direction: column;
-  gap: var(--space-5);
 }
 
 .ai-assistant-card {
@@ -2210,13 +2216,37 @@ table {
   gap: 0.85rem;
 }
 
+.ai-assistant-control-card,
+#ai-flow-chat,
+#ai-flow-workspace {
+  min-width: 0;
+}
+
+#ai-flow-session {
+  grid-column: span 4;
+}
+
+#ai-flow-workspace {
+  grid-column: span 8;
+}
+
+#ai-flow-presets,
+#ai-flow-sources {
+  grid-column: span 6;
+}
+
+#ai-flow-chat {
+  grid-column: 1 / -1;
+}
+
 .ai-assistant-workspace-card .ai-assistant-panel-heading h2 {
-  font-size: 0.98rem;
+  font-size: clamp(1.2rem, 1.7vw, 1.5rem);
 }
 
 .ai-assistant-workspace-card .ai-assistant-panel-copy {
-  font-size: 0.76rem;
-  line-height: 1.45;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  max-width: 72ch;
 }
 
 .ai-assistant-workspace-card .enterprise-action-row {
@@ -2229,6 +2259,34 @@ table {
 
 .ai-assistant-composer-actions {
   margin-top: auto;
+}
+
+.ai-assistant-workspace-card {
+  display: grid;
+  grid-template-columns: minmax(22rem, 0.92fr) minmax(0, 1.08fr);
+  align-items: start;
+  gap: 1rem 1.25rem;
+}
+
+.ai-assistant-workspace-card .ai-assistant-panel-heading,
+.ai-assistant-workspace-card .ai-assistant-composer-meta {
+  grid-column: 1 / -1;
+}
+
+.ai-assistant-workspace-card .ai-assistant-composer-details {
+  grid-column: 1 / 2;
+  align-self: stretch;
+}
+
+.ai-assistant-workspace-card .ai-assistant-prompt-block,
+.ai-assistant-workspace-card .ai-assistant-action-hint,
+.ai-assistant-workspace-card .ai-assistant-composer-actions {
+  grid-column: 2 / 3;
+}
+
+.ai-assistant-workspace-card .ai-assistant-prompt {
+  min-height: clamp(12rem, 22vh, 16rem);
+  max-height: none;
 }
 
 .ai-assistant-chat-card {
@@ -2391,42 +2449,25 @@ table {
 
 @media (min-width: 1201px) {
   .ai-assistant-layout {
-    height: min(52rem, calc(100vh - 9.75rem));
-    min-height: 38rem;
+    height: auto;
+    min-height: 0;
   }
 
   .ai-assistant-column-side {
-    overflow: auto;
-    padding-right: 0.3rem;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .ai-assistant-column-main {
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    gap: 1rem;
-    overflow: hidden;
-  }
-
-  .ai-assistant-workspace-card {
-    order: 2;
-  }
-
-  .ai-assistant-chat-card {
-    order: 1;
+    display: contents;
+    overflow: visible;
   }
 
   .ai-assistant-workspace-card,
   .ai-assistant-chat-card {
-    height: 100%;
-    overflow: auto;
-  }
-
-  .ai-assistant-chat-card {
     min-height: 0;
-  }
-
-  .ai-assistant-workspace-card {
-    max-height: 18rem;
+    height: auto;
+    overflow: visible;
   }
 
   .ai-assistant-message-list {
@@ -2436,6 +2477,27 @@ table {
   .ai-assistant-scroll-stack {
     max-height: none;
     min-height: 0;
+  }
+}
+
+@media (max-width: 1500px) {
+  #ai-flow-session,
+  #ai-flow-workspace,
+  #ai-flow-presets,
+  #ai-flow-sources,
+  #ai-flow-chat {
+    grid-column: 1 / -1;
+  }
+
+  .ai-assistant-workspace-card {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-assistant-workspace-card .ai-assistant-composer-details,
+  .ai-assistant-workspace-card .ai-assistant-prompt-block,
+  .ai-assistant-workspace-card .ai-assistant-action-hint,
+  .ai-assistant-workspace-card .ai-assistant-composer-actions {
+    grid-column: 1 / -1;
   }
 }
 
@@ -3762,28 +3824,148 @@ table {
 
 .workspace-health-item {
   border: 1px solid var(--ring-soft);
-  border-radius: 14px;
+  border-radius: 16px;
   background: color-mix(in srgb, var(--panel-bg-soft) 90%, transparent);
-  padding: 0.85rem 0.95rem;
+  padding: 1rem 1.05rem;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 
 .workspace-health-item span {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   color: var(--text-secondary);
 }
 
 .workspace-health-item strong {
   color: var(--text-primary);
-  font-size: 0.95rem;
-  line-height: 1.45;
+  font-size: 1.03rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
 .workspace-health-endpoint {
   grid-column: span 1;
+}
+
+.workspace-module-grid {
+  grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
+  align-items: stretch;
+  gap: clamp(0.9rem, 1.4vw, 1.3rem);
+}
+
+.workspace-module-card {
+  min-height: 11.5rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.2rem;
+}
+
+.workspace-module-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.workspace-module-card strong {
+  font-size: 1.12rem;
+  line-height: 1.4;
+}
+
+.workspace-module-card span {
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.workspace-module-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.workspace-module-metric {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.workspace-module-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.reports-grid {
+  grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr);
+}
+
+.reports-job-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: clamp(0.9rem, 1.4vw, 1.2rem);
+}
+
+.enterprise-report-job {
+  padding: 1rem 1.05rem;
+}
+
+.enterprise-report-summary.reports-summary {
+  font-size: 0.96rem;
+  line-height: 1.72;
+}
+
+.reports-export-surface {
+  gap: 0.85rem;
+  margin-top: 0.4rem;
+}
+
+.reports-export-surface-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.reports-export-surface-header strong {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.reports-export-surface-header span {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.reports-export-row .enterprise-secondary-button {
+  flex: 1 1 9rem;
+  min-width: 8.5rem;
+}
+
+.reports-grid .enterprise-source-picker {
+  max-height: 18rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.reports-artifacts .enterprise-list {
+  max-height: 31.5rem;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.reports-artifacts .enterprise-list-item {
+  min-height: 5.1rem;
+  justify-content: center;
 }
 
 .workspace-tool-card {
@@ -5641,6 +5823,13 @@ body::before {
   gap: clamp(1rem, 1.8vw, 1.6rem);
 }
 
+.ai-assistant-shell .ai-assistant-layout,
+.ai-assistant-shell .ai-assistant-advanced {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
+
 .page-shell {
   padding: clamp(0.95rem, 1.8vw, 1.5rem) clamp(0.2rem, 0.9vw, 0.7rem) clamp(2rem, 3.8vw, 3.5rem);
 }
@@ -5704,6 +5893,15 @@ body::before {
 .reports-grid {
   grid-template-columns: minmax(20rem, 24rem) minmax(0, 1fr);
   gap: clamp(1.15rem, 2vw, 1.8rem);
+}
+
+.enterprise-grid.workspace-module-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+}
+
+.enterprise-grid.workspace-module-grid .workspace-module-card {
+  height: 100%;
 }
 
 .workspace-tool-grid,
@@ -5885,6 +6083,10 @@ table td {
   .ai-assistant-layout {
     grid-template-columns: 1fr;
   }
+
+  .enterprise-grid.workspace-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -5913,6 +6115,10 @@ table td {
 
   .footer-shell {
     width: calc(100% - 1rem);
+  }
+
+  .enterprise-grid.workspace-module-grid {
+    grid-template-columns: 1fr;
   }
 }
 

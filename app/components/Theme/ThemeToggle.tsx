@@ -8,7 +8,10 @@ export default function ThemeToggle() {
   const { text } = useLocale();
 
   return (
-    <div className="theme-toggle-shell" aria-label={text("切换主题", "Switch theme")}>
+    <div
+      className="theme-toggle-shell"
+      aria-label={text("切换主题", "Switch theme")}
+    >
       {themes.map((option) => {
         const active = theme === option.id;
         return (

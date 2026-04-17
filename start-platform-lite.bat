@@ -27,9 +27,7 @@ call :ensureService http://localhost:%BACKEND_PORT%/api/dashboard/health "Spring
 
 echo [Platform Lite] Starting Next.js frontend on http://localhost:%FRONTEND_PORT% ...
 start "Platform Frontend" "%ComSpec%" /k call "%ROOT_DIR%\start-frontend.bat" %FRONTEND_PORT% "http://localhost:%BACKEND_PORT%/api"
-
-timeout /t 2 >nul
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process 'http://localhost:%FRONTEND_PORT%/'" >nul 2>nul
+call :waitForFrontendAndOpen "http://localhost:%FRONTEND_PORT%/home" "http://localhost:%FRONTEND_PORT%/" "Next.js frontend"
 echo [Platform Lite] All services started.
 exit /b 0
 
@@ -90,4 +88,22 @@ for /L %%I in (1,1,12) do (
   timeout /t 1 >nul
 )
 echo [Platform Lite] %LABEL% is still starting. The window will keep booting in the background.
+endlocal & exit /b 0
+
+:waitForFrontendAndOpen
+setlocal
+set "HEALTH_URL=%~1"
+set "OPEN_URL=%~2"
+set "LABEL=%~3"
+for /L %%I in (1,1,180) do (
+  call :isUrlHealthy "%HEALTH_URL%"
+  if not errorlevel 1 (
+    echo [Platform Lite] %LABEL% is healthy.
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process '%OPEN_URL%'" >nul 2>nul
+    endlocal & exit /b 0
+  )
+  if %%I==1 echo [Platform Lite] Waiting for %LABEL% to finish build and start...
+  timeout /t 1 >nul
+)
+echo [Platform Lite] %LABEL% is still starting. Please open %OPEN_URL% manually after the window shows ready.
 endlocal & exit /b 0

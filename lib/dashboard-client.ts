@@ -7,13 +7,14 @@ import {
   setPendingJsonRequest,
   writeRuntimeJsonCache,
 } from "@/lib/runtime-cache";
+import { readRuntimeEndpointConfig } from "@/lib/runtime-endpoint-config";
 
 /**
  * Resolve data from Spring Boot as the only supported source of truth.
  * If the backend is unavailable, the request must fail with a real error.
  */
 export function getBackendApiBase() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:18081/api";
+  return readRuntimeEndpointConfig().apiBaseUrl;
 }
 
 const BACKEND_TIMEOUT_MS = 8000;

@@ -41,7 +41,9 @@ async function parseErrorResponse(response: Response) {
 
     if (payload.detail && typeof payload.detail === "object") {
       const message = payload.detail.message ?? "Request failed.";
-      const solutions = payload.detail.solutions?.length ? ` Solutions: ${payload.detail.solutions.join(" | ")}` : "";
+      const solutions = payload.detail.solutions?.length
+        ? ` Solutions: ${payload.detail.solutions.join(" | ")}`
+        : "";
       return `${message}${solutions}`;
     }
 
@@ -61,24 +63,34 @@ function wait(ms: number) {
 
 function normalizeFetchError(error: unknown) {
   if (error instanceof DOMException && error.name === "AbortError") {
-    return new Error("The backend request timed out before a response was returned.");
+    return new Error(
+      "The backend request timed out before a response was returned.",
+    );
   }
 
   if (error instanceof TypeError && /fetch/i.test(error.message)) {
-    return new Error("Unable to reach the backend service. Confirm the backend is running and the API base URL is correct.");
+    return new Error(
+      "Unable to reach the backend service. Confirm the backend is running and the API base URL is correct.",
+    );
   }
 
-  return error instanceof Error ? error : new Error("Unable to complete the enterprise request.");
+  return error instanceof Error
+    ? error
+    : new Error("Unable to complete the enterprise request.");
 }
 
 async function fetchWithRetry(target: string, init?: RequestInit) {
   const method = (init?.method ?? "GET").toUpperCase();
-  const attempts = method === "GET" || method === "HEAD" ? ENTERPRISE_RETRY_COUNT : 1;
+  const attempts =
+    method === "GET" || method === "HEAD" ? ENTERPRISE_RETRY_COUNT : 1;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), ENTERPRISE_TIMEOUT_MS);
+    const timeout = window.setTimeout(
+      () => controller.abort(),
+      ENTERPRISE_TIMEOUT_MS,
+    );
 
     try {
       return await fetch(target, {
@@ -103,7 +115,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   const token = getAuthToken();
   const target = `${getBackendApiBase()}${path}`;
-  const cacheKey = buildRuntimeCacheKey("enterprise", `${method}:${path}`, token);
+  const cacheKey = buildRuntimeCacheKey(
+    "enterprise",
+    `${method}:${path}`,
+    token,
+  );
 
   if (method === "GET") {
     const cached = readRuntimeJsonCache<T>(cacheKey);
@@ -155,7 +171,10 @@ export function enterprisePost<T>(path: string, body?: unknown) {
   });
 }
 
-export async function enterpriseUpload<T>(path: string, formData: FormData): Promise<T> {
+export async function enterpriseUpload<T>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
   const response = await fetchWithRetry(`${getBackendApiBase()}${path}`, {
     method: "POST",
     headers: createHeaders(),
@@ -186,11 +205,11 @@ export async function enterpriseDownload(path: string): Promise<Blob> {
 export function enterpriseErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
     if (/Unable to reach the backend service/i.test(error.message)) {
-      return "无法连接后端服务，请确认后端已启动，并检查前端使用的 API 地址是否正确。";
+      return "Unable to reach the backend service. Confirm backend startup and API base URL.";
     }
 
     if (/timed out/i.test(error.message)) {
-      return "后端响应超时，请稍后重试，或检查后端和 AI 服务是否仍在运行。";
+      return "Backend request timed out. Retry later and verify backend plus AI service health.";
     }
 
     return error.message;

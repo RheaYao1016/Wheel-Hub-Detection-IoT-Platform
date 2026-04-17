@@ -13,7 +13,7 @@ set "MAVEN_REPO_LOCAL=%USERPROFILE%\.m2\repository"
 
 if "%SERVER_PORT%"=="" set "SERVER_PORT=18081"
 if "%APP_DATA_HOME%"=="" set "APP_DATA_HOME=%BACKEND_DIR%\data"
-if "%APP_CORS_ALLOWED_ORIGINS%"=="" set "APP_CORS_ALLOWED_ORIGINS=http://localhost:3001"
+if "%APP_CORS_ALLOWED_ORIGINS%"=="" set "APP_CORS_ALLOWED_ORIGINS=http://localhost:3001,http://127.0.0.1:3001"
 if "%APP_AI_ML_BASE_URL%"=="" set "APP_AI_ML_BASE_URL=http://localhost:18100"
 
 for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path \"$env:USERPROFILE\\.m2\\wrapper\\dists\" -Recurse -Filter mvn.cmd -ErrorAction SilentlyContinue | Select-Object -Last 1 -ExpandProperty FullName"`) do set "MAVEN_CMD=%%I"

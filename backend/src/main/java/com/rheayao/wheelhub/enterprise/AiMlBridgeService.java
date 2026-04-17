@@ -173,6 +173,10 @@ public class AiMlBridgeService {
         }
     }
 
+    public String getServiceBaseUrl() {
+        return serviceBaseUrl;
+    }
+
     public Map<String, String> generateReport(String format, String jobId, AnalysisResult result) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("format", format);
@@ -286,59 +290,59 @@ public class AiMlBridgeService {
         boolean english = "en-US".equalsIgnoreCase(locale);
         List<String> lines = new ArrayList<>();
 
-        lines.add(english ? "Backend-managed AI context" : "后端统一组装的 AI 上下文");
-        lines.add(english ? "Mode: " + mode : "模式: " + mode);
-        lines.add(english ? "Audience persona: " + persona : "受众角色: " + persona);
-        lines.add(english ? "Locale: " + locale : "语言环境: " + locale);
-        lines.add(english ? "Verbosity: " + verbosity : "说明深度: " + verbosity);
-        lines.add(english ? "Prompt preset: " + promptPreset.name() : "提示词预设: " + promptPreset.name());
-        lines.add(english ? "Preset objective: " + promptPreset.objective() : "预设目标: " + promptPreset.objective());
-        lines.add(english ? "Suggested template: " + promptPreset.recommendedTemplate() : "建议模板: " + promptPreset.recommendedTemplate());
-        lines.add(english ? "Current user task: " + userRequest : "当前用户任务: " + userRequest);
+        lines.add(english ? "Backend-managed AI context" : "\u540e\u7aef\u7edf\u4e00\u7ec4\u88c5\u7684 AI \u4e0a\u4e0b\u6587");
+        lines.add(english ? "Mode: " + mode : "\u6a21\u5f0f: " + mode);
+        lines.add(english ? "Audience persona: " + persona : "\u53d7\u4f17\u89d2\u8272: " + persona);
+        lines.add(english ? "Locale: " + locale : "\u8bed\u8a00\u73af\u5883: " + locale);
+        lines.add(english ? "Verbosity: " + verbosity : "\u8bf4\u660e\u6df1\u5ea6: " + verbosity);
+        lines.add(english ? "Prompt preset: " + promptPreset.name() : "\u63d0\u793a\u8bcd\u9884\u8bbe: " + promptPreset.name());
+        lines.add(english ? "Preset objective: " + promptPreset.objective() : "\u9884\u8bbe\u76ee\u6807: " + promptPreset.objective());
+        lines.add(english ? "Suggested template: " + promptPreset.recommendedTemplate() : "\u5efa\u8bae\u6a21\u677f: " + promptPreset.recommendedTemplate());
+        lines.add(english ? "Current user task: " + userRequest : "\u5f53\u524d\u7528\u6237\u4efb\u52a1: " + userRequest);
 
         if (sources == null || sources.isEmpty()) {
             lines.add(
                 english
                     ? "No explicit data source was selected. Fall back to generic platform context only."
-                    : "当前没有显式选择数据源，只能基于通用平台上下文进行回答。"
+                    : "\u5f53\u524d\u6ca1\u6709\u663e\u5f0f\u9009\u62e9\u6570\u636e\u6e90\uff0c\u53ea\u80fd\u57fa\u4e8e\u901a\u7528\u5e73\u53f0\u4e0a\u4e0b\u6587\u8fdb\u884c\u56de\u7b54\u3002"
             );
             return String.join("\n", lines);
         }
 
         lines.add("");
-        lines.add(english ? "Selected source summaries" : "已选数据源摘要");
+        lines.add(english ? "Selected source summaries" : "\u5df2\u9009\u6570\u636e\u6e90\u6458\u8981");
 
         for (int index = 0; index < sources.size(); index++) {
             DataSourceProfile source = sources.get(index);
             Map<String, String> meta = source.connectionMeta() == null ? Map.of() : source.connectionMeta();
-            lines.add(english ? ("Source " + (index + 1)) : ("数据源 " + (index + 1)));
-            lines.add((english ? "- Name: " : "- 名称: ") + safeValue(source.name(), english ? "Unnamed source" : "未命名数据源"));
-            lines.add((english ? "- Type: " : "- 类型: ") + safeValue(source.type(), "--"));
-            lines.add((english ? "- Schema profile: " : "- Schema 配置: ") + safeValue(source.schemaProfile(), "--"));
-            lines.add((english ? "- Status: " : "- 状态: ") + safeValue(source.status(), "--"));
-            lines.add((english ? "- Row count: " : "- 行数: ") + source.rowCount());
-            lines.add((english ? "- Quality score: " : "- 质量等级: ") + safeValue(source.qualityScore(), "--"));
-            lines.add((english ? "- Analysis summary: " : "- 分析摘要: ") + safeValue(meta.get("analysisSummary"), english ? "No summary available." : "暂无摘要。"));
+            lines.add(english ? ("Source " + (index + 1)) : ("\u6570\u636e\u6e90 " + (index + 1)));
+            lines.add((english ? "- Name: " : "- \u540d\u79f0: ") + safeValue(source.name(), english ? "Unnamed source" : "\u672a\u547d\u540d\u6570\u636e\u6e90"));
+            lines.add((english ? "- Type: " : "- \u7c7b\u578b: ") + safeValue(source.type(), "--"));
+            lines.add((english ? "- Schema profile: " : "- Schema \u914d\u7f6e: ") + safeValue(source.schemaProfile(), "--"));
+            lines.add((english ? "- Status: " : "- \u72b6\u6001: ") + safeValue(source.status(), "--"));
+            lines.add((english ? "- Row count: " : "- \u884c\u6570: ") + source.rowCount());
+            lines.add((english ? "- Quality score: " : "- \u8d28\u91cf\u7b49\u7ea7: ") + safeValue(source.qualityScore(), "--"));
+            lines.add((english ? "- Analysis summary: " : "- \u5206\u6790\u6458\u8981: ") + safeValue(meta.get("analysisSummary"), english ? "No summary available." : "\u6682\u65e0\u6458\u8981\u3002"));
 
             List<String> detectedFields = splitMetaList(meta.get("detectedFields"));
             if (!detectedFields.isEmpty()) {
-                lines.add((english ? "- Detected fields: " : "- 识别字段: ") + String.join(", ", detectedFields.stream().limit(8).toList()));
+                lines.add((english ? "- Detected fields: " : "- \u8bc6\u522b\u5b57\u6bb5: ") + String.join(", ", detectedFields.stream().limit(8).toList()));
             }
 
             List<String> qualityFindings = splitMetaList(meta.get("qualityFindings"));
             if (!qualityFindings.isEmpty()) {
-                lines.add((english ? "- Quality findings: " : "- 质量发现: ") + String.join(" | ", qualityFindings.stream().limit(3).toList()));
+                lines.add((english ? "- Quality findings: " : "- \u8d28\u91cf\u53d1\u73b0: ") + String.join(" | ", qualityFindings.stream().limit(3).toList()));
             }
 
             List<String> recommendedQuestions = splitMetaList(meta.get("recommendedQuestions"));
             if (!recommendedQuestions.isEmpty()) {
-                lines.add((english ? "- Recommended follow-up questions: " : "- 建议追问: ") + String.join(" | ", recommendedQuestions.stream().limit(3).toList()));
+                lines.add((english ? "- Recommended follow-up questions: " : "- \u5efa\u8bae\u8ffd\u95ee: ") + String.join(" | ", recommendedQuestions.stream().limit(3).toList()));
             }
 
             List<Map<String, String>> previewRows = source.previewRows() == null ? List.of() : source.previewRows();
             if (!previewRows.isEmpty()) {
                 lines.add(
-                    (english ? "- Sample rows: " : "- 样例记录: ")
+                    (english ? "- Sample rows: " : "- \u6837\u4f8b\u8bb0\u5f55: ")
                         + previewRows.stream().limit(2).map(this::formatPreviewRow).reduce((left, right) -> left + " || " + right).orElse("")
                 );
             }

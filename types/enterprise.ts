@@ -93,6 +93,11 @@ export type AnalysisResult = {
   evidence: Array<{ label: string; detail: string }>;
   riskLevel: string;
   confidence: number;
+  inspectionDomain?: string;
+  riskScore?: number;
+  metrics?: Array<{ label: string; value: number }>;
+  chartSeries?: Array<{ name: string; value: number }>;
+  sourceSummary?: string;
   tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
   sourceRefs: string[];
   appliedStrategy: string;

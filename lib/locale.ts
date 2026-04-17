@@ -8,7 +8,7 @@ export const LOCALE_OPTIONS = [
     id: "zh-CN" as const,
     shortLabel: "中文",
     label: "简体中文",
-    description: "界面与 AI 输出统一使用简体中文。",
+    description: "界面和 AI 输出统一使用简体中文。",
   },
   {
     id: "en-US" as const,
@@ -18,10 +18,8 @@ export const LOCALE_OPTIONS = [
   },
 ];
 
-export function isAppLocale(value: string | null | undefined): value is AppLocale {
+export function isAppLocale(
+  value: string | null | undefined,
+): value is AppLocale {
   return value === "zh-CN" || value === "en-US";
-}
-
-export function pickLocaleText(locale: AppLocale, zh: string, en: string) {
-  return locale === "zh-CN" ? zh : en;
 }

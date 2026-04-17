@@ -1,4 +1,10 @@
-export type ImportBatchStatus = "成功" | "失败" | "部分成功";
+export type ImportBatchStatus =
+  | "SUCCESS"
+  | "FAILED"
+  | "PARTIAL_SUCCESS"
+  | "成功"
+  | "失败"
+  | "部分成功";
 
 export type ImportBatch = {
   id: string;

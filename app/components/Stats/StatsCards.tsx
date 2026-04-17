@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useLocale } from "../Locale/LocaleProvider";
+import { FormattedNumber } from "../ui/FormattedComponents";
 
 interface StatsData {
   totalCount: number;
@@ -11,6 +13,7 @@ interface StatsData {
 }
 
 export default function StatsCards() {
+  const { text, locale } = useLocale();
   const [stats, setStats] = useState<StatsData>({
     totalCount: 3100,
     testedCount: 3000,
@@ -44,25 +47,25 @@ export default function StatsCards() {
     {
       id: 1,
       icon: "/images/info-img-1.png",
-      label: "工件总数(个)",
+      label: text("工件总数(个)", "Total Workpieces"),
       value: stats.totalCount,
     },
     {
       id: 2,
       icon: "/images/info-img-2.png",
-      label: "已检测数(个)",
+      label: text("已检测数(个)", "Tested Count"),
       value: stats.testedCount,
     },
     {
       id: 3,
       icon: "/images/info-img-3.png",
-      label: "未检测数(个)",
+      label: text("未检测数(个)", "Untested Count"),
       value: stats.untestedCount,
     },
     {
       id: 4,
       icon: "/images/info-img-4.png",
-      label: "完成率(%)",
+      label: text("完成率(%)", "Completion Rate"),
       value: stats.completionRate,
     },
   ];
@@ -100,7 +103,7 @@ export default function StatsCards() {
       />
 
       <div className="text-white text-lg font-semibold mb-4 px-4 relative z-10">
-        实时数据
+        {text("实时数据", "Real-time Data")}
       </div>
 
       <div className="space-y-3 relative z-10">
@@ -116,8 +119,8 @@ export default function StatsCards() {
             </div>
             <div className="flex-1 text-white">
               <p className="text-sm">{card.label}</p>
-              <p className="text-xl font-bold">
-                {loading ? "..." : card.value}
+              <p className="text-xl font-bold font-tabular-nums" style={{ fontFeatureSettings: "'tnum' on, 'lnum' on'" }}>
+                {loading ? "..." : <FormattedNumber value={card.value} format="integer" />}
               </p>
             </div>
           </div>
