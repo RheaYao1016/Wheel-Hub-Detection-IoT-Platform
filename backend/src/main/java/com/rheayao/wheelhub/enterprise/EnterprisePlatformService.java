@@ -366,20 +366,18 @@ public class EnterprisePlatformService {
         List<DataSourceProfile> sources = resolveSources(current.sourceIds());
         String resolvedPersona = defaultText(persona, current.persona());
         String resolvedLocale = defaultLocale(locale == null || locale.isBlank() ? current.locale() : locale);
-        chatMessages.add(
-            new ChatMessageRecord(
-                UUID.randomUUID().toString(),
-                sessionId,
-                "user",
-                content,
-                promptPreset.id(),
-                LocalDateTime.now().toString(),
-                0,
-                0,
-                List.of(),
-                null,
-                List.of()
-            )
+        ChatMessageRecord userMessage = new ChatMessageRecord(
+            UUID.randomUUID().toString(),
+            sessionId,
+            "user",
+            content,
+            promptPreset.id(),
+            LocalDateTime.now().toString(),
+            0,
+            0,
+            List.of(),
+            null,
+            List.of()
         );
         ChatMessageRecord assistant = aiMlBridgeService.generateChatReply(
             sessionId,
@@ -391,6 +389,7 @@ public class EnterprisePlatformService {
             promptPreset,
             sources
         );
+        chatMessages.add(userMessage);
         chatMessages.add(assistant);
         replaceChatSession(
             new ChatSessionRecord(

@@ -28,6 +28,12 @@ import type {
 
 type DraftBox = { x: number; y: number; width: number; height: number } | null;
 
+const MIN_LABEL_SIZE = 6;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function AnnotationPage() {
   const ready = useSessionGuard(["admin", "engineer", "operator"]);
   const { text, t } = useLocale();
@@ -45,6 +51,18 @@ export default function AnnotationPage() {
     null,
   );
   const canvasRef = useRef<HTMLDivElement>(null);
+  const activeProject = useMemo(
+    () => projects.find((item) => item.id === activeProjectId) ?? null,
+    [projects, activeProjectId],
+  );
+  const activeAsset = useMemo(
+    () => assets.find((item) => item.id === activeAssetId) ?? null,
+    [assets, activeAssetId],
+  );
+  const activeLabels = useMemo(
+    () => labels.filter((item) => item.assetId === activeAssetId),
+    [labels, activeAssetId],
+  );
 
   const loadProjects = async () => {
     const projectData = await enterpriseGet<AnnotationProject[]>(
@@ -128,18 +146,32 @@ export default function AnnotationPage() {
     };
   }, [activeAssetId]);
 
-  const activeProject = useMemo(
-    () => projects.find((item) => item.id === activeProjectId) ?? null,
-    [projects, activeProjectId],
-  );
-  const activeAsset = useMemo(
-    () => assets.find((item) => item.id === activeAssetId) ?? null,
-    [assets, activeAssetId],
-  );
-  const activeLabels = useMemo(
-    () => labels.filter((item) => item.assetId === activeAssetId),
-    [labels, activeAssetId],
-  );
+  const getImagePoint = (
+    event: PointerEvent<HTMLDivElement>,
+    options?: { clampToBounds?: boolean },
+  ) => {
+    if (!canvasRef.current) return null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const stageX = event.clientX - rect.left;
+    const stageY = event.clientY - rect.top;
+    const minX = 0;
+    const maxX = rect.width;
+    const minY = 0;
+    const maxY = rect.height;
+
+    if (!options?.clampToBounds) {
+      if (stageX < minX || stageX > maxX || stageY < minY || stageY > maxY) {
+        return null;
+      }
+    }
+
+    const clampedX = clamp(stageX, minX, maxX);
+    const clampedY = clamp(stageY, minY, maxY);
+    return {
+      x: clampedX,
+      y: clampedY,
+    };
+  };
 
   const handleCreateProject = async () => {
     try {
@@ -178,34 +210,50 @@ export default function AnnotationPage() {
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (!canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    setDragStart({ x: event.clientX - rect.left, y: event.clientY - rect.top });
-    setDraftBox(null);
+    const point = getImagePoint(event);
+    if (!point) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragStart(point);
+    setDraftBox({ x: point.x, y: point.y, width: 0, height: 0 });
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (!dragStart || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const currentX = event.clientX - rect.left;
-    const currentY = event.clientY - rect.top;
+    if (!dragStart) return;
+    const point = getImagePoint(event, { clampToBounds: true });
+    if (!point) return;
     setDraftBox({
-      x: Math.min(dragStart.x, currentX),
-      y: Math.min(dragStart.y, currentY),
-      width: Math.abs(currentX - dragStart.x),
-      height: Math.abs(currentY - dragStart.y),
+      x: Math.min(dragStart.x, point.x),
+      y: Math.min(dragStart.y, point.y),
+      width: Math.abs(point.x - dragStart.x),
+      height: Math.abs(point.y - dragStart.y),
     });
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (
+      draftBox &&
+      (draftBox.width < MIN_LABEL_SIZE || draftBox.height < MIN_LABEL_SIZE)
+    ) {
+      setDraftBox(null);
+    }
     setDragStart(null);
   };
 
   const handleSaveLabel = async () => {
     if (!activeProjectId || !activeAssetId || !draftBox || !canvasRef.current)
       return;
-    const rect = canvasRef.current.getBoundingClientRect();
+    if (
+      draftBox.width < MIN_LABEL_SIZE ||
+      draftBox.height < MIN_LABEL_SIZE
+    ) {
+      setMessage(t("pages.annotation.copy028"));
+      return;
+    }
     try {
+      const rect = canvasRef.current.getBoundingClientRect();
       await enterprisePost(`/annotation/projects/${activeProjectId}/labels`, {
         assetId: activeAssetId,
         category,
@@ -383,52 +431,61 @@ export default function AnnotationPage() {
           </div>
 
           <div className="annotation-workbench">
-            <div
-              ref={canvasRef}
-              className="annotation-stage"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-            >
+            <div className="annotation-stage">
               {assetUrl ? (
-                <img
-                  src={assetUrl}
-                  alt={activeAsset?.filename ?? "annotation asset"}
-                  className="annotation-image"
-                />
+                <div
+                  ref={canvasRef}
+                  className="annotation-canvas"
+                  style={{
+                    aspectRatio:
+                      activeAsset && activeAsset.width > 0 && activeAsset.height > 0
+                        ? `${activeAsset.width} / ${activeAsset.height}`
+                        : "16 / 9",
+                  }}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                >
+                  <img
+                    src={assetUrl}
+                    alt={activeAsset?.filename ?? "annotation asset"}
+                    className="annotation-image"
+                    draggable={false}
+                  />
+                  {activeLabels.map((label) => (
+                    <div
+                      key={label.id}
+                      className="annotation-box"
+                      style={{
+                        left: `${label.x * 100}%`,
+                        top: `${label.y * 100}%`,
+                        width: `${label.width * 100}%`,
+                        height: `${label.height * 100}%`,
+                      }}
+                    >
+                      <span>{label.category}</span>
+                    </div>
+                  ))}
+
+                  {draftBox ? (
+                    <div
+                      className="annotation-box annotation-box-draft"
+                      style={{
+                        left: draftBox.x,
+                        top: draftBox.y,
+                        width: draftBox.width,
+                        height: draftBox.height,
+                      }}
+                    />
+                  ) : null}
+                </div>
               ) : (
                 <div className="empty-state">
                   <span>{t("pages.annotation.copy029")}</span>
                   {t("pages.annotation.copy030")}
                 </div>
               )}
-
-              {activeLabels.map((label) => (
-                <div
-                  key={label.id}
-                  className="annotation-box"
-                  style={{
-                    left: `${label.x * 100}%`,
-                    top: `${label.y * 100}%`,
-                    width: `${label.width * 100}%`,
-                    height: `${label.height * 100}%`,
-                  }}
-                >
-                  <span>{label.category}</span>
-                </div>
-              ))}
-
-              {draftBox ? (
-                <div
-                  className="annotation-box annotation-box-draft"
-                  style={{
-                    left: draftBox.x,
-                    top: draftBox.y,
-                    width: draftBox.width,
-                    height: draftBox.height,
-                  }}
-                />
-              ) : null}
             </div>
 
             <aside className="annotation-sidebar">

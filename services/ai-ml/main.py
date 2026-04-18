@@ -1794,11 +1794,18 @@ def run_remote_chat(request: ChatRequest, source_profiles: list[dict[str, Any]])
     remote = call_openai_compatible(request.provider, messages, max_tokens=850, temperature=0.1)
     structured = parse_remote_chat_payload(remote["content"])
     if structured is None:
-        fail_http(502, "The AI provider returned text that could not be parsed into the required chat JSON schema.", [
-            "Use a model with stronger instruction-following ability.",
-            "Keep the system prompt focused on returning JSON only.",
-            "Reduce source volume if the model is drifting away from the schema.",
-        ])
+        fallback_content = extract_fallback_chat_content(remote["content"])
+        if not fallback_content:
+            fail_http(502, "The AI provider returned an empty chat response.", [
+                "Retry the chat request once to rule out a transient provider failure.",
+                "Use a model with stronger instruction-following ability.",
+                "Reduce source volume if the model is drifting away from the schema.",
+            ])
+        structured = {
+            "content": fallback_content,
+            "intentAssessment": intent_assessment,
+            "actions": [],
+        }
     structured["tokenUsage"] = remote["tokenUsage"]
     structured["intentAssessment"] = intent_assessment if conversational_intent else structured.get("intentAssessment") or intent_assessment
     structured["actions"] = normalize_actions(structured.get("actions"), structured["intentAssessment"], request.promptPreset)
@@ -1867,6 +1874,20 @@ def parse_remote_chat_payload(content: str) -> dict[str, Any] | None:
         "intentAssessment": normalize_intent_assessment(payload.get("intentAssessment")),
         "actions": payload.get("actions", []),
     }
+
+
+def extract_fallback_chat_content(content: str) -> str | None:
+    candidate = content.strip()
+    if not candidate:
+        return None
+
+    fenced_match = re.fullmatch(r"```(?:json|text|markdown|md|txt)?\s*([\s\S]*?)\s*```", candidate, flags=re.IGNORECASE)
+    if fenced_match:
+        candidate = fenced_match.group(1).strip()
+
+    if not candidate:
+        return None
+    return candidate
 
 
 def parse_remote_analysis_payload(content: str) -> dict[str, Any] | None:

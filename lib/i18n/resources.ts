@@ -19,7 +19,7 @@ export const I18N_RESOURCES = {
       "footer.title": "工业表面缺陷检测系统",
       "footer.description":
         "覆盖 AI 诊断、报告生成、训练编排与数字孪生运营。",
-      "footer.contact": "项目协作 / 技术联系：suyiyao@stumail.ysu.edu.cn",
+      "footer.contact": "项目协作 / 技术联系：ruyiyao@stumail.ysu.edu.cn",
       "admin.status.success": "成功",
       "admin.status.partial": "部分成功",
       "admin.status.failed": "失败",
@@ -60,7 +60,7 @@ export const I18N_RESOURCES = {
       "footer.description":
         "Covers AI diagnostics, report generation, training orchestration, and digital twin operations.",
       "footer.contact":
-        "Project collaboration / technical contact: suyiyao@stumail.ysu.edu.cn",
+        "Project collaboration / technical contact: ruyiyao@stumail.ysu.edu.cn",
       "admin.status.success": "Success",
       "admin.status.partial": "Partial Success",
       "admin.status.failed": "Failed",
