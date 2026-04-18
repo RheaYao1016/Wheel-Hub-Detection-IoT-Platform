@@ -102,14 +102,14 @@ const MODULE_CARDS_ZH = [
     body: "3D场景诊断、传感器映射、流程解释和设备网格上下文。",
     href: "/digital-twin",
     tag: "孪生",
-    image: "/images/innovation/side-module.png",
+    image: "/images/digital-twin-overview.png",
   },
   {
     title: "AI工作台",
     body: "AI助手、数据中心、报告中心和训练链集成在一个生产力空间。",
     href: "/workspace",
     tag: "AI工作流",
-    image: "/images/innovation/plc-solution.png",
+    image: "/images/ai-workspace-overview.png",
   },
   {
     title: "管理治理",
@@ -147,14 +147,14 @@ const MODULE_CARDS_EN = [
     body: "3D scene diagnostics, sensor mapping, process interpretation, and device lattice context.",
     href: "/digital-twin",
     tag: "Twin",
-    image: "/images/innovation/side-module.png",
+    image: "/images/digital-twin-overview.png",
   },
   {
     title: "AI Workspace",
     body: "AI assistant, data hub, report center, and training chain in one productivity space.",
     href: "/workspace",
     tag: "AI Workflow",
-    image: "/images/innovation/plc-solution.png",
+    image: "/images/ai-workspace-overview.png",
   },
   {
     title: "Admin Governance",
