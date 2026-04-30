@@ -192,7 +192,6 @@ APP_SECURITY_SECRET="replace-with-a-secure-secret"
 - 工业相机检测数据管理
 - AI 视觉检测平台原型
 - 智能制造课程设计
-- 计算机设计大赛作品展示
 - 工业物联网可视化管理系统
 
 ## 项目信息
