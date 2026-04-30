@@ -1,6 +1,6 @@
 # 更精巧的工业表面缺陷智能检测系统
 
-**Wheel Hub Detection IoT Platform**
+**More Exquisite Industrial Surface Defect Intelligent Detection System**
 
 面向轮毂制造场景的工业表面缺陷智能检测平台，集机械执行、视觉检测、数据分析、3D 数字孪生、AI 辅助研判、YOLO 模型训练、标注工坊、报表导出与运营驾驶舱于一体，构建从“数据采集 - 智能标注 - 模型训练 - 缺陷检测 - 质量分析 - 报表归档”的完整工业质检闭环。
 
@@ -200,10 +200,9 @@ APP_SECURITY_SECRET="replace-with-a-secure-secret"
 | 项目 | 内容 |
 | --- | --- |
 | 中文名称 | 更精巧的工业表面缺陷智能检测系统 |
-| 英文名称 | Wheel Hub Detection IoT Platform |
+| 英文名称 | More Exquisite Industrial Surface Defect Intelligent Detection System |
 | 项目类型 | 工业 AI 质检平台 / 物联网 Web 管理平台 |
 | 版本 | v2.2.0 |
-| 用途 | 第 19 届中国大学生计算机设计大赛参赛作品 |
 | 开发团队 | RheaYao |
 | License | MIT |
 
