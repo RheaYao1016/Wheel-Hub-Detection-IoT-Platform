@@ -333,6 +333,33 @@ export default function FloatingAssistant() {
     );
   }
 
+  // Listen for keyboard shortcut: Alt+A toggles AI assistant
+  useEffect(() => {
+    function onToggleAi() {
+      toggleOpen();
+    }
+    window.addEventListener("shortcut:toggle-ai", onToggleAi);
+    return () => window.removeEventListener("shortcut:toggle-ai", onToggleAi);
+  }, []);
+
+  // Listen for quick-prompt events from PageContextBanner / CommandPalette
+  useEffect(() => {
+    function onQuickPrompt(e: Event) {
+      const detail = (e as CustomEvent).detail as { prompt?: string } | undefined;
+      if (detail?.prompt) {
+        setPrompt(detail.prompt);
+        if (!open) {
+          setOpen(true);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(STORAGE_KEY, "open");
+          }
+        }
+      }
+    }
+    window.addEventListener("ai:quick-prompt", onQuickPrompt);
+    return () => window.removeEventListener("ai:quick-prompt", onQuickPrompt);
+  }, [open]);
+
   function toggleOpen() {
     setOpen((current) => {
       const next = !current;
@@ -354,9 +381,11 @@ export default function FloatingAssistant() {
         className="floating-ai-trigger"
         onClick={toggleOpen}
         aria-expanded={open}
+        title="打开 AI 助手 (Alt+A)"
       >
         <span className="floating-ai-trigger-dot" />
-        <span>{open ? "收起 AI 助手" : "打开 AI 助手"}</span>
+        <span>{open ? "收起 AI 助手" : "AI 助手"}</span>
+        {!open && <kbd className="floating-ai-trigger-shortcut">Alt+A</kbd>}
       </button>
 
       {open ? (

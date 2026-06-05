@@ -1,16 +1,20 @@
-﻿import type { Metadata, Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import FloatingAssistant from "./components/Assistant/FloatingAssistant";
 import IndexFocusBeacon from "./components/Assistant/IndexFocusBeacon";
+import PageContextBanner from "./components/Assistant/PageContextBanner";
 import ErrorLogViewer from "./components/ErrorBoundary/ErrorLogViewer";
 import GlobalErrorHandler from "./components/ErrorBoundary/GlobalErrorHandler";
+import ShortcutHelpOverlay from "./components/Keyboard/ShortcutHelpOverlay";
+import CommandPalette from "./components/Keyboard/CommandPalette";
 import Footer from "./components/Layout/Footer";
 import Header from "./components/Layout/Header";
 import MobileGestureProvider from "./components/Layout/MobileGestureProvider";
 import PageTransitionShell from "./components/Layout/PageTransitionShell";
 import ViewportProvider from "./components/Layout/ViewportProvider";
 import LocaleProvider from "./components/Locale/LocaleProvider";
+import OnboardingGuide from "./components/Onboarding/OnboardingGuide";
 import PwaInstallPrompt from "./components/PwaInstallPrompt";
 import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
 import ThemeProvider from "./components/Theme/ThemeProvider";
@@ -78,11 +82,15 @@ export default function RootLayout({
                     <Header />
                     <MobileGestureProvider>
                       <main className="app-main flex-1 pb-6 pt-4">
+                        <PageContextBanner />
                         <PageTransitionShell>{children}</PageTransitionShell>
                       </main>
                       <Footer />
                     </MobileGestureProvider>
                     <FloatingAssistant />
+                    <ShortcutHelpOverlay />
+                    <CommandPalette />
+                    <OnboardingGuide />
                     <Suspense fallback={null}>
                       <IndexFocusBeacon />
                     </Suspense>

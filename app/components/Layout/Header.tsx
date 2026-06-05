@@ -154,6 +154,20 @@ export default function Header() {
             </span>
             {t("header.status.online", { p1: "系统在线" })}
           </Badge>
+          {/* Quick search button - opens command palette */}
+          <button
+            type="button"
+            className="header-search-btn hidden md:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--ring-soft)] bg-[var(--surface-muted)] text-[var(--text-secondary)] text-xs transition-all duration-200 hover:bg-[var(--surface-muted-strong)] hover:text-[var(--text-primary)]"
+            onClick={() => window.dispatchEvent(new CustomEvent("shortcut:command-palette"))}
+            title="快速搜索 (Alt+K)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span>搜索</span>
+            <kbd className="header-search-shortcut">Alt+K</kbd>
+          </button>
           <ThemeToggle />
           <AccountMenu />
         </div>

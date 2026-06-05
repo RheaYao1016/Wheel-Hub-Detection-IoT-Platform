@@ -1,4 +1,4 @@
-﻿﻿"use client";
+"use client";
 
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -40,6 +40,15 @@ const CORE_ITEMS: NavItem[] = [
     ],
   },
 ];
+
+const SHORTCUT_MAP: Record<string, string> = {
+  "/home": "Alt+1",
+  "/visualize": "Alt+2",
+  "/operations": "Alt+3",
+  "/workspace": "Alt+4",
+  "/monitor": "Alt+5",
+  "/admin": "Alt+6",
+};
 
 const ADMIN_ITEMS: NavItem[] = [
   {
@@ -278,6 +287,9 @@ export default function Navigation({
                       <NavIcon href={item.href} />
                     </span>
                     {!collapsed ? item.label : <span className="nav-collapsed-icon">{item.shortLabel}</span>}
+                    {!collapsed && SHORTCUT_MAP[item.href] && (
+                      <kbd className="nav-shortcut-badge">{SHORTCUT_MAP[item.href].replace("Alt+", "")}</kbd>
+                    )}
                   </span>
                   {isActive ? (
                     <span className="absolute bottom-0 left-1/2 h-0.5 w-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-strong)]" />
