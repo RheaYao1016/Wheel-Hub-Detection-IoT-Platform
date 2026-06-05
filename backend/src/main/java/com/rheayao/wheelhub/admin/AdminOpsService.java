@@ -1,9 +1,11 @@
 package com.rheayao.wheelhub.admin;
 
 import com.rheayao.wheelhub.admin.AdminModels.AlertRecord;
+import com.rheayao.wheelhub.admin.AdminModels.DiskMetric;
 import com.rheayao.wheelhub.admin.AdminModels.ImportBatch;
 import com.rheayao.wheelhub.admin.AdminModels.ImportFilters;
 import com.rheayao.wheelhub.admin.AdminModels.ImportHistoryResponse;
+import com.rheayao.wheelhub.admin.AdminModels.WheelHubRecord;
 import com.rheayao.wheelhub.storage.JsonStorageService;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -135,6 +137,33 @@ public class AdminOpsService {
 
     public ImportBatch findImport(String id) {
         return importBatches.stream().filter(item -> item.id().equals(id)).findFirst().orElse(null);
+    }
+
+    public List<DiskMetric> listDiskMetrics() {
+        return List.of(
+            new DiskMetric("/data", 2000, 1200, 800, 60, "healthy"),
+            new DiskMetric("/backups", 1000, 850, 150, 85, "warning"),
+            new DiskMetric("/tmp", 500, 480, 20, 96, "critical"),
+            new DiskMetric("/images", 3000, 900, 2100, 30, "healthy"),
+            new DiskMetric("/logs", 1000, 400, 600, 40, "healthy")
+        );
+    }
+
+    public List<WheelHubRecord> listWheelRecords() {
+        return List.of(
+            new WheelHubRecord("WHL-2025-0201-01", "V1.5-T06", "2025-Q1-003", "2025-02-01 11:45", "PASS"),
+            new WheelHubRecord("WHL-2025-0201-02", "V2.0-T09", "2025-Q1-004", "2025-02-01 12:10", "FAIL"),
+            new WheelHubRecord("WHL-2025-0202-01", "V1.5-T06", "2025-Q1-003", "2025-02-02 09:30", "PASS"),
+            new WheelHubRecord("WHL-2025-0203-01", "V3.0-T12", "2025-Q1-007", "2025-02-03 14:15", "PASS"),
+            new WheelHubRecord("WHL-2025-0205-01", "V2.0-T09", "2025-Q1-004", "2025-02-05 16:42", "FAIL"),
+            new WheelHubRecord("WHL-2025-0207-01", "V1.5-T06", "2025-Q1-005", "2025-02-07 08:20", "PASS"),
+            new WheelHubRecord("WHL-2025-0208-01", "V3.0-T12", "2025-Q1-007", "2025-02-08 10:55", "PASS"),
+            new WheelHubRecord("WHL-2025-0210-01", "V2.0-T09", "2025-Q1-006", "2025-02-10 13:18", "PASS"),
+            new WheelHubRecord("WHL-2025-0212-01", "V1.5-T06", "2025-Q1-005", "2025-02-12 15:05", "FAIL"),
+            new WheelHubRecord("WHL-2025-0214-01", "V3.0-T12", "2025-Q1-008", "2025-02-14 09:42", "PASS"),
+            new WheelHubRecord("WHL-2025-0216-01", "V2.0-T09", "2025-Q1-006", "2025-02-16 11:30", "PASS"),
+            new WheelHubRecord("WHL-2025-0218-01", "V1.5-T06", "2025-Q1-005", "2025-02-18 14:22", "PASS")
+        );
     }
 
     private boolean withinRange(String importedAt, String start, String end) {

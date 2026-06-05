@@ -1,0 +1,46 @@
+# ============================================================
+# Backend .dockerignore - Spring Boot build context
+# ============================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# Logs
+*.log
+logs/
+
+# OS specific
+.mvn/wrapper/maven-wrapper.properties
+
+# Data directory (mounted as volume at runtime)
+data/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Environment
+.env
+.env.local
+
+# Documentation
+*.md

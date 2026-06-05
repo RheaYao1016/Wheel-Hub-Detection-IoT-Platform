@@ -3,11 +3,13 @@
 import {
   type ChangeEvent,
   type PointerEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import Image from "next/image";
 import Card from "../components/Layout/Card";
 import BackButton from "../components/Layout/BackButton";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
@@ -50,6 +52,8 @@ export default function AnnotationPage() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(
     null,
   );
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const activeProject = useMemo(
     () => projects.find((item) => item.id === activeProjectId) ?? null,
@@ -64,7 +68,7 @@ export default function AnnotationPage() {
     [labels, activeAssetId],
   );
 
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     const projectData = await enterpriseGet<AnnotationProject[]>(
       "/annotation/projects",
     );
@@ -84,7 +88,7 @@ export default function AnnotationPage() {
       setLabels(labelData);
       setActiveAssetId((current) => current || assetData[0]?.id || "");
     }
-  };
+  }, [activeProjectId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -92,7 +96,7 @@ export default function AnnotationPage() {
       console.error(error);
       setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy001")));
     });
-  }, [ready, text]);
+  }, [ready, loadProjects, t]);
 
   useEffect(() => {
     if (!activeProjectId) return;
@@ -113,7 +117,7 @@ export default function AnnotationPage() {
       console.error(error);
       setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy002")));
     });
-  }, [activeProjectId, text]);
+  }, [activeProjectId, t]);
 
   useEffect(() => {
     if (!activeAssetId) {
@@ -296,6 +300,47 @@ export default function AnnotationPage() {
     }
   };
 
+  const handleZoomIn = useCallback(() => {
+    setZoomLevel((prev) => Math.min(prev + 0.25, 3));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoomLevel((prev) => Math.max(prev - 0.25, 0.5));
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setZoomLevel(1);
+  }, []);
+
+  const toggleLabelSelection = useCallback((labelId: string) => {
+    setSelectedLabelIds((prev) =>
+      prev.includes(labelId)
+        ? prev.filter((id) => id !== labelId)
+        : [...prev, labelId],
+    );
+  }, []);
+
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedLabelIds.length === 0 || !activeProjectId) return;
+    try {
+      for (const labelId of selectedLabelIds) {
+        await enterprisePost(
+          `/annotation/projects/${activeProjectId}/labels/${labelId}/delete`,
+          {},
+        );
+      }
+      const labelData = await enterpriseGet<AnnotationLabel[]>(
+        `/annotation/projects/${activeProjectId}/labels`,
+      );
+      setLabels(labelData);
+      setSelectedLabelIds([]);
+      setMessage(t("pages.annotation.copy036", { p1: selectedLabelIds.length }));
+    } catch (error) {
+      console.error(error);
+      setMessage(enterpriseErrorMessage(error, t("pages.annotation.copy009")));
+    }
+  }, [activeProjectId, selectedLabelIds, t]);
+
   if (!ready) {
     return (
       <PageLoadFallback
@@ -432,6 +477,42 @@ export default function AnnotationPage() {
 
           <div className="annotation-workbench">
             <div className="annotation-stage">
+              <div
+                style={{
+                  position: "absolute",
+                  top: "0.75rem",
+                  right: "0.75rem",
+                  zIndex: 10,
+                  display: "flex",
+                  gap: "0.5rem",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  title={t("pages.annotation.copy032", undefined, "缩小")}
+                  className="nav-pill px-3 py-1.5 text-xs font-medium transition-all duration-300 rounded-xl hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] border border-[var(--border)] bg-[var(--panel-bg)] backdrop-blur-xl shadow-[var(--shadow-sm)]"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetZoom}
+                  title={t("pages.annotation.copy033", undefined, "重置缩放")}
+                  className="nav-pill px-3 py-1.5 text-xs font-medium transition-all duration-300 rounded-xl hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] border border-[var(--border)] bg-[var(--panel-bg)] backdrop-blur-xl shadow-[var(--shadow-sm)]"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  title={t("pages.annotation.copy034", undefined, "放大")}
+                  className="nav-pill px-3 py-1.5 text-xs font-medium transition-all duration-300 rounded-xl hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] border border-[var(--border)] bg-[var(--panel-bg)] backdrop-blur-xl shadow-[var(--shadow-sm)]"
+                >
+                  +
+                </button>
+              </div>
+
               {assetUrl ? (
                 <div
                   ref={canvasRef}
@@ -441,28 +522,35 @@ export default function AnnotationPage() {
                       activeAsset && activeAsset.width > 0 && activeAsset.height > 0
                         ? `${activeAsset.width} / ${activeAsset.height}`
                         : "16 / 9",
+                    transform: `scale(${zoomLevel})`,
+                    transformOrigin: "center",
+                    transition: "transform 200ms ease-out",
                   }}
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
                   onPointerCancel={handlePointerUp}
                 >
-                  <img
+                  <Image
                     src={assetUrl}
                     alt={activeAsset?.filename ?? "annotation asset"}
                     className="annotation-image"
                     draggable={false}
+                    width={800}
+                    height={600}
+                    style={{ width: '100%', height: 'auto' }}
                   />
                   {activeLabels.map((label) => (
                     <div
                       key={label.id}
-                      className="annotation-box"
+                      className={`annotation-box ${selectedLabelIds.includes(label.id) ? "annotation-box-selected" : ""}`}
                       style={{
                         left: `${label.x * 100}%`,
                         top: `${label.y * 100}%`,
                         width: `${label.width * 100}%`,
                         height: `${label.height * 100}%`,
                       }}
+                      onClick={() => toggleLabelSelection(label.id)}
                     >
                       <span>{label.category}</span>
                     </div>
@@ -517,6 +605,27 @@ export default function AnnotationPage() {
               >
                 {t("pages.annotation.copy032")}
               </button>
+
+              {selectedLabelIds.length > 0 && (
+                <button
+                  type="button"
+                  className="enterprise-danger-button"
+                  onClick={handleBatchDelete}
+                  style={{
+                    background: "var(--danger)",
+                    color: "white",
+                    border: "none",
+                    padding: "0.625rem 1rem",
+                    borderRadius: "0.75rem",
+                    fontWeight: 600,
+                    fontSize: "0.8125rem",
+                    cursor: "pointer",
+                    transition: "all 200ms ease",
+                  }}
+                >
+                  🗑️ {t("pages.annotation.copy035", undefined, "批量删除")} ({selectedLabelIds.length})
+                </button>
+              )}
 
               <div className="enterprise-note-card">
                 <strong>{t("pages.annotation.copy033")}</strong>

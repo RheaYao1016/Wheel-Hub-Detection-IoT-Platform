@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ReactECharts from "echarts-for-react";
 import { DEFAULT_CHART_THEME_TOKENS, type ChartThemeTokens, readChartThemeTokens } from "@/lib/theme";
 
@@ -14,10 +14,13 @@ interface PieChartProps {
   data: PieSlice[];
   id?: string;
   colors?: string[];
+  height?: string;
 }
 
-export default function PieChart({ title, data, id, colors }: PieChartProps) {
+export default function PieChart({ title, data, id, colors, height = "320px" }: PieChartProps) {
   const [tokens, setTokens] = useState<ChartThemeTokens>(DEFAULT_CHART_THEME_TOKENS);
+  const [isReady, setIsReady] = useState(false);
+  const chartRef = useRef<ReactECharts>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -31,10 +34,17 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
       attributeFilter: ["data-theme", "style"],
     });
 
-    return () => observer.disconnect();
+    // 延迟设置ready状态，触发入场动画
+    const timer = requestAnimationFrame(() => setIsReady(true));
+
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(timer);
+    };
   }, []);
 
-  const palette = colors ?? tokens.palette;
+  const palette = useMemo(() => colors ?? tokens.palette, [colors, tokens.palette]);
+
   const normalizedData = useMemo(
     () =>
       data
@@ -46,114 +56,189 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
     [data],
   );
 
-  const total = normalizedData.reduce((sum, item) => sum + item.value, 0);
-  const primaryItem = normalizedData[0];
-  const qualifiedItem = normalizedData.find((item) => /合格/.test(item.name));
+  const total = useMemo(
+    () => normalizedData.reduce((sum, item) => sum + item.value, 0),
+    [normalizedData],
+  );
 
-  const formatPercent = (value: number) => {
-    if (!total) return 0;
-    return Math.round((value / total) * 100);
-  };
+  const qualifiedItem = useMemo(
+    () => normalizedData.find((item) => /合格/.test(item.name)),
+    [normalizedData],
+  );
 
-  const centerValue = qualifiedItem ? `${formatPercent(qualifiedItem.value)}%` : `${total}`;
+  const formatPercent = useCallback(
+    (value: number) => {
+      if (!total) return "0";
+      return ((value / total) * 100).toFixed(1);
+    },
+    [total],
+  );
+
+  const centerValue = useMemo(
+    () => (qualifiedItem ? `${formatPercent(qualifiedItem.value)}%` : `${total}`),
+    [qualifiedItem, formatPercent, total],
+  );
+
   const centerLabel = qualifiedItem ? "合格率" : "样本总量";
-  const centerSubLabel = primaryItem ? `主类 ${primaryItem.name}` : "等待数据";
-  const highlightValue = qualifiedItem ? `${formatPercent(qualifiedItem.value)}%` : `${primaryItem ? formatPercent(primaryItem.value) : 0}%`;
+  const centerSubLabel = normalizedData[0]
+    ? `主类 ${normalizedData[0].name}`
+    : "等待数据";
+
+  const highlightValue = useMemo(
+    () =>
+      qualifiedItem
+        ? `${formatPercent(qualifiedItem.value)}%`
+        : normalizedData[0]
+          ? `${formatPercent(normalizedData[0].value)}%`
+          : "0%",
+    [qualifiedItem, normalizedData, formatPercent],
+  );
+
   const highlightLabel = qualifiedItem ? "优品占比" : "主类占比";
 
-  const legendItems = normalizedData.map((item, index) => ({
-    ...item,
-    rank: String(index + 1).padStart(2, "0"),
-    percent: formatPercent(item.value),
-    color: palette[index % palette.length],
-  }));
+  const legendItems = useMemo(
+    () =>
+      normalizedData.map((item, index) => ({
+        ...item,
+        rank: String(index + 1).padStart(2, "0"),
+        percent: formatPercent(item.value),
+        color: palette[index % palette.length],
+      })),
+    [normalizedData, palette, formatPercent],
+  );
 
-  const option = {
-    animationDuration: 900,
-    animationEasing: "cubicOut",
-    tooltip: {
-      trigger: "item",
-      formatter: ({ name, value }: { name: string; value: number }) => `${name}<br/>${value} 件 (${formatPercent(value)}%)`,
-      backgroundColor: tokens.panelBgStrong,
-      borderColor: tokens.ringSoft,
-      borderWidth: 1,
-      textStyle: { color: tokens.textPrimary },
-      extraCssText: "backdrop-filter: blur(14px); border-radius: 16px;",
-    },
-    color: palette,
-    series: [
-      {
-        name: title,
-        type: "pie",
-        radius: ["52%", "72%"],
-        center: ["34%", "50%"],
-        startAngle: 110,
-        minAngle: 3,
-        avoidLabelOverlap: true,
-        label: { show: false },
-        labelLine: { show: false },
-        itemStyle: {
-          borderRadius: 18,
-          borderColor: tokens.panelBgStrong,
-          borderWidth: 5,
-          shadowBlur: 18,
-          shadowColor: "rgba(0,0,0,0.18)",
-        },
-        emphasis: {
-          scale: true,
-          scaleSize: 6,
-        },
-        data: normalizedData,
+  const option = useMemo(
+    () => ({
+      animationDuration: 1200,
+      animationEasing: "cubicInOut" as const,
+      animationDelay: (idx: number) => idx * 100,
+      tooltip: {
+        trigger: "item" as const,
+        formatter: ({ name, value }: { name: string; value: number }) =>
+          `<div style="font-weight:600;margin-bottom:4px">${name}</div><div style="font-size:14px">${value} 件 (${formatPercent(value)}%)</div>`,
+        backgroundColor: tokens.panelBgStrong,
+        borderColor: tokens.ringSoft,
+        borderWidth: 1,
+        textStyle: { color: tokens.textPrimary, fontSize: 13 },
+        extraCssText:
+          "backdrop-filter: blur(14px); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); padding: 10px 14px;",
+        padding: [10, 14],
       },
-      {
-        name: "halo",
-        type: "pie",
-        radius: ["42%", "46%"],
-        center: ["34%", "50%"],
-        silent: true,
-        label: { show: false },
-        data: [{ value: 100, itemStyle: { color: "rgba(255,255,255,0.06)" } }],
-      },
-      {
-        name: "core",
-        type: "pie",
-        radius: ["0%", "34%"],
-        center: ["34%", "50%"],
-        silent: true,
-        label: {
-          show: true,
-          position: "center",
-          formatter: () => `{value|${centerValue}}\n{label|${centerLabel}}\n{sub|${centerSubLabel}}`,
-          rich: {
-            value: {
-              fontSize: 26,
-              fontWeight: 800,
-              lineHeight: 32,
-              color: tokens.accent,
-            },
-            label: {
-              fontSize: 12,
-              fontWeight: 600,
-              lineHeight: 18,
-              color: tokens.textPrimary,
-            },
-            sub: {
-              fontSize: 11,
-              lineHeight: 16,
-              color: tokens.textSecondary,
+      color: palette,
+      series: [
+        {
+          name: title,
+          type: "pie" as const,
+          radius: ["54%", "74%"],
+          center: ["34%", "50%"],
+          startAngle: 90,
+          minAngle: 5,
+          avoidLabelOverlap: true,
+          label: { show: false },
+          labelLine: { show: false },
+          itemStyle: {
+            borderRadius: 14,
+            borderColor: tokens.panelBgStrong,
+            borderWidth: 4,
+            shadowBlur: 20,
+            shadowColor: `${tokens.accent}30`,
+          },
+          emphasis: {
+            scale: true,
+            scaleSize: 8,
+            itemStyle: {
+              shadowBlur: 30,
+              shadowColor: `${tokens.accent}50`,
             },
           },
+          data: normalizedData,
         },
-        itemStyle: { color: "rgba(255,255,255,0.03)" },
-        data: [{ value: 100 }],
-      },
+        {
+          name: "halo",
+          type: "pie" as const,
+          radius: ["44%", "48%"],
+          center: ["34%", "50%"],
+          silent: true,
+          label: { show: false },
+          data: [
+            {
+              value: 100,
+              itemStyle: { color: `${tokens.ringSoft}40` },
+            },
+          ],
+        },
+        {
+          name: "core",
+          type: "pie" as const,
+          radius: ["0%", "36%"],
+          center: ["34%", "50%"],
+          silent: true,
+          label: {
+            show: true,
+            position: "center" as const,
+            formatter: () =>
+              `{value|${centerValue}}\n{label|${centerLabel}}\n{sub|${centerSubLabel}}`,
+            rich: {
+              value: {
+                fontSize: 28,
+                fontWeight: 800,
+                lineHeight: 36,
+                color: tokens.accent,
+                fontFamily:
+                  "'SF Pro Display', 'Inter', -apple-system, sans-serif",
+              },
+              label: {
+                fontSize: 12,
+                fontWeight: 600,
+                lineHeight: 20,
+                color: tokens.textPrimary,
+                letterSpacing: 1,
+              },
+              sub: {
+                fontSize: 11,
+                lineHeight: 18,
+                color: tokens.textSecondary,
+                fontStyle: "italic" as const,
+              },
+            },
+          },
+          itemStyle: { color: `${tokens.panelBg}60` },
+          data: [{ value: 100 }],
+        },
+      ],
+    }),
+    [
+      title,
+      normalizedData,
+      palette,
+      tokens,
+      centerValue,
+      centerLabel,
+      centerSubLabel,
+      formatPercent,
     ],
-  } as const;
+  );
+
+  if (!isReady || data.length === 0) {
+    return (
+      <div
+        className="chart-loading-skeleton"
+        style={{ height, display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <div className="skeleton-pulse" />
+      </div>
+    );
+  }
 
   return (
-    <div className="pie-chart-shell" id={id}>
-      <div className="pie-chart-canvas">
-        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
+    <div className="pie-chart-shell" id={id} style={{ height }}>
+      <div className="pie-chart-canvas" style={{ height: "100%" }}>
+        <ReactECharts
+          ref={chartRef}
+          option={option}
+          style={{ height: "100%", width: "100%" }}
+          opts={{ renderer: "canvas", devicePixelRatio: 2 }}
+        />
       </div>
       <div className="pie-chart-side">
         <div className="pie-chart-summary">
@@ -165,7 +250,7 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
           <div className="pie-summary-card">
             <span>{highlightLabel}</span>
             <strong>{highlightValue}</strong>
-            <em>{qualifiedItem?.name ?? primaryItem?.name ?? "暂无主类"}</em>
+            <em>{qualifiedItem?.name ?? normalizedData[0]?.name ?? "暂无主类"}</em>
           </div>
         </div>
         <ul className="pie-chart-legend">
@@ -180,7 +265,12 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
                   <span className="legend-value">{item.value} 件</span>
                 </div>
                 <div className="legend-progress">
-                  <span style={{ width: `${Math.max(item.percent, 6)}%`, background: item.color }} />
+                  <span
+                    style={{
+                      width: `${Math.max(Number(item.percent), 6)}%`,
+                      background: item.color,
+                    }}
+                  />
                 </div>
                 <div className="legend-row legend-row-muted">
                   <span>占比</span>

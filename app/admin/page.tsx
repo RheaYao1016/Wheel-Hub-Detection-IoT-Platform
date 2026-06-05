@@ -32,7 +32,34 @@ export default function AdminDashboard() {
   const [snapshot, setSnapshot] = useState<AdminSnapshot | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const toastTimerRef = useRef<number | null>(null);
+
+  const loadSnapshot = useCallback(async () => {
+    try {
+      const payload = await fetchPlatformData<AdminSnapshot>(
+        "/dashboard/admin",
+        "/api/admin",
+      );
+      setSnapshot(payload);
+      setError("");
+      setLoading(false);
+    } catch (requestError) {
+      if (requestError instanceof PlatformAuthError) {
+        clearAuthSession();
+        router.replace("/login");
+        return;
+      }
+      console.error(requestError);
+      setError(
+        text(
+          "运营后台数据暂时不可用，请稍后重试。",
+          "Admin data is temporarily unavailable.",
+        ),
+      );
+      setLoading(false);
+    }
+  }, [router, text]);
 
   useEffect(() => {
     if (!ready) return;
@@ -48,6 +75,7 @@ export default function AdminDashboard() {
         if (!active) return;
         setSnapshot(payload);
         setError("");
+        setLoading(false);
       } catch (requestError) {
         if (!active) return;
         if (requestError instanceof PlatformAuthError) {
@@ -62,6 +90,7 @@ export default function AdminDashboard() {
             "Admin data is temporarily unavailable.",
           ),
         );
+        setLoading(false);
       }
     };
 
@@ -139,7 +168,7 @@ export default function AdminDashboard() {
         note: t("pages.admin.copy006"),
       },
     ];
-  }, [snapshot, text]);
+  }, [snapshot, t]);
 
   const workflowSteps = useMemo<WorkflowStep[]>(() => {
     const queuedAlerts = snapshot?.alerts.length ?? 0;
@@ -178,34 +207,24 @@ export default function AdminDashboard() {
         state: hasSyncPressure ? "active" : "upcoming",
       },
     ];
-  }, [router, snapshot, text]);
+  }, [router, snapshot, t]);
 
-  const scrollToSection = (id: string) => {
+  const scrollToSection = useCallback((id: string) => {
     const target = document.getElementById(id);
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  }, []);
 
-  if (!snapshot && !error) {
-    if (!ready) {
-      return (
-        <PageLoadFallback
-          fallbackHref="/visualize"
-          title={text("正在加载运营后台", "Loading Admin Console")}
-          description={text(
-            "正在准备治理、告警与导入管理布局...",
-            "Preparing governance, alerts, and import management layout...",
-          )}
-        />
-      );
-    }
-
+  if (!ready) {
     return (
-      <div className="page-shell">
-        <div className="loading-state">
-          {text("正在加载运营后台...", "Loading admin console...")}
-        </div>
-      </div>
+      <PageLoadFallback
+        fallbackHref="/visualize"
+        title={text("正在加载运营后台", "Loading Admin Console")}
+        description={text(
+          "正在准备治理、告警与导入管理布局...",
+          "Preparing governance, alerts, and import management layout...",
+        )}
+      />
     );
   }
 
@@ -227,21 +246,21 @@ export default function AdminDashboard() {
             type="button"
             className="enterprise-secondary-button"
             onClick={() => scrollToSection("admin-governance")}
-        >
+          >
             {text("治理重点", "Governance Focus")}
           </button>
           <button
             type="button"
             className="enterprise-secondary-button"
             onClick={() => scrollToSection("admin-alert-feed")}
-        >
+          >
             {text("告警队列", "Alert Feed")}
           </button>
           <button
             type="button"
             className="enterprise-secondary-button"
             onClick={() => router.push("/admin/data-import")}
-        >
+          >
             {text("打开数据导入", "Open Data Import")}
           </button>
         </div>
@@ -280,183 +299,191 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {error ? (
+        {loading && !snapshot ? (
+          <div className="loading-state">
+            {text("正在加载运营后台...", "Loading admin console...")}
+          </div>
+        ) : error && !snapshot ? (
           <div className="empty-state">
             <span>!</span>
             {error}
           </div>
-        ) : null}
-
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {snapshot?.metrics.map((metric) => (
-            <Card
-              key={metric.label}
-              className="admin-kpi-card"
-              onClick={() =>
-                router.push(
-                  metric.label.includes("alert") || metric.label.includes("警")
-                    ? "/admin/alerts"
-                    : "/admin",
-                )
-              }
-            >
-              <span>{metric.label}</span>
-              <strong>{metric.value}</strong>
-              <div>
-                <em className={`trend-${metric.trend}`}>{metric.delta}</em>
-                <small>{metric.note}</small>
-              </div>
-            </Card>
-          ))}
-        </section>
-
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <Card id="admin-governance" className="xl:col-span-5">
-            <div className="panel-heading">
-              <div>
-                <span className="panel-kicker">
-                  {text("治理重点", "Governance Focus")}
-                </span>
-                <h2>
-                  {text(
-                    "运营治理优先事项",
-                    "Operational governance priorities",
-                  )}
-                </h2>
-              </div>
-            </div>
-            <div className="enterprise-highlight-list">
-              {governanceCards.map((item) => (
-                <div key={item.label}>
-                  <strong>
-                    {item.label} / {item.value}
-                  </strong>
-                  <p>{item.note}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card id="admin-routing" className="xl:col-span-7">
-            <div className="panel-heading">
-              <div>
-                <span className="panel-kicker">
-                  {text("动作路由", "Action Routing")}
-                </span>
-                <h2>{text("控制路由图", "Control routing map")}</h2>
-              </div>
-            </div>
-            <div className="enterprise-highlight-list">
-              <div>
-                <strong>{text("导入与数据治理", "Import and data governance")}</strong>
-                <p>
-                  {text(
-                    "上传流程、导入历史和字段校验统一放在“数据导入”模块中，避免跨页面重复操作。",
-                    "Upload pipelines, import history, and field validation stay in Data Import to avoid repeated operations across pages.",
-                  )}
-                </p>
-              </div>
-              <div>
-                <strong>{text("告警派发与闭环", "Alert dispatch and closure")}</strong>
-                <p>
-                  {text(
-                    "告警确认与派发应在告警中心完成，监控页面则继续专注于实时可视与现场响应。",
-                    "Alert acknowledgement and dispatch should run in the alert center, while monitoring pages remain focused on real-time visibility.",
-                  )}
-                </p>
-              </div>
-              <div>
-                <strong>{text("角色与责任", "Role and accountability")}</strong>
-                <p>
-                  {text(
-                    "保持职责边界清晰：本页负责统筹决策，执行页面负责提供上下文与证据。",
-                    "Keep ownership explicit: this page orchestrates decisions, while execution pages provide context and evidence.",
-                  )}
-                </p>
-              </div>
-            </div>
-          </Card>
-        </section>
-
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <Card id="admin-alert-feed" className="xl:col-span-6">
-            <div className="panel-heading">
-              <div>
-                <span className="panel-kicker">
-                  {text("优先告警", "Priority Alerts")}
-                </span>
-                <h2>{text("待处理告警队列", "Pending alert queue")}</h2>
-              </div>
-            </div>
-            <div className="alert-stack">
-              {snapshot?.alerts.map((alert) => (
-                <div key={alert.id} className="alert-item">
-                  <div className="alert-level">{alert.level}</div>
+        ) : (
+          <>
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {snapshot?.metrics.map((metric) => (
+                <Card
+                  key={metric.label}
+                  className="admin-kpi-card"
+                  onClick={() =>
+                    router.push(
+                      metric.label.includes("alert") || metric.label.includes("警")
+                        ? "/admin/alerts"
+                        : "/admin",
+                    )
+                  }
+                >
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
                   <div>
-                    <strong>{alert.title}</strong>
-                    <span>
-                      {alert.station} / {alert.timestamp}
-                    </span>
-                    <p>{alert.detail}</p>
+                    <em className={`trend-${metric.trend}`}>{metric.delta}</em>
+                    <small>{metric.note}</small>
                   </div>
-                </div>
-              )) ?? (
-                <div className="loading-state">
-                  {text("正在加载告警...", "Loading alerts...")}
-                </div>
-              )}
-            </div>
-          </Card>
+                </Card>
+              ))}
+            </section>
 
-          <Card id="admin-resource-watch" className="xl:col-span-6">
-            <div className="panel-heading">
-              <div>
-                <span className="panel-kicker">
-                  {text("资源观察", "Resource Watch")}
-                </span>
-                <h2>{text("设备与产能状态", "Device and capacity status")}</h2>
-              </div>
-            </div>
-            <div className="device-stack">
-              {snapshot?.devices.map((device) => (
-                <div key={device.name} className="device-item">
-                  <div className="device-item-top">
-                    <strong>{device.name}</strong>
-                    <span
-                      className={`status-chip ${
-                        String(device.status).toLowerCase().includes("run")
-                          ? "status-success"
-                          : String(device.status)
-                                .toLowerCase()
-                                .includes("maint")
-                            ? "status-warning"
-                            : "status-danger"
-                      }`}
-                    >
-                      {device.status}
+            <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <Card id="admin-governance" className="xl:col-span-5">
+                <div className="panel-heading">
+                  <div>
+                    <span className="panel-kicker">
+                      {text("治理重点", "Governance Focus")}
                     </span>
-                  </div>
-                  <div className="device-gauge">
-                    <span style={{ width: `${device.utilization}%` }} />
-                  </div>
-                  <div className="device-item-meta">
-                    <span>
-                      {text("利用率", "Utilization")} {device.utilization}%
-                    </span>
-                    <span>
-                      {text("运行时长", "Runtime")} {device.runtimeHours}h
-                    </span>
-                    <span>{device.note}</span>
+                    <h2>
+                      {text(
+                        "运营治理优先事项",
+                        "Operational governance priorities",
+                      )}
+                    </h2>
                   </div>
                 </div>
-              )) ?? (
-                <div className="loading-state">
-                  {text("正在加载设备...", "Loading devices...")}
+                <div className="enterprise-highlight-list">
+                  {governanceCards.map((item) => (
+                    <div key={item.label}>
+                      <strong>
+                        {item.label} / {item.value}
+                      </strong>
+                      <p>{item.note}</p>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          </Card>
-        </section>
+              </Card>
+
+              <Card id="admin-routing" className="xl:col-span-7">
+                <div className="panel-heading">
+                  <div>
+                    <span className="panel-kicker">
+                      {text("动作路由", "Action Routing")}
+                    </span>
+                    <h2>{text("控制路由图", "Control routing map")}</h2>
+                  </div>
+                </div>
+                <div className="enterprise-highlight-list">
+                  <div>
+                    <strong>{text("导入与数据治理", "Import and data governance")}</strong>
+                    <p>
+                      {text(
+                        '上传流程、导入历史和字段校验统一放在"数据导入"模块中，避免跨页面重复操作。',
+                        "Upload pipelines, import history, and field validation stay in Data Import to avoid repeated operations across pages.",
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <strong>{text("告警派发与闭环", "Alert dispatch and closure")}</strong>
+                    <p>
+                      {text(
+                        "告警确认与派发应在告警中心完成，监控页面则继续专注于实时可视与现场响应。",
+                        "Alert acknowledgement and dispatch should run in the alert center, while monitoring pages remain focused on real-time visibility.",
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <strong>{text("角色与责任", "Role and accountability")}</strong>
+                    <p>
+                      {text(
+                        "保持职责边界清晰：本页负责统筹决策，执行页面负责提供上下文与证据。",
+                        "Keep ownership explicit: this page orchestrates decisions, while execution pages provide context and evidence.",
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </section>
+
+            <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <Card id="admin-alert-feed" className="xl:col-span-6">
+                <div className="panel-heading">
+                  <div>
+                    <span className="panel-kicker">
+                      {text("优先告警", "Priority Alerts")}
+                    </span>
+                    <h2>{text("待处理告警队列", "Pending alert queue")}</h2>
+                  </div>
+                </div>
+                <div className="alert-stack">
+                  {snapshot?.alerts.map((alert) => (
+                    <div key={alert.id} className="alert-item">
+                      <div className="alert-level">{alert.level}</div>
+                      <div>
+                        <strong>{alert.title}</strong>
+                        <span>
+                          {alert.station} / {alert.timestamp}
+                        </span>
+                        <p>{alert.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(!snapshot?.alerts || snapshot.alerts.length === 0) && (
+                    <div className="loading-state">
+                      {text("暂无告警数据", "No alert data available")}
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              <Card id="admin-resource-watch" className="xl:col-span-6">
+                <div className="panel-heading">
+                  <div>
+                    <span className="panel-kicker">
+                      {text("资源观察", "Resource Watch")}
+                    </span>
+                    <h2>{text("设备与产能状态", "Device and capacity status")}</h2>
+                  </div>
+                </div>
+                <div className="device-stack">
+                  {snapshot?.devices.map((device) => (
+                    <div key={device.name} className="device-item">
+                      <div className="device-item-top">
+                        <strong>{device.name}</strong>
+                        <span
+                          className={`status-chip ${
+                            String(device.status).toLowerCase().includes("run")
+                              ? "status-success"
+                              : String(device.status)
+                                    .toLowerCase()
+                                    .includes("maint")
+                                ? "status-warning"
+                                : "status-danger"
+                          }`}
+                        >
+                          {device.status}
+                        </span>
+                      </div>
+                      <div className="device-gauge">
+                        <span style={{ width: `${device.utilization}%` }} />
+                      </div>
+                      <div className="device-item-meta">
+                        <span>
+                          {text("利用率", "Utilization")} {device.utilization}%
+                        </span>
+                        <span>
+                          {text("运行时长", "Runtime")} {device.runtimeHours}h
+                        </span>
+                        <span>{device.note}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {(!snapshot?.devices || snapshot.devices.length === 0) && (
+                    <div className="loading-state">
+                      {text("暂无设备数据", "No device data available")}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </section>
+          </>
+        )}
       </div>
 
       {toast ? (

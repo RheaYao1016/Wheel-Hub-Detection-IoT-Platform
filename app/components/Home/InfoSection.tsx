@@ -1,6 +1,6 @@
 export default function InfoSection() {
   return (
-    <div className="w-[73%] h-[91%] mt-[2%] mr-[2%] overflow-y-auto bg-white box-border leading-[2.5] text-base p-[5%]">
+    <div className="w-full overflow-y-auto bg-[var(--card-bg)] border border-[var(--ring-soft)] rounded-[var(--radius-lg)] box-border leading-[2.5] text-base p-6 text-[var(--text-primary)]">
       <h1 className="font-bold text-lg mt-4" style={{ color: 'var(--accent)' }}>项目简介</h1>
       <br />
       <p className="indent-8">

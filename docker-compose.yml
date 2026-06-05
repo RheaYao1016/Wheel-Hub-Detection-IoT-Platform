@@ -1,0 +1,144 @@
+# ============================================================
+# Industrial-Surface-Defect-Detection-System Docker Compose
+# Services: PostgreSQL, Backend (Spring Boot), Frontend (Next.js)
+# ============================================================
+
+services:
+  # -----------------------------------------------------------
+  # PostgreSQL Database
+  # -----------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: wheel-hub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wheel_hub_platform
+      POSTGRES_USER: wheel_hub_user
+      POSTGRES_PASSWORD: wheel_hub_secure_password_change_me
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wheel_hub_user -d wheel_hub_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - wheel-hub-network
+
+  # -----------------------------------------------------------
+  # Redis: Distributed Cache for Multi-Instance Deployment
+  # -----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: wheel-hub-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - wheel-hub-network
+
+  # -----------------------------------------------------------
+  # Backend: Spring Boot API
+  # -----------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wheel-hub-backend
+    restart: unless-stopped
+    environment:
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/wheel_hub_platform
+      SPRING_DATASOURCE_USERNAME: wheel_hub_user
+      SPRING_DATASOURCE_PASSWORD: wheel_hub_secure_password_change_me
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ""
+      # Application
+      SERVER_PORT: 18081
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
+      APP_DATA_HOME: /app/data
+      APP_AUTH_SESSION_HOURS: 12
+      APP_AI_ML_BASE_URL: http://ai-ml:18100
+      APP_SECURITY_SECRET: wheel-hub-docker-secret-change-in-production
+      TZ: Asia/Shanghai
+    ports:
+      - "18081:18081"
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wheel-hub-network
+
+  # -----------------------------------------------------------
+  # Frontend: Next.js
+  # -----------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: wheel-hub-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:18081/api
+      DATABASE_URL: postgresql://wheel_hub_user:wheel_hub_secure_password_change_me@postgres:5432/wheel_hub_platform?schema=public
+      NODE_ENV: production
+      PORT: 3000
+      TZ: Asia/Shanghai
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - wheel-hub-network
+
+  # -----------------------------------------------------------
+  # AI/ML Service (Optional - FastAPI)
+  # -----------------------------------------------------------
+  ai-ml:
+    build:
+      context: ./services/ai-ml
+      dockerfile: Dockerfile
+    container_name: wheel-hub-ai-ml
+    restart: unless-stopped
+    environment:
+      PORT: 18100
+      TZ: Asia/Shanghai
+    ports:
+      - "18100:18100"
+    networks:
+      - wheel-hub-network
+    profiles:
+      - ai
+      - all
+
+volumes:
+  postgres_data:
+    driver: local
+  app_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  wheel-hub-network:
+    driver: bridge

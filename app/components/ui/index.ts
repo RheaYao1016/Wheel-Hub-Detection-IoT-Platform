@@ -37,3 +37,25 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuRadioGroup,
 } from "./DropdownMenu";
+
+// -- New UX optimization components --
+export { ToastProvider, useToast } from "./Toast";
+export type { Toast, ToastType } from "./Toast";
+export {
+  SkeletonLine,
+  SkeletonBlock,
+  SkeletonText,
+  SkeletonAvatar,
+  SkeletonCard,
+  SkeletonTable,
+  SkeletonChart,
+  SkeletonImage,
+  SkeletonList,
+} from "./Skeleton";
+export { Loading, LoadingInline } from "./Loading";
+export type { LoadingVariant, LoadingSize } from "./Loading";
+export { EmptyState } from "./EmptyState";
+export type { EmptyVariant } from "./EmptyState";
+export { ProgressOverlayProvider, useProgressOverlay, useProgressOperation } from "./ProgressOverlay";
+export type { ProgressOverlayState } from "./ProgressOverlay";
+export { useOptimistic, useDebouncedValue, useAsyncOperation } from "./useOptimistic";

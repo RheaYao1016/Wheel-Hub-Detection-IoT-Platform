@@ -114,7 +114,15 @@ async function fetchWithRetry(target: string, init?: RequestInit) {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   const token = getAuthToken();
-  const target = `${getBackendApiBase()}${path}`;
+  const backendBase = getBackendApiBase();
+  const isSameOrigin = typeof window !== "undefined" && backendBase.startsWith(window.location.origin);
+  const targets = [`${backendBase}${path}`];
+
+  // When backend is on a different origin (likely unreachable), add Next.js API fallback
+  if (!isSameOrigin) {
+    targets.push(path);
+  }
+
   const cacheKey = buildRuntimeCacheKey(
     "enterprise",
     `${method}:${path}`,
@@ -134,22 +142,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const executeRequest = async () => {
-    const response = await fetchWithRetry(target, {
-      ...init,
-      headers: createHeaders(init?.headers),
-    });
+    let lastError: Error | null = null;
 
-    if (!response.ok) {
-      throw new Error(await parseErrorResponse(response));
+    for (const target of targets) {
+      try {
+        const response = await fetchWithRetry(target, {
+          ...init,
+          headers: createHeaders(init?.headers),
+        });
+
+        if (!response.ok) {
+          throw new Error(await parseErrorResponse(response));
+        }
+
+        const payload = (await response.json()) as ApiEnvelope<T>;
+        if (method === "GET") {
+          writeRuntimeJsonCache(cacheKey, payload.data, ENTERPRISE_CACHE_TTL_MS);
+        } else {
+          clearRuntimeCaches();
+        }
+        return payload.data;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        // Try next target
+        continue;
+      }
     }
 
-    const payload = (await response.json()) as ApiEnvelope<T>;
-    if (method === "GET") {
-      writeRuntimeJsonCache(cacheKey, payload.data, ENTERPRISE_CACHE_TTL_MS);
-    } else {
-      clearRuntimeCaches();
-    }
-    return payload.data;
+    throw lastError ?? new Error("All API targets failed.");
   };
 
   if (method === "GET") {

@@ -1,27 +1,62 @@
-import type { Metadata } from "next";
+﻿import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
-import Header from "./components/Layout/Header";
+import FloatingAssistant from "./components/Assistant/FloatingAssistant";
+import IndexFocusBeacon from "./components/Assistant/IndexFocusBeacon";
+import ErrorLogViewer from "./components/ErrorBoundary/ErrorLogViewer";
+import GlobalErrorHandler from "./components/ErrorBoundary/GlobalErrorHandler";
 import Footer from "./components/Layout/Footer";
-import ViewportProvider from "./components/Layout/ViewportProvider";
-import ThemeProvider from "./components/Theme/ThemeProvider";
+import Header from "./components/Layout/Header";
+import MobileGestureProvider from "./components/Layout/MobileGestureProvider";
 import PageTransitionShell from "./components/Layout/PageTransitionShell";
+import ViewportProvider from "./components/Layout/ViewportProvider";
 import LocaleProvider from "./components/Locale/LocaleProvider";
+import PwaInstallPrompt from "./components/PwaInstallPrompt";
+import ServiceWorkerRegistration from "./components/ServiceWorkerRegistration";
+import ThemeProvider from "./components/Theme/ThemeProvider";
+import { ProgressOverlayProvider } from "./components/ui/ProgressOverlay";
+import { ToastProvider } from "./components/ui/Toast";
 import { TooltipProvider } from "./components/ui/Tooltip";
-import ShowcaseDock from "./components/Layout/ShowcaseDock";
 
 export const metadata: Metadata = {
-  title: "Industrial Surface Defect Detection System",
+  title: "工业表面缺陷智能检测系统",
   description:
-    "Enterprise platform for industrial surface defect detection, digital twin operations, AI analysis, reporting, and training workflows.",
+    "企业级工业表面缺陷检测平台，覆盖监控、数字孪生、AI 分析、报告和工作流。",
   keywords: [
-    "surface defect detection",
-    "industrial inspection",
-    "digital twin",
-    "AI analysis",
-    "YOLO training",
-    "enterprise platform",
+    "表面缺陷检测",
+    "工业检测",
+    "数字孪生",
+    "AI分析",
+    "YOLO训练",
+    "企业平台",
     "Next.js",
   ],
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "工业检测",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/images/logo.png", sizes: "32x32" },
+      { url: "/images/logo.png", sizes: "192x192" },
+      { url: "/images/logo.png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/images/logo.png", sizes: "192x192" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0d0f14",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -34,20 +69,34 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <ViewportProvider>
+          <GlobalErrorHandler />
           <ThemeProvider>
             <LocaleProvider>
               <TooltipProvider delayDuration={200}>
-                <Header />
-                <ShowcaseDock />
-                <main className="app-main flex-1 pb-6 pt-4">
-                  <PageTransitionShell>{children}</PageTransitionShell>
-                </main>
-                <Footer />
+                <ProgressOverlayProvider>
+                  <ToastProvider>
+                    <Header />
+                    <MobileGestureProvider>
+                      <main className="app-main flex-1 pb-6 pt-4">
+                        <PageTransitionShell>{children}</PageTransitionShell>
+                      </main>
+                      <Footer />
+                    </MobileGestureProvider>
+                    <FloatingAssistant />
+                    <Suspense fallback={null}>
+                      <IndexFocusBeacon />
+                    </Suspense>
+                    <ServiceWorkerRegistration />
+                    <PwaInstallPrompt />
+                  </ToastProvider>
+                </ProgressOverlayProvider>
               </TooltipProvider>
             </LocaleProvider>
           </ThemeProvider>
+          <ErrorLogViewer />
         </ViewportProvider>
       </body>
     </html>
   );
 }
+

@@ -12,6 +12,7 @@ import { clearAuthSession } from "@/lib/auth-session";
 import type { AlertLevel, AlertRecord, AlertStatus } from "@/types/alerts";
 import { useAdminGuard } from "../hooks/useAdminGuard";
 import { useLocale } from "@/app/components/Locale/LocaleProvider";
+import { Pagination, TableSkeleton, EmptyState } from "@/app/components/ui/Pagination";
 
 type ToastState = {
   message: string;
@@ -45,6 +46,30 @@ const SAMPLE_ALERTS: AlertRecord[] = [
     level: "LOW",
     description: "Buffer queue is close to threshold; cleanup is recommended.",
     status: "PENDING",
+  },
+  {
+    id: "AL-2025-0311-04",
+    timestamp: "2025-03-11 10:12:33",
+    station: "ST-01",
+    level: "HIGH",
+    description: "Surface defect score exceeded 0.85 threshold on Line A.",
+    status: "PENDING",
+  },
+  {
+    id: "AL-2025-0311-05",
+    timestamp: "2025-03-11 10:45:22",
+    station: "ST-04",
+    level: "MEDIUM",
+    description: "Temperature anomaly detected in sensor array B.",
+    status: "READ",
+  },
+  {
+    id: "AL-2025-0311-06",
+    timestamp: "2025-03-11 11:03:17",
+    station: "ST-02",
+    level: "LOW",
+    description: "Network latency spike observed in data pipeline.",
+    status: "DISPATCHED",
   },
 ];
 
@@ -89,12 +114,11 @@ export default function AlertsPage() {
   const { text, t } = useLocale();
   const [records, setRecords] = useState<AlertRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [levelFilter, setLevelFilter] = useState<"ALL" | CanonicalAlertLevel>(
-    "ALL",
-  );
-  const [statusFilter, setStatusFilter] = useState<
-    "ALL" | CanonicalAlertStatus
-  >("ALL");
+  const [levelFilter, setLevelFilter] = useState<"ALL" | CanonicalAlertLevel>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | CanonicalAlertStatus>("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [toast, setToast] = useState<ToastState | null>(null);
   const toastTimerRef = useRef<number>();
 
@@ -113,7 +137,7 @@ export default function AlertsPage() {
         MEDIUM: t("pages.admin.alerts.copy002"),
         LOW: t("pages.admin.alerts.copy003"),
       })[level],
-    [text],
+    [t],
   );
 
   const localizeStatus = useCallback(
@@ -124,7 +148,7 @@ export default function AlertsPage() {
         DISPATCHED: t("pages.admin.alerts.copy006"),
         IGNORED: t("pages.admin.alerts.copy007"),
       })[status],
-    [text],
+    [t],
   );
 
   const loadAlerts = useCallback(async () => {
@@ -157,6 +181,7 @@ export default function AlertsPage() {
         return;
       }
       console.error("load alerts failed", error);
+      // Fallback to sample data with filters applied
       const fallback = SAMPLE_ALERTS.filter((item) => {
         const levelPass =
           levelFilter === "ALL" || normalizeLevel(item.level) === levelFilter;
@@ -170,7 +195,7 @@ export default function AlertsPage() {
     } finally {
       setLoading(false);
     }
-  }, [levelFilter, localizeLevel, router, showToast, statusFilter, text]);
+  }, [levelFilter, statusFilter, localizeLevel, router, showToast, t]);
 
   useEffect(() => {
     if (!ready) return;
@@ -182,12 +207,38 @@ export default function AlertsPage() {
     };
   }, [loadAlerts, ready]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [levelFilter, statusFilter, searchTerm]);
+
   const pendingCount = useMemo(
     () =>
       records.filter((item) => normalizeStatus(item.status) === "PENDING")
         .length,
     [records],
   );
+
+  // Filter records based on search term
+  const filteredRecords = useMemo(() => {
+    if (!searchTerm.trim()) return records;
+    const term = searchTerm.toLowerCase();
+    return records.filter(
+      (item) =>
+        item.id.toLowerCase().includes(term) ||
+        item.station.toLowerCase().includes(term) ||
+        item.description.toLowerCase().includes(term) ||
+        item.timestamp.toLowerCase().includes(term),
+    );
+  }, [records, searchTerm]);
+
+  // Paginate filtered records
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredRecords.length / pageSize);
 
   const handleAction = useCallback(
     async (id: string, status: CanonicalAlertStatus) => {
@@ -208,17 +259,18 @@ export default function AlertsPage() {
           return;
         }
         console.error("alert update failed", error);
+        // Still update local state for better UX
         setRecords((prev) =>
           prev.map((item) => (item.id === id ? { ...item, status } : item)),
         );
         showToast(t("pages.admin.alerts.copy010"), "error");
       }
     },
-    [router, showToast, text],
+    [router, showToast, t],
   );
 
   const handleExport = useCallback(() => {
-    if (!records.length) {
+    if (!filteredRecords.length) {
       showToast(t("pages.admin.alerts.copy011"), "error");
       return;
     }
@@ -232,7 +284,7 @@ export default function AlertsPage() {
         t("pages.admin.alerts.copy016"),
         t("pages.admin.alerts.copy017"),
       ],
-      rows: records.map((alert) => [
+      rows: filteredRecords.map((alert) => [
         alert.id,
         alert.timestamp,
         alert.station,
@@ -242,7 +294,7 @@ export default function AlertsPage() {
       ]),
     });
     showToast(t("pages.admin.alerts.copy018"), "success");
-  }, [localizeLevel, localizeStatus, records, showToast, text]);
+  }, [localizeLevel, localizeStatus, filteredRecords, showToast, t]);
 
   if (!ready) {
     return (
@@ -266,7 +318,7 @@ export default function AlertsPage() {
         <div className="enterprise-hero-metrics">
           <div>
             <span>{t("pages.admin.alerts.copy024")}</span>
-            <strong>{records.length}</strong>
+            <strong>{filteredRecords.length}</strong>
           </div>
           <div>
             <span>{t("pages.admin.alerts.copy004")}</span>
@@ -283,10 +335,24 @@ export default function AlertsPage() {
             </span>
             <h2>{t("pages.admin.alerts.copy026")}</h2>
           </div>
-          <ExportButton onClick={handleExport} disabled={!records.length} />
+          <ExportButton onClick={handleExport} disabled={!filteredRecords.length} />
         </div>
 
+        {/* Filters and Search */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
+          {/* Search Input */}
+          <div className="search-input-wrapper">
+            <span className="search-input-icon">{"\u{1F50D}"}</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder={t("pages.admin.alerts.searchPlaceholder")}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              aria-label={t("pages.admin.alerts.searchAria")}
+            />
+          </div>
+
           <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
             {t("pages.admin.alerts.copy015")}
             <select
@@ -334,111 +400,121 @@ export default function AlertsPage() {
         </div>
 
         {loading ? (
-          <div className="loading-state">{t("pages.admin.alerts.copy029")}</div>
+          <TableSkeleton rows={5} columns={7} />
+        ) : filteredRecords.length === 0 ? (
+          <EmptyState
+            title={t("pages.admin.alerts.copy034")}
+            description={searchTerm ? t("pages.admin.alerts.tryAdjustSearch") : undefined}
+            action={
+              searchTerm || levelFilter !== "ALL" || statusFilter !== "ALL" ? (
+                <button
+                  type="button"
+                  className="enterprise-secondary-button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setLevelFilter("ALL");
+                    setStatusFilter("ALL");
+                  }}
+                >
+                  {t("pages.admin.alerts.clearFilter")}
+                </button>
+              ) : undefined
+            }
+          />
         ) : (
-          <div className="overflow-auto rounded-2xl border border-[var(--ring-soft)] bg-[color-mix(in_srgb,var(--panel-bg)_94%,var(--surface-elevated)_6%)] shadow-[var(--shadow-xs)]">
-            <table className="min-w-full border-collapse text-sm text-[var(--text-primary)]">
-              <thead>
-                <tr className="bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface-elevated)_90%)] text-xs uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-                  <th className="px-3 py-2 text-left">
-                    {t("pages.admin.alerts.copy012")}
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    {t("pages.admin.alerts.copy013")}
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    {t("pages.admin.alerts.copy014")}
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    {t("pages.admin.alerts.copy015")}
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    {t("pages.admin.alerts.copy016")}
-                  </th>
-                  <th className="px-3 py-2 text-left">
-                    {t("pages.admin.alerts.copy017")}
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    {t("pages.admin.alerts.copy030")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((alert) => {
-                  const level = normalizeLevel(alert.level);
-                  const status = normalizeStatus(alert.status);
-                  return (
-                    <tr
-                      key={alert.id}
-                      className="border-b border-[var(--ring-soft)] bg-transparent transition-colors duration-200 hover:bg-[color-mix(in_srgb,var(--accent)_4%,var(--surface-elevated)_96%)]"
-                    >
-                      <td className="px-3 py-3 font-mono text-xs font-semibold text-[var(--text-primary)]">
-                        {alert.id}
-                      </td>
-                      <td className="px-3 py-3 text-[var(--text-muted)]">
-                        {alert.timestamp}
-                      </td>
-                      <td className="px-3 py-3 font-medium text-[var(--text-primary)]">
-                        {alert.station}
-                      </td>
-                      <td className="px-3 py-3">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            level === "HIGH"
-                              ? "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-[var(--danger)]"
-                              : level === "MEDIUM"
-                                ? "bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-[color:#b77900]"
-                                : "bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"
-                          }`}
-                        >
-                          {localizeLevel(level)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-[var(--text-muted)]">
-                        {alert.description}
-                      </td>
-                      <td className="px-3 py-3">
-                        <span className="inline-flex rounded-full border border-[var(--ring-soft)] bg-[color-mix(in_srgb,var(--surface-elevated)_86%,transparent)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]">
-                          {localizeStatus(status)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <button
-                            type="button"
-                            className="enterprise-secondary-button px-3 py-1 text-xs"
-                            onClick={() => handleAction(alert.id, "READ")}
+          <div className="table-wrapper-responsive">
+            <div className="overflow-auto rounded-2xl border border-[var(--ring-soft)] bg-[color-mix(in_srgb,var(--panel-bg)_94%,var(--surface-elevated)_6%)] shadow-[var(--shadow-xs)]">
+              <table className="table-enhanced">
+                <thead>
+                  <tr>
+                    <th>{t("pages.admin.alerts.copy012")}</th>
+                    <th>{t("pages.admin.alerts.copy013")}</th>
+                    <th>{t("pages.admin.alerts.copy014")}</th>
+                    <th>{t("pages.admin.alerts.copy015")}</th>
+                    <th>{t("pages.admin.alerts.copy016")}</th>
+                    <th>{t("pages.admin.alerts.copy017")}</th>
+                    <th className="text-right">{t("pages.admin.alerts.copy030")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedRecords.map((alert) => {
+                    const level = normalizeLevel(alert.level);
+                    const status = normalizeStatus(alert.status);
+                    return (
+                      <tr
+                        key={alert.id}
+                      >
+                        <td className="cell-mono">{alert.id}</td>
+                        <td className="cell-muted">{alert.timestamp}</td>
+                        <td className="font-medium">{alert.station}</td>
+                        <td>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              level === "HIGH"
+                                ? "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-[var(--danger)]"
+                                : level === "MEDIUM"
+                                  ? "bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-[color:#b77900]"
+                                  : "bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]"
+                            }`}
                           >
-                            {t("pages.admin.alerts.copy031")}
-                          </button>
-                          <button
-                            type="button"
-                            className="enterprise-secondary-button px-3 py-1 text-xs"
-                            onClick={() => handleAction(alert.id, "IGNORED")}
-                          >
-                            {t("pages.admin.alerts.copy032")}
-                          </button>
-                          <button
-                            type="button"
-                            className="enterprise-primary-button px-3 py-1 text-xs"
-                            onClick={() => handleAction(alert.id, "DISPATCHED")}
-                          >
-                            {t("pages.admin.alerts.copy033")}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {!records.length ? (
-              <div className="empty-state">
-                <span>!</span>
-                {t("pages.admin.alerts.copy034")}
-              </div>
-            ) : null}
+                            {localizeLevel(level)}
+                          </span>
+                        </td>
+                        <td className="cell-muted max-w-xs truncate" title={alert.description}>
+                          {alert.description}
+                        </td>
+                        <td>
+                          <span className="inline-flex rounded-full border border-[var(--ring-soft)] bg-[color-mix(in_srgb,var(--surface-elevated)_86%,transparent)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]">
+                            {localizeStatus(status)}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              className="enterprise-secondary-button px-3 py-1 text-xs"
+                              onClick={() => handleAction(alert.id, "READ")}
+                            >
+                              {t("pages.admin.alerts.copy031")}
+                            </button>
+                            <button
+                              type="button"
+                              className="enterprise-secondary-button px-3 py-1 text-xs"
+                              onClick={() => handleAction(alert.id, "IGNORED")}
+                            >
+                              {t("pages.admin.alerts.copy032")}
+                            </button>
+                            <button
+                              type="button"
+                              className="enterprise-primary-button px-3 py-1 text-xs"
+                              onClick={() => handleAction(alert.id, "DISPATCHED")}
+                            >
+                              {t("pages.admin.alerts.copy033")}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && filteredRecords.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredRecords.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         )}
       </Card>
 

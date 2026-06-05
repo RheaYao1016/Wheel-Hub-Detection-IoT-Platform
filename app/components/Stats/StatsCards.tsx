@@ -71,7 +71,7 @@ export default function StatsCards() {
   ];
 
   return (
-    <div className="relative bg-white/30 border border-primary-500 rounded p-4">
+    <div className="relative rounded p-4">
       {/* 背景装饰 */}
       <Image
         src="/images/bj-1.png"
@@ -102,7 +102,7 @@ export default function StatsCards() {
         height={50}
       />
 
-      <div className="text-white text-lg font-semibold mb-4 px-4 relative z-10">
+      <div className="text-[var(--text-primary)] text-lg font-semibold mb-4 px-4 relative z-10">
         {text("实时数据", "Real-time Data")}
       </div>
 
@@ -117,7 +117,7 @@ export default function StatsCards() {
                 height={40}
               />
             </div>
-            <div className="flex-1 text-white">
+            <div className="flex-1 text-[var(--text-primary)]">
               <p className="text-sm">{card.label}</p>
               <p className="text-xl font-bold font-tabular-nums" style={{ fontFeatureSettings: "'tnum' on, 'lnum' on'" }}>
                 {loading ? "..." : <FormattedNumber value={card.value} format="integer" />}

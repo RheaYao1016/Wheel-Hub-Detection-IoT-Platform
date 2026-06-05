@@ -1,0 +1,16 @@
+# AI/ML Service .dockerignore
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.env.local
+*.egg-info/
+dist/
+build/
+.git
+.gitignore
+runtime/
+*.log
+.DS_Store

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 interface Wheel {
@@ -39,37 +40,37 @@ export default function WheelList() {
 
   if (loading) {
     return (
-      <div className="bg-white/30 border border-primary-500 rounded p-4 h-full flex items-center justify-center text-white">
+      <div className="rounded p-4 h-full flex items-center justify-center text-[var(--text-primary)]">
         加载中...
       </div>
     );
   }
 
   return (
-    <div className="bg-white/30 border border-primary-500 rounded p-4 h-full relative">
+    <div className="rounded p-4 h-full relative">
       {/* 背景装饰 */}
       <div className="absolute inset-0 pointer-events-none">
-        <img src="/images/bj-1.png" alt="" className="absolute left-0 top-0" />
-        <img src="/images/bj-2.png" alt="" className="absolute right-0 top-0" />
-        <img src="/images/bj-3.png" alt="" className="absolute right-0 bottom-0" />
-        <img src="/images/bj-4.png" alt="" className="absolute left-0 bottom-0" />
+        <Image src="/images/bj-1.png" alt="" width={50} height={50} className="absolute left-0 top-0" />
+        <Image src="/images/bj-2.png" alt="" width={50} height={50} className="absolute right-0 top-0" />
+        <Image src="/images/bj-3.png" alt="" width={50} height={50} className="absolute right-0 bottom-0" />
+        <Image src="/images/bj-4.png" alt="" width={50} height={50} className="absolute left-0 bottom-0" />
       </div>
 
-      <div className="text-white text-base font-semibold mb-4 relative z-10">
+      <div className="text-[var(--text-primary)] text-base font-semibold mb-4 relative z-10">
         轮毂信息（编号-直径-平均螺栓孔径-中心孔径-孔距-状态）
       </div>
 
       <div className="h-[calc(100%-60px)] overflow-y-auto relative z-10">
         <div className="space-y-2">
           {wheels.length === 0 ? (
-            <div className="text-white text-center py-8">
+            <div className="text-[var(--text-primary)] text-center py-8">
               暂无数据，请先添加轮毂检测记录
             </div>
           ) : (
             wheels.map((wheel) => (
               <div
                 key={wheel.id}
-                className="text-white text-sm py-2 px-3 bg-white/10 rounded hover:bg-white/20 transition-colors"
+                className="text-[var(--text-primary)] text-sm py-2 px-3 bg-[var(--surface-muted)] rounded hover:bg-[var(--surface-muted-strong)] transition-colors"
               >
                 {wheel.wheelNumber} —— {wheel.diameter} —— {wheel.averageBolt}{" "}
                 —— {wheel.center} —— {wheel.pcd} ——{" "}

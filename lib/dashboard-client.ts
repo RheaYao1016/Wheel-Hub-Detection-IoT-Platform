@@ -8,6 +8,7 @@ import {
   writeRuntimeJsonCache,
 } from "@/lib/runtime-cache";
 import { readRuntimeEndpointConfig } from "@/lib/runtime-endpoint-config";
+import { getCsrfToken, withCsrfHeader } from "@/lib/csrf";
 
 /**
  * Resolve data from Spring Boot as the only supported source of truth.
@@ -38,8 +39,14 @@ function withAuthHeaders(init?: RequestInit): RequestInit {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
+  const csrfToken = getCsrfToken();
+  if (csrfToken && !headers.has("X-CSRF-Token")) {
+    headers.set("X-CSRF-Token", csrfToken);
+  }
+
   return {
     ...init,
+    credentials: "include",
     headers,
   };
 }
@@ -58,6 +65,7 @@ async function fetchWithOptionalTimeout(target: string, backendBase: string, ini
     return await fetch(target, {
       ...init,
       signal: controller.signal,
+      credentials: "include", // Include httpOnly cookies
     });
   } finally {
     window.clearTimeout(timeout);
@@ -70,7 +78,13 @@ function shouldStopFallback(error: unknown) {
 
 function getTargets(backendPath: string, fallbackPath: string) {
   const backendBase = getBackendApiBase();
+  const isSameOrigin = typeof window !== "undefined" && backendBase.startsWith(window.location.origin);
   const targets = [`${backendBase}${backendPath}`];
+
+  // Always include the Next.js built-in API fallback when the backend is on a different origin
+  if (!isSameOrigin && fallbackPath) {
+    targets.push(fallbackPath);
+  }
 
   return { backendBase, targets };
 }

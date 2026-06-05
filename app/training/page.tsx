@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import BackButton from "../components/Layout/BackButton";
@@ -95,7 +95,7 @@ function TrainingContent() {
       console.error(error);
       setMessage(enterpriseErrorMessage(error, t("pages.training.copy001")));
     });
-  }, [ready, text]);
+  }, [ready, t]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

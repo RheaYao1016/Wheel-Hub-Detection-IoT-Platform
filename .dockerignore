@@ -1,0 +1,93 @@
+# ============================================================
+# Root .dockerignore - Frontend Next.js build context
+# ============================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+CHANGELOG.md
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+
+# Testing & E2E
+e2e/
+.testing/
+playwright.config.ts
+test-results/
+
+# Scripts & Tools (not needed in production)
+scripts/
+tools/
+*.mjs
+
+# Legacy HTML/CSS/JS (replaced by Next.js)
+Admin_Index.html
+Data_Import.html
+Digital_Twin.html
+Home_Page.html
+Monitor.html
+Visualize.html
+css/
+js/
+*.csv
+*.pdf
+*.STL
+cemian.STL
+
+# Data files (large, not needed in image)
+data.json
+logs.csv
+defects.csv
+inspections.csv
+parts_spec.csv
+projects.csv
+
+# AI/ML service (built separately)
+services/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+docker/
+.dockerignore
+
+# Backend (built separately)
+backend/
+
+# Environment
+.env.local
+.env.production
+.env*.local
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

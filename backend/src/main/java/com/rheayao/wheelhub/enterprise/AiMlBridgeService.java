@@ -2,6 +2,9 @@ package com.rheayao.wheelhub.enterprise;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AiAssistantSettings;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AiIndexEntry;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AiProtocolEnvelope;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnalysisResult;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AssistantAction;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.ChatMessageRecord;
@@ -34,10 +37,12 @@ public class AiMlBridgeService {
     private final ObjectMapper objectMapper;
     private final String serviceBaseUrl;
     private final SecretCodecService secretCodecService;
+    private final AiAssistantProtocolService aiAssistantProtocolService;
 
     public AiMlBridgeService(
         ObjectMapper objectMapper,
         SecretCodecService secretCodecService,
+        AiAssistantProtocolService aiAssistantProtocolService,
         @Value("${app.ai-ml.base-url:http://localhost:18100}") String serviceBaseUrl
     ) {
         this.httpClient = HttpClient.newBuilder()
@@ -45,8 +50,9 @@ public class AiMlBridgeService {
             .connectTimeout(Duration.ofSeconds(2))
             .build();
         this.objectMapper = objectMapper;
-        this.serviceBaseUrl = serviceBaseUrl.replaceAll("/$", "");
+        this.serviceBaseUrl = serviceBaseUrl.trim().replaceAll("/+$", "");
         this.secretCodecService = secretCodecService;
+        this.aiAssistantProtocolService = aiAssistantProtocolService;
     }
 
     public ChatMessageRecord generateChatReply(
@@ -57,7 +63,9 @@ public class AiMlBridgeService {
         String verbosity,
         ProviderProfile provider,
         PromptPreset promptPreset,
-        List<DataSourceProfile> sources
+        List<DataSourceProfile> sources,
+        AiAssistantSettings settings,
+        List<AiIndexEntry> availableIndexes
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("message", content);
@@ -67,28 +75,12 @@ public class AiMlBridgeService {
         payload.put("provider", serializeProvider(provider));
         payload.put("promptPreset", serializePromptPreset(promptPreset));
         payload.put("sources", sources);
-        payload.put("contextText", buildContextText("chat", content, persona, locale, verbosity, promptPreset, sources));
-        payload.put("responseFormatHint", buildResponseFormatHint("chat"));
+        payload.put("contextText", buildContextText("chat", content, persona, locale, verbosity, promptPreset, sources, settings, availableIndexes));
+        payload.put("responseFormatHint", buildResponseFormatHint("chat", settings, availableIndexes));
 
         try {
             JsonNode data = postJson("/chat/respond", payload, 45);
-            JsonNode tokenUsage = data.path("tokenUsage");
-            return new ChatMessageRecord(
-                UUID.randomUUID().toString(),
-                sessionId,
-                "assistant",
-                data.path("content").asText(),
-                data.path("promptPresetId").asText(promptPreset.id()),
-                LocalDateTime.now().toString(),
-                tokenUsage.path("promptTokens").asInt(0),
-                tokenUsage.path("completionTokens").asInt(0),
-                objectMapper.convertValue(data.path("sourceRefs"), objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)),
-                objectMapper.convertValue(data.path("intentAssessment"), IntentAssessment.class),
-                objectMapper.convertValue(
-                    data.path("actions"),
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, AssistantAction.class)
-                )
-            );
+            return normalizeChatReply(sessionId, promptPreset, data, availableIndexes);
         } catch (Exception exception) {
             throw bridgeFailure("real AI chat execution", exception);
         }
@@ -102,7 +94,9 @@ public class AiMlBridgeService {
         String verbosity,
         ProviderProfile provider,
         PromptPreset promptPreset,
-        List<DataSourceProfile> sources
+        List<DataSourceProfile> sources,
+        AiAssistantSettings settings,
+        List<AiIndexEntry> availableIndexes
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("prompt", prompt);
@@ -113,12 +107,12 @@ public class AiMlBridgeService {
         payload.put("provider", serializeProvider(provider));
         payload.put("promptPreset", serializePromptPreset(promptPreset));
         payload.put("sources", sources);
-        payload.put("contextText", buildContextText("analysis", prompt, persona, locale, verbosity, promptPreset, sources));
-        payload.put("responseFormatHint", buildResponseFormatHint("analysis"));
+        payload.put("contextText", buildContextText("analysis", prompt, persona, locale, verbosity, promptPreset, sources, settings, availableIndexes));
+        payload.put("responseFormatHint", buildResponseFormatHint("analysis", settings, availableIndexes));
 
         try {
             JsonNode data = postJson("/analysis/run", payload, 90);
-            return objectMapper.treeToValue(data, AnalysisResult.class);
+            return normalizeAnalysisResult(promptPreset, data, availableIndexes);
         } catch (Exception exception) {
             throw bridgeFailure("real AI analysis", exception);
         }
@@ -278,6 +272,88 @@ public class AiMlBridgeService {
         );
     }
 
+    private ChatMessageRecord normalizeChatReply(
+        String sessionId,
+        PromptPreset promptPreset,
+        JsonNode data,
+        List<AiIndexEntry> availableIndexes
+    ) {
+        JsonNode tokenUsage = data.path("tokenUsage");
+        String protocolText = data.path("replyProtocol").asText(data.path("protocol").asText(""));
+        String content = data.path("content").asText("");
+        AiProtocolEnvelope protocol = aiAssistantProtocolService.parseProtocol(
+            protocolText,
+            availableIndexes,
+            content,
+            data.path("target").asText("/ai-assistant"),
+            data.path("intentAssessment").path("intent").asText("DIAGNOSTIC_EXPLAIN")
+        );
+        IntentAssessment intentAssessment = aiAssistantProtocolService.buildIntentAssessment(
+            protocol,
+            data.path("intentAssessment").path("reason").asText("Intent inferred from protocol."),
+            data.path("intentAssessment").path("suggestedTemplate").asText(promptPreset.recommendedTemplate())
+        );
+        List<AssistantAction> actions = aiAssistantProtocolService.buildActions(protocol, availableIndexes);
+
+        return new ChatMessageRecord(
+            UUID.randomUUID().toString(),
+            sessionId,
+            "assistant",
+            protocol.displayText(),
+            data.path("promptPresetId").asText(promptPreset.id()),
+            LocalDateTime.now().toString(),
+            tokenUsage.path("promptTokens").asInt(0),
+            tokenUsage.path("completionTokens").asInt(0),
+            protocol.indexIds(),
+            intentAssessment,
+            actions,
+            protocol
+        );
+    }
+
+    private AnalysisResult normalizeAnalysisResult(
+        PromptPreset promptPreset,
+        JsonNode data,
+        List<AiIndexEntry> availableIndexes
+    ) {
+        String protocolText = data.path("replyProtocol").asText(data.path("protocol").asText(""));
+        AiProtocolEnvelope protocol = aiAssistantProtocolService.parseProtocol(
+            protocolText,
+            availableIndexes,
+            data.path("summary").asText(data.path("headline").asText("")),
+            data.path("target").asText("/reports"),
+            data.path("intentAssessment").path("intent").asText("DIAGNOSTIC_EXPLAIN")
+        );
+        IntentAssessment intentAssessment = aiAssistantProtocolService.buildIntentAssessment(
+            protocol,
+            data.path("intentAssessment").path("reason").asText("Intent inferred from protocol."),
+            data.path("intentAssessment").path("suggestedTemplate").asText(promptPreset.recommendedTemplate())
+        );
+        List<AssistantAction> actions = aiAssistantProtocolService.buildActions(protocol, availableIndexes);
+        return new AnalysisResult(
+            data.path("headline").asText(promptPreset.name()),
+            data.path("summary").asText(protocol.displayText()),
+            objectMapper.convertValue(data.path("findings"), objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)),
+            objectMapper.convertValue(data.path("recommendations"), objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)),
+            objectMapper.convertValue(data.path("evidence"), objectMapper.getTypeFactory().constructCollectionType(List.class, EnterpriseModels.EvidenceItem.class)),
+            data.path("riskLevel").asText("medium"),
+            data.path("confidence").asDouble(protocol.confidence() == null ? 0.88d : protocol.confidence()),
+            data.path("inspectionDomain").asText("wheel-hub"),
+            data.path("riskScore").isNumber() ? data.path("riskScore").asDouble() : null,
+            objectMapper.convertValue(data.path("metrics"), objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)),
+            objectMapper.convertValue(data.path("chartSeries"), objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)),
+            data.path("sourceSummary").asText(""),
+            objectMapper.convertValue(data.path("tokenUsage"), EnterpriseModels.TokenUsage.class),
+            protocol.indexIds(),
+            data.path("appliedStrategy").asText("strict-real-routing"),
+            objectMapper.convertValue(data.path("artifacts"), objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)),
+            data.path("promptPresetId").asText(promptPreset.id()),
+            intentAssessment,
+            actions,
+            protocol
+        );
+    }
+
     private String buildContextText(
         String mode,
         String userRequest,
@@ -285,7 +361,9 @@ public class AiMlBridgeService {
         String locale,
         String verbosity,
         PromptPreset promptPreset,
-        List<DataSourceProfile> sources
+        List<DataSourceProfile> sources,
+        AiAssistantSettings settings,
+        List<AiIndexEntry> availableIndexes
     ) {
         boolean english = "en-US".equalsIgnoreCase(locale);
         List<String> lines = new ArrayList<>();
@@ -306,6 +384,10 @@ public class AiMlBridgeService {
                     ? "No explicit data source was selected. Fall back to generic platform context only."
                     : "\u5f53\u524d\u6ca1\u6709\u663e\u5f0f\u9009\u62e9\u6570\u636e\u6e90\uff0c\u53ea\u80fd\u57fa\u4e8e\u901a\u7528\u5e73\u53f0\u4e0a\u4e0b\u6587\u8fdb\u884c\u56de\u7b54\u3002"
             );
+            lines.add("");
+            lines.add(english ? "Index registry" : "\u7d22\u5f15\u76ee\u5f55");
+            lines.add(aiAssistantProtocolService.buildIndexCatalogExcerpt(availableIndexes, 160));
+            lines.add(english ? "Default index window days: " + settings.indexWindowDays() : "\u9ed8\u8ba4\u7d22\u5f15\u7a97\u53e3\u5929\u6570: " + settings.indexWindowDays());
             return String.join("\n", lines);
         }
 
@@ -348,10 +430,15 @@ public class AiMlBridgeService {
             }
         }
 
+        lines.add("");
+        lines.add(english ? "Index registry" : "\u7d22\u5f15\u76ee\u5f55");
+        lines.add(aiAssistantProtocolService.buildIndexCatalogExcerpt(availableIndexes, 160));
+        lines.add(english ? "Default index window days: " + settings.indexWindowDays() : "\u9ed8\u8ba4\u7d22\u5f15\u7a97\u53e3\u5929\u6570: " + settings.indexWindowDays());
+
         return String.join("\n", lines);
     }
 
-    private String buildResponseFormatHint(String mode) {
+    private String buildResponseFormatHint(String mode, AiAssistantSettings settings, List<AiIndexEntry> availableIndexes) {
         if ("analysis".equalsIgnoreCase(mode)) {
             return """
 Return JSON only. Do not add markdown fences, extra prose, or explanations outside the JSON object.
@@ -362,12 +449,15 @@ Required top-level keys:
 - recommendations: string[]
 - evidence: {label: string, detail: string}[]
 - intentAssessment: {intent: string, reason: string, suggestedTemplate: string}
-- actions: {id: string, type: string, label: string, target: string, payload: object, confidence: number}[]
+- replyProtocol: string
 Rules:
+- The replyProtocol field must follow the local segmented protocol exactly.
+- Every replyProtocol must include one or more real index ids from the registry.
 - Keep findings and recommendations concise and operational.
 - Ground every conclusion in the backend context.
 - If context is insufficient, say that clearly inside summary while still returning valid JSON.
-""";
+"""
+                + "\n" + aiAssistantProtocolService.buildRuntimePrompt("analysis", settings, availableIndexes);
         }
 
         return """
@@ -375,12 +465,15 @@ Return JSON only. Do not add markdown fences, extra prose, or explanations outsi
 Required top-level keys:
 - content: string
 - intentAssessment: {intent: string, reason: string, suggestedTemplate: string}
-- actions: {id: string, type: string, label: string, target: string, payload: object, confidence: number}[]
+- replyProtocol: string
 Rules:
+- The replyProtocol field must follow the local segmented protocol exactly.
+- Every replyProtocol must include one or more real index ids from the registry.
 - Keep content in clear natural language for the requested audience.
 - Ground every conclusion in the backend context.
 - If context is insufficient, say that clearly inside content while still returning valid JSON.
-""";
+"""
+            + "\n" + aiAssistantProtocolService.buildRuntimePrompt("chat", settings, availableIndexes);
     }
 
     private List<String> splitMetaList(String value) {

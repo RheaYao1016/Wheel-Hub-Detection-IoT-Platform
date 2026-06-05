@@ -1,5 +1,3 @@
-"use server";
-
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import type { ImportBatch, ImportBatchStatus } from "@/types/imports";
@@ -29,14 +27,14 @@ export async function GET(request: NextRequest) {
   }
 
   const allBatches = [...listBatches()].sort((a, b) =>
-    a.importedAt > b.importedAt ? -1 : 1,
+    (a.importedAt || "") > (b.importedAt || "") ? -1 : 1,
   );
   const filtered = allBatches.filter((batch) => {
     if (status && batch.status !== status) return false;
-    if (importer && batch.importedBy !== importer) return false;
+    if (importer && batch.importedBy && batch.importedBy !== importer) return false;
     if (search && !batch.filename.toLowerCase().includes(search.toLowerCase()))
       return false;
-    const importedTime = new Date(batch.importedAt).getTime();
+    const importedTime = batch.importedAt ? new Date(batch.importedAt).getTime() : 0;
     if (startDate && importedTime < startDate.getTime()) return false;
     if (endDate && importedTime > endDate.getTime()) return false;
     return true;
@@ -49,7 +47,7 @@ export async function GET(request: NextRequest) {
   const items = filtered.slice(offset, offset + pageSize);
 
   const filters = {
-    importers: Array.from(new Set(allBatches.map((batch) => batch.importedBy))).sort(),
+    importers: Array.from(new Set(allBatches.map((batch) => batch.importedBy || "unknown"))).sort(),
     statuses: ["SUCCESS", "PARTIAL_SUCCESS", "FAILED"] as ImportBatchStatus[],
   } as const;
 

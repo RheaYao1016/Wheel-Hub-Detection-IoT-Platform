@@ -64,6 +64,75 @@ public final class EnterpriseModels {
     ) {
     }
 
+    public record AiAssistantSettings(
+        Integer indexWindowDays,
+        String updatedAt,
+        String updatedBy
+    ) {
+    }
+
+    public record AiIndexEntry(
+        String indexId,
+        String category,
+        String type,
+        String label,
+        String route,
+        String entityType,
+        String entityId,
+        String operation,
+        String accessLevel,
+        String status,
+        String updatedAt,
+        List<String> tags
+    ) {
+    }
+
+    public record ProtocolChoice(
+        String code,
+        String label,
+        String indexId
+    ) {
+    }
+
+    public record AiProtocolEnvelope(
+        String version,
+        String displayText,
+        String intent,
+        String type,
+        String operation,
+        List<String> indexIds,
+        String target,
+        String auth,
+        java.util.Map<String, String> params,
+        List<ProtocolChoice> choices,
+        String followUp,
+        Double confidence,
+        List<String> unknownIndexes,
+        String raw
+    ) {
+    }
+
+    public record IntentCatalogItem(
+        String id,
+        String utterance,
+        String intent,
+        String operation,
+        List<String> indexHints,
+        String followUp
+    ) {
+    }
+
+    public record AiProtocolGuide(
+        AiAssistantSettings settings,
+        String formatSpecification,
+        String chatPrompt,
+        String analysisPrompt,
+        String intentClassifierPrompt,
+        List<String> intentCategories,
+        List<IntentCatalogItem> examples
+    ) {
+    }
+
     public record AssistantAction(
         String id,
         String type,
@@ -92,7 +161,8 @@ public final class EnterpriseModels {
         int completionTokens,
         List<String> sourceRefs,
         IntentAssessment intentAssessment,
-        List<AssistantAction> actions
+        List<AssistantAction> actions,
+        AiProtocolEnvelope protocol
     ) {
     }
 
@@ -121,7 +191,8 @@ public final class EnterpriseModels {
         List<String> artifacts,
         String promptPresetId,
         IntentAssessment intentAssessment,
-        List<AssistantAction> actions
+        List<AssistantAction> actions,
+        AiProtocolEnvelope protocol
     ) {
     }
 
@@ -261,6 +332,9 @@ public final class EnterpriseModels {
     }
 
     public record ProviderTestRequest(String providerId, String prompt) {
+    }
+
+    public record UpdateAiAssistantSettingsRequest(Integer indexWindowDays) {
     }
 
     public record CreateDataSourceRequest(

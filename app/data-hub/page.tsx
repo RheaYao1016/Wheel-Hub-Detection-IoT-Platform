@@ -110,7 +110,7 @@ function localizeDataSourceName(
     /Bridge Cable Roundtrip Source/gi,
     "桥索往返检测数据源",
   );
-  localized = localized.replace(/Wheel Hub Inspection Source/gi, "轮毂检测数据源");
+  localized = localized.replace(/Wheel Hub Inspection Source/gi, "工业表面缺陷检测数据源");
   localized = localized.replace(/SourceCSV/gi, "数据源 CSV");
   localized = localized.replace(/SourceXLSX/gi, "数据源 Excel");
 
@@ -189,7 +189,7 @@ export default function DataHubPage() {
       console.error(error);
       setMessage(enterpriseErrorMessage(error, t("pages.data_hub.copy002")));
     });
-  }, [ready, text]);
+  }, [ready, t]);
 
   const summary = useMemo(() => {
     const structured = items.filter((item) => item.type === "postgres").length;

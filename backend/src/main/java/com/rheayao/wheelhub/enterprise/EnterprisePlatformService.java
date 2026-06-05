@@ -3,6 +3,9 @@ package com.rheayao.wheelhub.enterprise;
 import com.rheayao.wheelhub.auth.AuthSession;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnalysisJob;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnalysisResult;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AiAssistantSettings;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AiIndexEntry;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AiProtocolGuide;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnnotationAsset;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnnotationLabel;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnnotationProject;
@@ -26,6 +29,7 @@ import com.rheayao.wheelhub.enterprise.EnterpriseModels.SaveAnnotationLabelReque
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingActionRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingJob;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingMetricPoint;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.UpdateAiAssistantSettingsRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.UpdateChatSessionProfileRequest;
 import com.rheayao.wheelhub.security.SecretCodecService;
 import com.rheayao.wheelhub.storage.JsonStorageService;
@@ -60,10 +64,12 @@ public class EnterprisePlatformService {
     private static final String TRAINING_FILE = "enterprise/training-jobs.json";
     private static final String MODEL_VERSIONS_FILE = "enterprise/model-versions.json";
     private static final String AUDIT_FILE = "enterprise/audit-logs.json";
+    private static final String AI_ASSISTANT_SETTINGS_FILE = "enterprise/ai-assistant-settings.json";
 
     private final JsonStorageService storageService;
     private final SecretCodecService secretCodecService;
     private final AiMlBridgeService aiMlBridgeService;
+    private final AiAssistantProtocolService aiAssistantProtocolService;
     private final CopyOnWriteArrayList<ProviderProfile> providers;
     private final CopyOnWriteArrayList<DataSourceProfile> dataSources;
     private final CopyOnWriteArrayList<ChatSessionRecord> chatSessions;
@@ -77,15 +83,18 @@ public class EnterprisePlatformService {
     private final CopyOnWriteArrayList<ModelVersion> modelVersions;
     private final CopyOnWriteArrayList<AuditLog> auditLogs;
     private final List<PromptPreset> promptPresets;
+    private volatile AiAssistantSettings aiAssistantSettings;
 
     public EnterprisePlatformService(
         JsonStorageService storageService,
         SecretCodecService secretCodecService,
-        AiMlBridgeService aiMlBridgeService
+        AiMlBridgeService aiMlBridgeService,
+        AiAssistantProtocolService aiAssistantProtocolService
     ) {
         this.storageService = storageService;
         this.secretCodecService = secretCodecService;
         this.aiMlBridgeService = aiMlBridgeService;
+        this.aiAssistantProtocolService = aiAssistantProtocolService;
         this.providers = new CopyOnWriteArrayList<>(storageService.readList(PROVIDERS_FILE, ProviderProfile.class, EnterprisePlatformService::seedProviders));
         this.dataSources = new CopyOnWriteArrayList<>(storageService.readList(SOURCES_FILE, DataSourceProfile.class, EnterprisePlatformService::seedDataSources));
         this.chatSessions = new CopyOnWriteArrayList<>(storageService.readList(CHAT_SESSIONS_FILE, ChatSessionRecord.class, List::of));
@@ -99,6 +108,11 @@ public class EnterprisePlatformService {
         this.modelVersions = new CopyOnWriteArrayList<>(storageService.readList(MODEL_VERSIONS_FILE, ModelVersion.class, EnterprisePlatformService::seedModelVersions));
         this.auditLogs = new CopyOnWriteArrayList<>(storageService.readList(AUDIT_FILE, AuditLog.class, List::of));
         this.promptPresets = List.copyOf(seedPromptPresets());
+        this.aiAssistantSettings = storageService.readValue(
+            AI_ASSISTANT_SETTINGS_FILE,
+            AiAssistantSettings.class,
+            aiAssistantProtocolService::defaultSettings
+        );
 
         ensureEnterpriseSeeds();
         cleanupLegacyEnterpriseArtifacts();
@@ -119,6 +133,43 @@ public class EnterprisePlatformService {
 
     public List<PromptPreset> listPromptPresets() {
         return promptPresets;
+    }
+
+    public AiAssistantSettings getAiAssistantSettings() {
+        return aiAssistantSettings;
+    }
+
+    public AiAssistantSettings updateAiAssistantSettings(UpdateAiAssistantSettingsRequest request, AuthSession session) {
+        int windowDays = request == null || request.indexWindowDays() == null || request.indexWindowDays() < 1
+            ? aiAssistantProtocolService.defaultSettings().indexWindowDays()
+            : request.indexWindowDays();
+        aiAssistantSettings = new AiAssistantSettings(windowDays, LocalDateTime.now().toString(), session.username());
+        storageService.writeValue(AI_ASSISTANT_SETTINGS_FILE, aiAssistantSettings);
+        audit(session, "update_ai_assistant_settings", "settings", "ai-assistant", "Updated AI assistant index window settings");
+        return aiAssistantSettings;
+    }
+
+    public List<AiIndexEntry> listAiIndexCatalog(Integer windowDaysOverride) {
+        return aiAssistantProtocolService.buildIndexCatalog(
+            effectiveAiSettings(windowDaysOverride),
+            providers.stream().toList(),
+            dataSources.stream().toList(),
+            chatSessions.stream().toList(),
+            analysisJobs.stream().toList(),
+            reports.stream().toList(),
+            annotationProjects.stream().toList(),
+            trainingJobs.stream().toList(),
+            modelVersions.stream().toList()
+        );
+    }
+
+    public String exportAiIndexCatalogCsv(Integer windowDaysOverride) {
+        return aiAssistantProtocolService.buildIndexCsv(listAiIndexCatalog(windowDaysOverride));
+    }
+
+    public AiProtocolGuide getAiProtocolGuide(Integer windowDaysOverride) {
+        AiAssistantSettings settings = effectiveAiSettings(windowDaysOverride);
+        return aiAssistantProtocolService.buildGuide(settings, listAiIndexCatalog(windowDaysOverride));
     }
 
     public List<ProviderProfile> listProviders() {
@@ -177,6 +228,7 @@ public class EnterprisePlatformService {
 
     public Map<String, Object> testProvider(String providerId, String prompt, AuthSession session) {
         ProviderProfile provider = requireProvider(providerId);
+        List<AiIndexEntry> indexCatalog = listAiIndexCatalog(null);
         ChatMessageRecord reply = aiMlBridgeService.generateChatReply(
             "provider-test",
             defaultText(prompt, "Explain whether this provider is reachable and what analysis strategy fits the current platform best."),
@@ -185,7 +237,9 @@ public class EnterprisePlatformService {
             "standard",
             provider,
             resolvePromptPresetOrDefault("quality-ops-briefing"),
-            List.of()
+            List.of(),
+            aiAssistantSettings,
+            indexCatalog
         );
         String verifiedAt = LocalDateTime.now().toString();
         ProviderProfile verifiedProvider = new ProviderProfile(
@@ -364,6 +418,7 @@ public class EnterprisePlatformService {
         ProviderProfile provider = resolveProviderOrDefault(providerId);
         PromptPreset promptPreset = resolvePromptPresetOrDefault(defaultText(promptPresetId, current.promptPresetId()));
         List<DataSourceProfile> sources = resolveSources(current.sourceIds());
+        List<AiIndexEntry> indexCatalog = listAiIndexCatalog(null);
         String resolvedPersona = defaultText(persona, current.persona());
         String resolvedLocale = defaultLocale(locale == null || locale.isBlank() ? current.locale() : locale);
         ChatMessageRecord userMessage = new ChatMessageRecord(
@@ -377,7 +432,8 @@ public class EnterprisePlatformService {
             0,
             List.of(),
             null,
-            List.of()
+            List.of(),
+            null
         );
         ChatMessageRecord assistant = aiMlBridgeService.generateChatReply(
             sessionId,
@@ -387,7 +443,9 @@ public class EnterprisePlatformService {
             defaultText(verbosity, "standard"),
             provider,
             promptPreset,
-            sources
+            sources,
+            aiAssistantSettings,
+            indexCatalog
         );
         chatMessages.add(userMessage);
         chatMessages.add(assistant);
@@ -418,6 +476,7 @@ public class EnterprisePlatformService {
         ProviderProfile provider = resolveProviderOrDefault(request.providerId());
         PromptPreset promptPreset = resolvePromptPresetOrDefault(request.promptPresetId());
         List<DataSourceProfile> sources = resolveSources(request.sourceIds());
+        List<AiIndexEntry> indexCatalog = listAiIndexCatalog(null);
         AnalysisResult result = aiMlBridgeService.runAnalysis(
             defaultText(request.prompt(), "Review the current platform data and explain the most important quality and operations risk."),
             defaultText(request.template(), "quality-variance"),
@@ -426,7 +485,9 @@ public class EnterprisePlatformService {
             defaultText(request.verbosity(), "standard"),
             provider,
             promptPreset,
-            sources
+            sources,
+            aiAssistantSettings,
+            indexCatalog
         );
         String now = LocalDateTime.now().toString();
         AnalysisJob job = new AnalysisJob(
@@ -505,7 +566,51 @@ public class EnterprisePlatformService {
 
     public Path resolveReportPath(String reportId) {
         ReportArtifact artifact = reports.stream().filter(item -> item.id().equals(reportId)).findFirst().orElseThrow(() -> new IllegalArgumentException("Report not found."));
-        return Path.of(artifact.storagePath());
+        Path path = Path.of(artifact.storagePath());
+        validateFilePath(path);
+        return path;
+    }
+
+    /**
+     * Validates that a file path is within the data directory to prevent path traversal.
+     */
+    public void validateFilePath(Path path) {
+        Path normalized = path.normalize().toAbsolutePath();
+        Path dataDir = storageService.getDataDirectory().toAbsolutePath();
+        if (!normalized.startsWith(dataDir)) {
+            throw new SecurityException("Access denied: the requested file is outside the allowed data directory.");
+        }
+    }
+
+    public Path resolveAnnotationAssetPath(String assetId) {
+        AnnotationAsset asset = annotationAssets.stream()
+            .filter(item -> item.id().equals(assetId))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Annotation asset not found."));
+
+        Path dataDir = storageService.getDataDirectory().toAbsolutePath().normalize();
+        Path storedPath = Path.of(asset.storagePath()).toAbsolutePath().normalize();
+        Path candidate = storedPath;
+
+        if (!storedPath.startsWith(dataDir) || Files.notExists(storedPath)) {
+            Path fallback = dataDir
+                .resolve("enterprise/annotation-assets")
+                .resolve(storedPath.getFileName().toString())
+                .normalize();
+
+            if (Files.exists(fallback)) {
+                candidate = fallback;
+                if (!fallback.equals(storedPath)) {
+                    replaceAnnotationAssetStoragePath(asset, fallback);
+                }
+            }
+        }
+
+        validateFilePath(candidate);
+        if (Files.notExists(candidate)) {
+            throw new IllegalArgumentException("Annotation asset file not found.");
+        }
+        return candidate;
     }
 
     public List<AnnotationProject> listAnnotationProjects() {
@@ -572,11 +677,6 @@ public class EnterprisePlatformService {
 
     public List<AnnotationAsset> listAnnotationAssets(String projectId) {
         return annotationAssets.stream().filter(item -> item.projectId().equals(projectId)).toList();
-    }
-
-    public Path resolveAnnotationAssetPath(String assetId) {
-        AnnotationAsset asset = annotationAssets.stream().filter(item -> item.id().equals(assetId)).findFirst().orElseThrow(() -> new IllegalArgumentException("Annotation asset not found."));
-        return Path.of(asset.storagePath());
     }
 
     public List<AnnotationLabel> listAnnotationLabels(String projectId) {
@@ -1110,6 +1210,21 @@ public class EnterprisePlatformService {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    /**
+     * Sanitizes a filename for safe use in HTTP response headers to prevent header injection.
+     */
+    public String sanitizeAssetFilename(String filename) {
+        if (filename == null || filename.isBlank()) return "asset.bin";
+        return filename.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    private AiAssistantSettings effectiveAiSettings(Integer windowDaysOverride) {
+        if (windowDaysOverride == null || windowDaysOverride < 1) {
+            return aiAssistantSettings;
+        }
+        return new AiAssistantSettings(windowDaysOverride, aiAssistantSettings.updatedAt(), aiAssistantSettings.updatedBy());
+    }
+
     private String defaultLocale(String locale) {
         return "en-US".equalsIgnoreCase(locale) ? "en-US" : "zh-CN";
     }
@@ -1168,6 +1283,31 @@ public class EnterprisePlatformService {
     private void persistReports() { storageService.writeList(REPORTS_FILE, reports.stream().toList()); }
     private void persistAnnotationProjects() { storageService.writeList(PROJECTS_FILE, annotationProjects.stream().toList()); }
     private void persistAnnotationAssets() { storageService.writeList(ASSETS_FILE, annotationAssets.stream().toList()); }
+
+    private void replaceAnnotationAssetStoragePath(AnnotationAsset current, Path correctedPath) {
+        for (int index = 0; index < annotationAssets.size(); index++) {
+            AnnotationAsset asset = annotationAssets.get(index);
+            if (!asset.id().equals(current.id())) {
+                continue;
+            }
+
+            annotationAssets.set(
+                index,
+                new AnnotationAsset(
+                    asset.id(),
+                    asset.projectId(),
+                    asset.filename(),
+                    correctedPath.toString(),
+                    asset.split(),
+                    asset.width(),
+                    asset.height(),
+                    asset.createdAt()
+                )
+            );
+            persistAnnotationAssets();
+            return;
+        }
+    }
     private void persistAnnotationLabels() { storageService.writeList(LABELS_FILE, annotationLabels.stream().toList()); }
     private void persistTrainingJobs() { storageService.writeList(TRAINING_FILE, trainingJobs.stream().toList()); }
     private void persistModelVersions() { storageService.writeList(MODEL_VERSIONS_FILE, modelVersions.stream().toList()); }

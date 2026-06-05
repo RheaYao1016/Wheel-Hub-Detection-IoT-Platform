@@ -84,7 +84,7 @@ const SOURCE_NAME_TRANSLATIONS: Record<string, string> = {
   "Smoke Annotation Project 2 / YOLOv10 Dataset":
     "烟雾标注项目 2 / YOLOv10 数据集",
   "Uploaded workbook": "上传工作簿",
-  "Wheel inspection operations view": "轮毂检测作业视图",
+  "Wheel inspection operations view": "工业表面缺陷检测作业视图",
   bridge_cable_roundtrip: "桥梁缆索往返检测数据源",
   "bridge-cable-risk": "桥梁缆索风险数据源",
   inspection_default: "通用检测数据源",
@@ -94,7 +94,7 @@ const SOURCE_NAME_TRANSLATIONS: Record<string, string> = {
 const INSPECTION_DOMAIN_TRANSLATIONS: Record<string, string> = {
   "Bridge Cable Inspection": "桥梁缆索检测",
   "General Asset Inspection": "通用资产检测",
-  "Wheel Hub Inspection": "轮毂检测",
+  "Wheel Hub Inspection": "工业表面缺陷检测",
 };
 
 const CHART_LABEL_TRANSLATIONS: Record<string, string> = {

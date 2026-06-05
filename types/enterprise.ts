@@ -56,6 +56,69 @@ export type PromptPreset = {
   operationTargets: string[];
 };
 
+export type AiAssistantSettings = {
+  indexWindowDays: number;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type AiIndexEntry = {
+  indexId: string;
+  category: string;
+  type: string;
+  label: string;
+  route: string;
+  entityType: string;
+  entityId: string;
+  operation: string;
+  accessLevel: string;
+  status: string;
+  updatedAt: string;
+  tags: string[];
+};
+
+export type ProtocolChoice = {
+  code: string;
+  label: string;
+  indexId: string;
+};
+
+export type AiProtocolEnvelope = {
+  version: string;
+  displayText: string;
+  intent: string;
+  type: string;
+  operation: string;
+  indexIds: string[];
+  target: string;
+  auth: string;
+  params: Record<string, string>;
+  choices: ProtocolChoice[];
+  followUp: string;
+  confidence: number;
+  unknownIndexes: string[];
+  raw: string;
+};
+
+export type IntentCatalogItem = {
+  id: string;
+  utterance: string;
+  intent: string;
+  operation: string;
+  indexHints: string[];
+  followUp: string;
+};
+
+export type AiProtocolGuide = {
+  settings: AiAssistantSettings;
+  formatSpecification: string;
+  chatPrompt: string;
+  analysisPrompt: string;
+  intentClassifierPrompt: string;
+  intentCategories: string[];
+  examples: IntentCatalogItem[];
+};
+
 export type IntentAssessment = {
   intent: string;
   reason: string;
@@ -83,6 +146,7 @@ export type ChatMessage = {
   sourceRefs: string[];
   intentAssessment: IntentAssessment | null;
   actions: AssistantAction[];
+  protocol: AiProtocolEnvelope | null;
 };
 
 export type AnalysisResult = {
@@ -105,6 +169,7 @@ export type AnalysisResult = {
   promptPresetId: string;
   intentAssessment: IntentAssessment | null;
   actions: AssistantAction[];
+  protocol: AiProtocolEnvelope | null;
 };
 
 export type AnalysisJob = {

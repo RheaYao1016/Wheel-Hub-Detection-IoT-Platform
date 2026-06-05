@@ -1,26 +1,118 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
 import WorkflowSteps, {
   type WorkflowStep,
 } from "../components/Layout/WorkflowSteps";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
-import ModelViewer from "../components/ThreeViewer/ModelViewer";
-import { fetchPlatformData } from "@/lib/dashboard-client";
+import dynamic from "next/dynamic";
+const ModelViewer = dynamic(() => import("../components/ThreeViewer/ModelViewer"), { ssr: false, loading: () => <div className="model-viewer-container"><div className="model-viewer-loading" role="status"><div className="model-viewer-spinner" /><span>加载3D模型中...</span></div></div> });
+import { PlatformAuthError, fetchPlatformData } from "@/lib/dashboard-client";
 import { useSessionGuard } from "../hooks/useSessionGuard";
-import type { DigitalTwinSnapshot, MonitorSnapshot } from "@/types/platform";
 import { useLocale } from "../components/Locale/LocaleProvider";
+import type { DigitalTwinSnapshot, MonitorSnapshot } from "@/types/platform";
+
+// ---------------------------------------------------------------------------
+// Status resolution helpers (locale-aware)
+// ---------------------------------------------------------------------------
+
+/** Resolve camera status color based on canonical status values */
+function resolveCameraStatus(status: string): "online" | "standby" | "offline" {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("online") || normalized === "在线") return "online";
+  if (normalized.includes("standby") || normalized.includes("待命") || normalized.includes("待机")) return "standby";
+  return "offline";
+}
+
+/** Resolve sensor status color based on canonical status values */
+function resolveSensorStatus(status: string): "good" | "warn" | "danger" {
+  const normalized = status.toLowerCase();
+  if (
+    normalized.includes("warning") ||
+    normalized.includes("alert") ||
+    normalized.includes("risk") ||
+    normalized.includes("预警")
+  ) {
+    return "danger";
+  }
+  if (normalized.includes("关注") || normalized.includes("attention")) return "warn";
+  return "good";
+}
+
+/** Format relative time string for "last updated" display */
+function formatLastUpdated(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  if (diff < 5000) return "just now";
+  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  return new Date(timestamp).toLocaleTimeString();
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 
 export default function OperationsPage() {
   const ready = useSessionGuard(["admin", "user"]);
-  const { text, t } = useLocale();
+  const { t, text } = useLocale();
+
+  // Data state
   const [monitor, setMonitor] = useState<MonitorSnapshot | null>(null);
   const [twin, setTwin] = useState<DigitalTwinSnapshot | null>(null);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<number>(0);
+  const [refreshCount, setRefreshCount] = useState(0);
 
+  // Display state
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Update elapsed time display every second
+  useEffect(() => {
+    if (!lastUpdated) return;
+    timerRef.current = setInterval(() => {
+      setElapsed(Date.now() - lastUpdated);
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [lastUpdated]);
+
+  // -----------------------------------------------------------------------
+  // Data loading
+  // -----------------------------------------------------------------------
+
+  const loadSnapshot = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [monitorData, twinData] = await Promise.all([
+        fetchPlatformData<MonitorSnapshot>("/dashboard/monitor", "/api/monitor"),
+        fetchPlatformData<DigitalTwinSnapshot>(
+          "/dashboard/digital-twin",
+          "/api/digital-twin",
+        ),
+      ]);
+      setMonitor(monitorData);
+      setTwin(twinData);
+      setError("");
+      setLastUpdated(Date.now());
+    } catch (loadError) {
+      if (loadError instanceof PlatformAuthError) {
+        // Auth errors should bubble up and redirect
+        throw loadError;
+      }
+      console.error("[Operations] Data load failed:", loadError);
+      setError(t("pages.operations.copy001"));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [t]);
+
+  // Initial load + auto-refresh interval
   useEffect(() => {
     if (!ready) return;
 
@@ -28,70 +120,91 @@ export default function OperationsPage() {
 
     const load = async () => {
       try {
-        const [monitorData, twinData] = await Promise.all([
-          fetchPlatformData<MonitorSnapshot>(
-            "/dashboard/monitor",
-            "/api/monitor",
-          ),
-          fetchPlatformData<DigitalTwinSnapshot>(
-            "/dashboard/digital-twin",
-            "/api/digital-twin",
-          ),
-        ]);
+        await loadSnapshot();
+      } catch {
         if (!active) return;
-        setMonitor(monitorData);
-        setTwin(twinData);
-        setError("");
-      } catch (loadError) {
-        if (!active) return;
-        console.error(loadError);
-        setError(t("pages.operations.copy001"));
+        // Already handled in loadSnapshot
       }
     };
 
     load();
+
+    // Auto-refresh every 15 seconds
     const timer = window.setInterval(load, 15000);
 
     return () => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [ready, text]);
+  }, [ready, loadSnapshot]);
 
+  // Manual refresh
+  const handleManualRefresh = useCallback(() => {
+    setRefreshCount((c) => c + 1);
+    loadSnapshot();
+  }, [loadSnapshot]);
+
+  // -----------------------------------------------------------------------
+  // Computed data
+  // -----------------------------------------------------------------------
+
+  const onlineCameras = useMemo(
+    () =>
+      monitor?.cameras.filter(
+        (camera) => resolveCameraStatus(camera.status) === "online",
+      ).length ?? 0,
+    [monitor],
+  );
+
+  const totalCameras = monitor?.cameras.length ?? 0;
+
+  const highAlerts = monitor?.alerts.length ?? 0;
+
+  const stableSensors = useMemo(
+    () =>
+      twin?.sensors.filter(
+        (sensor) => resolveSensorStatus(sensor.status) === "good",
+      ).length ?? 0,
+    [twin],
+  );
+
+  const totalSensors = twin?.sensors.length ?? 0;
+
+  const mappedDevices = twin?.devices.length ?? 0;
+
+  const hasLoaded = Boolean(monitor && twin);
+
+  // Summary cards
   const summaryCards = useMemo(() => {
-    const onlineCameras =
-      monitor?.cameras.filter((camera) => camera.status === "在线").length ?? 0;
-    const highAlerts = monitor?.alerts.length ?? 0;
-    const stableSensors =
-      twin?.sensors.filter((sensor) => sensor.status === "正常").length ?? 0;
-    const mappedDevices = twin?.devices.length ?? 0;
-
     return [
       {
         label: t("pages.operations.copy002"),
-        value: `${onlineCameras}/${monitor?.cameras.length ?? 0}`,
+        value: `${onlineCameras}/${totalCameras}`,
         note: t("pages.operations.copy003"),
+        status: "online" as const,
       },
       {
         label: t("pages.monitor.copy018"),
         value: `${highAlerts}`,
         note: t("pages.operations.copy004"),
+        status: highAlerts > 0 ? ("danger" as const) : ("success" as const),
       },
       {
         label: t("pages.operations.copy005"),
-        value: `${stableSensors}/${twin?.sensors.length ?? 0}`,
+        value: `${stableSensors}/${totalSensors}`,
         note: t("pages.operations.copy006"),
+        status: "success" as const,
       },
       {
         label: t("pages.digital_twin.copy018"),
         value: `${mappedDevices}`,
         note: t("pages.operations.copy007"),
+        status: "info" as const,
       },
     ];
-  }, [monitor, twin, text]);
+  }, [onlineCameras, totalCameras, highAlerts, stableSensors, totalSensors, mappedDevices, t]);
 
-  const hasLoaded = Boolean(monitor && twin);
-
+  // Workflow steps
   const workflowSteps = useMemo<WorkflowStep[]>(() => {
     const alertCount = monitor?.alerts.length ?? 0;
     const sensorCount = twin?.sensors.length ?? 0;
@@ -105,24 +218,24 @@ export default function OperationsPage() {
       },
       {
         id: "ops-monitor",
-        title: text("进入监控域", "Go to monitoring"),
+        title: t("pages.home.copy025"),
         detail: alertCount
           ? text(
               `有 ${alertCount} 条告警待处理`,
               `${alertCount} alerts to inspect`,
             )
-          : text("当前没有告警积压", "No alert backlog"),
+          : t("pages.operations.noAlertsBacklog"),
         state: alertCount ? "active" : hasLoaded ? "done" : "upcoming",
       },
       {
         id: "ops-twin",
-        title: text("进入数字孪生域", "Go to digital twin"),
+        title: t("pages.home.copy026"),
         detail: sensorCount
           ? text(
               `已映射 ${sensorCount} 个传感器`,
               `${sensorCount} sensors mapped`,
             )
-          : text("传感器映射待完成", "Sensor map pending"),
+          : t("pages.operations.sensorMapPending"),
         state: sensorCount ? "active" : "upcoming",
       },
       {
@@ -132,254 +245,295 @@ export default function OperationsPage() {
         state: "upcoming",
       },
     ];
-  }, [hasLoaded, monitor?.alerts.length, twin?.sensors.length, text]);
+  }, [hasLoaded, monitor?.alerts.length, twin?.sensors.length, t, text]);
 
-  const scrollToSection = (id: string) => {
+  // Scroll helper
+  const scrollToSection = useCallback((id: string) => {
     const target = document.getElementById(id);
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
 
   if (!ready) {
     return (
       <PageLoadFallback
         fallbackHref="/visualize"
-        title={text("正在加载现场中台", "Loading Operations Hub")}
-        description={text(
-          "正在准备监控域与数字孪生域总览布局...",
-          "Preparing monitoring and digital twin overview layout...",
-        )}
+        title={t("pages.operations.loading")}
+        description={t("pages.operations.loadingDesc")}
       />
     );
   }
 
   return (
     <div className="enterprise-shell operations-shell">
-      <BackButton fallbackHref="/visualize" />
+      {/* Top bar with back button and refresh */}
+      <div className="operations-top-bar">
+        <BackButton fallbackHref="/visualize" />
+        <div className="operations-top-bar-right">
+          {lastUpdated > 0 && (
+            <span className="operations-last-updated">
+              {t("pages.operations.lastUpdated")} {formatLastUpdated(lastUpdated)}
+            </span>
+          )}
+          <button
+            type="button"
+            className="enterprise-secondary-button operations-refresh-button"
+            onClick={handleManualRefresh}
+            disabled={isLoading}
+            title={t("common.refresh")}
+          >
+            <span className={isLoading ? "refresh-spin" : ""}>↻</span>
+          </button>
+        </div>
+      </div>
 
+      {/* Workflow Steps */}
       <WorkflowSteps
-        title={text("现场中台流程", "Operations Flow")}
-        subtitle={text(
-          "先看中台总览，再按问题类型进入监控域或数字孪生域执行。",
-          "Use one hub, then branch into monitor or digital twin for execution.",
-        )}
+        title={t("pages.operations.flowTitle")}
+        subtitle={t("pages.operations.flowSubtitle")}
         steps={workflowSteps}
       />
 
+      {/* Quick jump strip */}
       <div className="quick-jump-strip">
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("ops-summary")}
         >
-          {text("概览", "Summary")}
+          {t("pages.operations.quickJumpSummary")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("ops-domains")}
         >
-          {text("域卡片", "Domain Cards")}
+          {t("pages.operations.quickJumpDomains")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("ops-governance")}
         >
-          {text("治理规则", "Governance Rules")}
+          {t("pages.operations.quickJumpGovernance")}
         </button>
       </div>
 
+      {/* Hero section */}
       <section className="enterprise-hero" id="ops-hero">
         <div>
-          <span className="eyebrow">{text("现场中台", "Operations Hub")}</span>
-          <h1>{text("监控域与数字孪生域的统一入口", "Unified entry for monitor and digital twin")}</h1>
-          <p>
-            {text(
-              "本页用于明确边界与查看最新状态。视频墙、告警处置、三维场景操作与传感器映射等细节，仍保留在各自专业页面中，避免信息重复。",
-              "This page defines boundaries and latest status. Detailed video walls, alert handling, 3D scene operations, and sensor maps remain in their dedicated domain pages to avoid duplicate information.",
-            )}
-          </p>
+          <span className="eyebrow">{t("pages.operations.heroTitle")}</span>
+          <h1>{t("pages.operations.heroHeading")}</h1>
+          <p>{t("pages.operations.heroDesc")}</p>
         </div>
         <div className="enterprise-hero-metrics">
           <div>
-            <span>{text("监控通道", "Monitoring channels")}</span>
+            <span>{t("pages.operations.monitoringChannels")}</span>
             <strong>
-              {hasLoaded ? String(monitor?.cameras.length ?? 0) : "--"}
+              {hasLoaded ? String(totalCameras) : "--"}
             </strong>
           </div>
           <div>
-            <span>{text("孪生传感器", "Twin sensors")}</span>
+            <span>{t("pages.operations.twinSensors")}</span>
             <strong>
-              {hasLoaded ? String(twin?.sensors.length ?? 0) : "--"}
+              {hasLoaded ? String(totalSensors) : "--"}
             </strong>
           </div>
           <div>
-            <span>{text("已映射设备", "Mapped devices")}</span>
+            <span>{t("pages.operations.mappedDevices")}</span>
             <strong>
-              {hasLoaded ? String(twin?.devices.length ?? 0) : "--"}
+              {hasLoaded ? String(mappedDevices) : "--"}
             </strong>
           </div>
         </div>
       </section>
 
+      {/* Error state */}
       {error ? (
-        <div className="empty-state">
-          <span>!</span>
-          {error}
+        <div className="empty-state error-state">
+          <span className="error-icon">!</span>
+          <p>{error}</p>
+          <button
+            type="button"
+            className="enterprise-primary-button"
+            onClick={handleManualRefresh}
+          >
+            {t("common.refresh")}
+          </button>
         </div>
       ) : null}
 
+      {/* Summary cards */}
       <section id="ops-summary" className="operations-summary-grid">
-        {summaryCards.map((item) => (
-          <Card key={item.label} className="operations-summary-card">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
+        {summaryCards.map((item, index) => (
+          <Card key={`${item.label}-${index}`} className="operations-summary-card">
+            <div className="operations-summary-card-header">
+              <span>{item.label}</span>
+              <span className={`operations-status-dot operations-status-${item.status}`} />
+            </div>
+            <strong className="operations-summary-card-value">{item.value}</strong>
             <p>{item.note}</p>
           </Card>
         ))}
       </section>
 
+      {/* Domain cards */}
       <section id="ops-domains" className="operations-grid">
+        {/* Monitoring Domain Card */}
         <Card className="operations-card">
           <div className="workspace-capability-top">
             <div>
               <span className="panel-kicker">
-                {text("实时监控", "Live Monitoring")}
+                {t("pages.operations.monitoringDomain")}
               </span>
-              <h2>{text("监控域", "Monitoring domain")}</h2>
+              <h2>{t("pages.operations.monitoringDomain")}</h2>
             </div>
-            <span className="status-chip status-success">
+            <span
+              className={`status-chip ${
+                highAlerts > 0 ? "status-danger" : "status-success"
+              }`}
+            >
               {hasLoaded
-                ? text("视频 / 告警 / 巡检", "Video / Alerts / Patrol")
-                : text("加载中", "Loading")}
+                ? t("pages.operations.monitoringContent")
+                : t("pages.operations.loadingLabel")}
             </span>
           </div>
           <div className="workspace-capability-meta">
             <div>
-              <span>{text("设备数", "Devices")}</span>
-              <strong>
-                {hasLoaded ? String(monitor?.devices.length ?? 0) : "--"}
-              </strong>
+              <span>{t("pages.operations.devices")}</span>
+              <strong>{hasLoaded ? String(monitor?.devices.length ?? 0) : "--"}</strong>
             </div>
             <div>
-              <span>{text("最新告警", "Latest alerts")}</span>
-              <strong>
-                {hasLoaded ? String(monitor?.alerts.length ?? 0) : "--"}
-              </strong>
+              <span>{t("pages.operations.latestAlerts")}</span>
+              <strong>{hasLoaded ? String(highAlerts) : "--"}</strong>
             </div>
           </div>
+
+          {/* Alert preview list */}
           <div className="workspace-preview-list">
-            {(monitor?.alerts ?? []).slice(0, 3).map((alert) => (
-              <div key={alert.id} className="workspace-preview-item">
-                <strong>{alert.title}</strong>
-                <span>
-                  {alert.station} / {alert.detail}
-                </span>
+            {hasLoaded && (monitor?.alerts ?? []).length > 0 ? (
+              (monitor?.alerts ?? []).slice(0, 3).map((alert) => (
+                <div key={alert.id} className="workspace-preview-item">
+                  <strong>{alert.title}</strong>
+                  <span>
+                    {alert.station} / {alert.detail}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="workspace-preview-item workspace-preview-empty">
+                <span>{t("pages.operations.noAlertsBacklog")}</span>
               </div>
-            ))}
+            )}
           </div>
+
           <div className="enterprise-note-card">
-            <strong>
-              {text("实时处置动作保留在监控页面", "Keep real-time actions in monitoring page")}
-            </strong>
-            <span>
-              {text(
-                "视频墙、告警流和巡检动作应继续放在监控页执行，以保持现场处置聚焦。",
-                "Camera walls, alert streams, and patrol actions should remain in monitoring page to preserve operational focus.",
-              )}
-            </span>
+            <strong>{t("pages.operations.keepRealTimeActions")}</strong>
+            <span>{t("pages.operations.realTimeActionsDesc")}</span>
           </div>
           <div className="workspace-capability-actions">
             <Link href="/monitor" className="enterprise-primary-button">
-              {text("打开监控详情", "Open Monitoring Details")}
+              {t("pages.operations.openMonitorDetails")}
             </Link>
           </div>
         </Card>
 
+        {/* Digital Twin Domain Card */}
         <Card className="operations-card">
           <div className="workspace-capability-top">
             <div>
               <span className="panel-kicker">
-                {text("数字孪生", "Digital Twin")}
+                {t("pages.digital_twin.copy002")}
               </span>
-              <h2>{text("数字孪生域", "Digital twin domain")}</h2>
+              <h2>{t("pages.operations.digitalTwinDomain")}</h2>
             </div>
             <span className="status-chip status-success">
               {hasLoaded
-                ? text("三维 / 工艺 / 传感器", "3D / Process / Sensors")
-                : text("加载中", "Loading")}
+                ? t("pages.operations.twinContent")
+                : t("pages.operations.loadingLabel")}
             </span>
           </div>
+
+          {/* 3D Model viewer stage */}
           <div className="operations-twin-stage">
-            <ModelViewer />
+            {hasLoaded ? (
+              <ModelViewer />
+            ) : (
+              <div className="operations-twin-loading">
+                <div className="loading-spinner" />
+                <span>{t("pages.operations.loadingLabel")}</span>
+              </div>
+            )}
           </div>
+
           <div className="workspace-capability-meta">
             <div>
-              <span>{text("工艺步骤", "Process steps")}</span>
-              <strong>
-                {hasLoaded ? String(twin?.flowSteps.length ?? 0) : "--"}
-              </strong>
+              <span>{t("pages.operations.processSteps")}</span>
+              <strong>{hasLoaded ? String(twin?.flowSteps.length ?? 0) : "--"}</strong>
             </div>
             <div>
-              <span>{text("关键传感器", "Key sensors")}</span>
-              <strong>
-                {hasLoaded ? String(twin?.sensors.length ?? 0) : "--"}
-              </strong>
+              <span>{t("pages.operations.keySensors")}</span>
+              <strong>{hasLoaded ? String(totalSensors) : "--"}</strong>
             </div>
           </div>
+
+          {/* Sensor preview list */}
           <div className="workspace-preview-list">
-            {(twin?.sensors ?? []).slice(0, 3).map((sensor) => (
-              <div key={sensor.label} className="workspace-preview-item">
-                <strong>{sensor.label}</strong>
-                <span>
-                  {sensor.value}
-                  {sensor.unit} / {sensor.status}
-                </span>
+            {hasLoaded && (twin?.sensors ?? []).length > 0 ? (
+              (twin?.sensors ?? []).slice(0, 3).map((sensor) => {
+                const sensorStatus = resolveSensorStatus(sensor.status);
+                return (
+                  <div key={sensor.label} className="workspace-preview-item">
+                    <div className="workspace-preview-item-header">
+                      <strong>{sensor.label}</strong>
+                      <span
+                        className={`operations-sensor-badge operations-sensor-${sensorStatus}`}
+                      >
+                        {sensor.status}
+                      </span>
+                    </div>
+                    <span>
+                      {sensor.value}
+                      {sensor.unit}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="workspace-preview-item workspace-preview-empty">
+                <span>{t("pages.operations.sensorMapPending")}</span>
               </div>
-            ))}
+            )}
           </div>
           <div className="workspace-capability-actions">
             <Link href="/digital-twin" className="enterprise-primary-button">
-              {text("打开孪生详情", "Open Twin Details")}
+              {t("pages.operations.openTwinDetails")}
             </Link>
           </div>
         </Card>
       </section>
 
+      {/* Governance section */}
       <section id="ops-governance" className="operations-grid">
         <Card className="operations-card">
           <div className="workspace-capability-top">
             <div>
-              <span className="panel-kicker">{text("边界归属", "Ownership")}</span>
-              <h2>{text("数据归属规则", "Data ownership rules")}</h2>
+              <span className="panel-kicker">{t("pages.operations.ownership")}</span>
+              <h2>{t("pages.operations.dataOwnershipRules")}</h2>
             </div>
           </div>
           <div className="enterprise-highlight-list">
             <div>
-              <strong>
-                {text("监控域负责即时响应", "Monitoring handles immediate response")}
-              </strong>
-              <p>
-                {text(
-                  "摄像头、告警流和现场巡检属于监控域，不应在其他页面重复承载。",
-                  "Cameras, alert streams, and inspection patrol belong to monitoring and should not be duplicated elsewhere.",
-                )}
-              </p>
+              <strong>{t("pages.operations.monitoringResponse")}</strong>
+              <p>{t("pages.operations.monitoringResponseDesc")}</p>
             </div>
             <div>
-              <strong>
-                {text(
-                  "数字孪生域负责空间与工艺映射",
-                  "Digital twin handles space and process mapping",
-                )}
-              </strong>
-              <p>
-                {text(
-                  "三维布局、传感器点位和工艺流程属于数字孪生域，应集中维护在该域内。",
-                  "3D layout, sensor points, and process flows belong to twin and should remain concentrated there.",
-                )}
-              </p>
+              <strong>{t("pages.operations.twinSpaceProcess")}</strong>
+              <p>{t("pages.operations.twinSpaceProcessDesc")}</p>
             </div>
           </div>
         </Card>
@@ -387,42 +541,27 @@ export default function OperationsPage() {
         <Card className="operations-card">
           <div className="workspace-capability-top">
             <div>
-              <span className="panel-kicker">{text("建议路径", "Suggested Flow")}</span>
-              <h2>{text("推荐排查路径", "Recommended review path")}</h2>
+              <span className="panel-kicker">{t("pages.operations.suggestedFlow")}</span>
+              <h2>{t("pages.operations.recommendedPath")}</h2>
             </div>
           </div>
           <div className="workspace-preview-list">
             <div className="workspace-preview-item">
-              <strong>{text("先看指挥中心", "Start at command center")}</strong>
-              <span>
-                {text(
-                  "先识别产能、质量或工单层面的异常。",
-                  "Identify throughput, quality, or work-order anomalies.",
-                )}
-              </span>
+              <strong>{t("pages.operations.startCommandCenter")}</strong>
+              <span>{t("pages.operations.startCommandCenterDesc")}</span>
             </div>
             <div className="workspace-preview-item">
-              <strong>{text("再进入现场中台", "Then enter operations hub")}</strong>
-              <span>
-                {text(
-                  "再根据问题类型选择进入监控域或数字孪生域。",
-                  "Choose monitoring or digital twin based on issue type.",
-                )}
-              </span>
+              <strong>{t("pages.operations.enterOperationsHub")}</strong>
+              <span>{t("pages.operations.enterOperationsHubDesc")}</span>
             </div>
             <div className="workspace-preview-item">
-              <strong>{text("最后到运营后台闭环", "Close loop in admin")}</strong>
-              <span>
-                {text(
-                  "在运营后台完成派发、导入治理、同步和策略动作的收口。",
-                  "Use admin for assignment, import governance, sync, and policy actions.",
-                )}
-              </span>
+              <strong>{t("pages.operations.closeLoopAdmin")}</strong>
+              <span>{t("pages.operations.closeLoopAdminDesc")}</span>
             </div>
           </div>
           <div className="workspace-capability-actions">
             <Link href="/admin" className="enterprise-secondary-button">
-              {text("前往运营治理", "Go to Admin Governance")}
+              {t("pages.operations.goToAdminGovernance")}
             </Link>
           </div>
         </Card>

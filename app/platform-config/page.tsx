@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
 import { useLocale } from "../components/Locale/LocaleProvider";
@@ -77,7 +77,7 @@ export default function PlatformConfigPage() {
       );
   }, []);
 
-  const probeHealth = async (apiBaseUrl: string) => {
+  const probeHealth = useCallback(async (apiBaseUrl: string) => {
     setProbe({
       status: "checking",
       message: t("pages.platform_config.copy001"),
@@ -122,11 +122,11 @@ export default function PlatformConfigPage() {
         payload: null,
       });
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     probeHealth(form.apiBaseUrl).catch(console.error);
-  }, []);
+  }, [form.apiBaseUrl, probeHealth]);
 
   const handleSave = async () => {
     saveRuntimeEndpointConfig(form);

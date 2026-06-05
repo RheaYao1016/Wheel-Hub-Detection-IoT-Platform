@@ -1,5 +1,8 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Card from "./Card";
+import { useLocale } from "../Locale/LocaleProvider";
 
 type CoreFlowStageState = "done" | "active" | "upcoming";
 
@@ -27,12 +30,6 @@ type CoreFlowHeaderProps = {
   sideNote?: ReactNode;
 };
 
-const STAGE_STATE_LABEL: Record<CoreFlowStageState, string> = {
-  done: "Completed",
-  active: "Current",
-  upcoming: "Queued",
-};
-
 export type { CoreFlowMetric, CoreFlowStage, CoreFlowStageState };
 
 export default function CoreFlowHeader({
@@ -45,6 +42,14 @@ export default function CoreFlowHeader({
   actions,
   sideNote,
 }: CoreFlowHeaderProps) {
+  const { t } = useLocale();
+
+  const stateLabel: Record<CoreFlowStageState, string> = {
+    done: t("common.done", undefined, "Done"),
+    active: t("common.now", undefined, "Now"),
+    upcoming: t("common.next", undefined, "Next"),
+  };
+
   return (
     <section id={id} className="core-flow-hero">
       <Card className="core-flow-intro-card glow-border">
@@ -60,8 +65,10 @@ export default function CoreFlowHeader({
       <Card className="core-flow-stage-card">
         <div className="panel-heading">
           <div>
-            <span className="panel-kicker">Flow Board</span>
-            <h2>Observe {"->"} Diagnose {"->"} Act {"->"} Close</h2>
+            <span className="panel-kicker">{t("pages.home.copy017", undefined, "Flow Board")}</span>
+            <h2>
+              {t("pages.home.copy009", undefined, "Observe")} {"->"} {t("pages.home.copy011", undefined, "Diagnose")} {"->"} {t("pages.home.copy013", undefined, "Act")} {"->"} {t("pages.home.copy015", undefined, "Close")}
+            </h2>
           </div>
         </div>
 
@@ -76,7 +83,7 @@ export default function CoreFlowHeader({
               </div>
               <div>
                 <span className="core-flow-stage-label">
-                  {STAGE_STATE_LABEL[stage.state]}
+                  {stateLabel[stage.state]}
                 </span>
                 <strong>{stage.title}</strong>
                 <p>{stage.detail}</p>

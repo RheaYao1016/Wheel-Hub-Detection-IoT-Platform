@@ -15,11 +15,23 @@ export type RuntimeEndpointConfig = {
 };
 
 const DEFAULT_RUNTIME_ENDPOINT_CONFIG: RuntimeEndpointConfig = {
-  apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:18081/api",
+  apiBaseUrl:
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+    "http://localhost:18081/api",
   aiProviderBaseUrl: "https://api.openai.com/v1",
   chatModel: "gpt-4o-mini",
   embeddingModel: "text-embedding-3-small",
 };
+
+function getDefaultApiBaseUrl() {
+  if (typeof window === "undefined") {
+    return DEFAULT_RUNTIME_ENDPOINT_CONFIG.apiBaseUrl;
+  }
+
+  const protocol = window.location.protocol || "http:";
+  const hostname = window.location.hostname || "localhost";
+  return `${protocol}//${hostname}:18081/api`;
+}
 
 function normalizeUrl(value: string | null | undefined, fallback: string) {
   const normalized = value?.trim();
@@ -43,7 +55,7 @@ export function readRuntimeEndpointConfig(): RuntimeEndpointConfig {
   return {
     apiBaseUrl: normalizeUrl(
       window.localStorage.getItem(RUNTIME_API_BASE_STORAGE_KEY),
-      DEFAULT_RUNTIME_ENDPOINT_CONFIG.apiBaseUrl,
+      getDefaultApiBaseUrl(),
     ),
     aiProviderBaseUrl: normalizeUrl(
       window.localStorage.getItem(RUNTIME_PROVIDER_BASE_STORAGE_KEY),
@@ -92,11 +104,21 @@ export function resetRuntimeEndpointConfig() {
   clearRuntimeCaches();
   window.dispatchEvent(
     new CustomEvent("app:endpoints-change", {
-      detail: DEFAULT_RUNTIME_ENDPOINT_CONFIG,
+      detail: {
+        ...DEFAULT_RUNTIME_ENDPOINT_CONFIG,
+        apiBaseUrl: getDefaultApiBaseUrl(),
+      },
     }),
   );
 }
 
 export function getDefaultRuntimeEndpointConfig() {
-  return DEFAULT_RUNTIME_ENDPOINT_CONFIG;
+  if (typeof window === "undefined") {
+    return DEFAULT_RUNTIME_ENDPOINT_CONFIG;
+  }
+
+  return {
+    ...DEFAULT_RUNTIME_ENDPOINT_CONFIG,
+    apiBaseUrl: getDefaultApiBaseUrl(),
+  };
 }

@@ -1,0 +1,63 @@
+# ============================================================
+# Frontend: Next.js Multi-stage Dockerfile
+# - Stage 1: Install dependencies & build
+# - Stage 2: Production runner (slim image)
+# ============================================================
+
+# ----- Stage 1: Builder -----
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies first (layer caching)
+COPY package.json package-lock.json* ./
+RUN npm ci --prefer-offline --no-audit
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build the Next.js application
+RUN npm run build
+
+# ----- Stage 2: Runner -----
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy standalone output (next.config.js output: 'standalone' is implied)
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.env.example ./.env.example
+
+# Copy the standalone server output
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy prisma schema and generate client for runtime
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Install only prisma runtime dependencies (no devDependencies)
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+
+CMD ["node", "server.js"]

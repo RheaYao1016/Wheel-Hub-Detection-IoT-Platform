@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3005",
     "lint": "next lint",
     "format": "prettier --write .",
     "i18n:guard": "node tools/i18n-guard.mjs",
@@ -14,7 +14,13 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report e2e/test-results/html-report",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:chromium": "playwright test --project=chromium"
   },
   "dependencies": {
     "@prisma/client": "^5.16.0",
@@ -29,10 +35,12 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-three/drei": "^9.105.0",
     "@react-three/fiber": "^8.16.0",
+    "@sentry/nextjs": "^8.55.1",
     "axios": "^1.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
+    "dompurify": "^3.4.1",
     "echarts": "^5.5.0",
     "echarts-for-react": "^3.0.2",
     "exceljs": "^4.4.0",
@@ -50,6 +58,8 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^20.14.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.3.0",

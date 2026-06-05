@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
@@ -12,19 +12,24 @@ import CoreFlowHeader, {
   type CoreFlowStage,
 } from "../components/Layout/CoreFlowHeader";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
-import ModelViewer from "../components/ThreeViewer/ModelViewer";
+import dynamic from "next/dynamic";
+const ModelViewer = dynamic(() => import("../components/ThreeViewer/ModelViewer"), { ssr: false, loading: () => <div className="model-viewer-container"><div className="model-viewer-loading" role="status"><div className="model-viewer-spinner" /><span>加载3D模型中...</span></div></div> });
 import { PlatformAuthError, fetchPlatformData } from "@/lib/dashboard-client";
 import { clearAuthSession } from "@/lib/auth-session";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useLocale } from "../components/Locale/LocaleProvider";
 import type { DigitalTwinSnapshot } from "@/types/platform";
 
+// -- Tone helpers --
+
 function resolveSensorTone(status: string, value: number) {
   const normalized = status.toLowerCase();
   if (
     normalized.includes("warning") ||
     normalized.includes("alert") ||
-    normalized.includes("risk")
+    normalized.includes("risk") ||
+    normalized.includes("预警") ||
+    normalized.includes("异常")
   ) {
     return "danger";
   }
@@ -40,6 +45,84 @@ function resolveDeviceTone(temperature: number) {
   return "status-success";
 }
 
+function resolveSensorIcon(status: string): string {
+  const normalized = status.toLowerCase();
+  if (
+    normalized.includes("warning") ||
+    normalized.includes("alert") ||
+    normalized.includes("risk") ||
+    normalized.includes("预警") ||
+    normalized.includes("异常")
+  ) {
+    return "⚠";
+  }
+  if (normalized.includes("normal") || normalized.includes("正常")) {
+    return "✓";
+  }
+  return "◉";
+}
+
+function formatSensorValue(value: number, unit: string): string {
+  if (unit.includes("°")) {
+    return `${value.toFixed(1)}${unit}`;
+  }
+  if (Math.abs(value) >= 1000) {
+    return `${(value / 1000).toFixed(1)}k${unit}`;
+  }
+  return `${value.toFixed(2)}${unit}`;
+}
+
+// -- Skeleton loaders --
+
+function SensorSkeleton() {
+  return (
+    <div className="sensor-tile" aria-busy="true" style={{ opacity: 0.4 }}>
+      <div className="sensor-tile-top">
+        <span className="skeleton-text" style={{ width: "60px" }}>&nbsp;</span>
+        <em className="status-text good">&nbsp;</em>
+      </div>
+      <strong className="skeleton-text" style={{ width: "50px" }}>&nbsp;</strong>
+      <div className="sensor-meta">
+        <span className="skeleton-text" style={{ width: "40px" }}>&nbsp;</span>
+        <span className="skeleton-text" style={{ width: "35px" }}>&nbsp;</span>
+      </div>
+    </div>
+  );
+}
+
+function DeviceSkeleton() {
+  return (
+    <div className="device-item" aria-busy="true" style={{ opacity: 0.4 }}>
+      <div className="device-item-top">
+        <strong className="skeleton-text" style={{ width: "50%" }}>&nbsp;</strong>
+        <span className="status-chip status-warning">&nbsp;</span>
+      </div>
+      <div className="device-gauge">
+        <span style={{ width: "0%" }} />
+      </div>
+      <div className="device-item-meta">
+        <span className="skeleton-text" style={{ width: "30%" }}>&nbsp;</span>
+        <span className="skeleton-text" style={{ width: "25%" }}>&nbsp;</span>
+      </div>
+    </div>
+  );
+}
+
+function FlowSkeleton() {
+  return (
+    <div className="twin-flow-item" aria-busy="true" style={{ opacity: 0.4 }}>
+      <div className="twin-flow-index">--</div>
+      <div>
+        <strong className="skeleton-text" style={{ width: "80px" }}>&nbsp;</strong>
+        <span className="skeleton-text" style={{ width: "60px" }}>&nbsp;</span>
+      </div>
+      <em className="skeleton-text" style={{ width: "30px" }}>&nbsp;</em>
+    </div>
+  );
+}
+
+// -- Main page --
+
 export default function DigitalTwinPage() {
   const router = useRouter();
   const ready = useSessionGuard(["admin", "user"]);
@@ -47,6 +130,33 @@ export default function DigitalTwinPage() {
   const [snapshot, setSnapshot] = useState<DigitalTwinSnapshot | null>(null);
   const [error, setError] = useState("");
   const [activeSensorStatus, setActiveSensorStatus] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [updateCount, setUpdateCount] = useState(0);
+
+  // Data loading
+  const loadData = useCallback(async () => {
+    try {
+      const payload = await fetchPlatformData<DigitalTwinSnapshot>(
+        "/dashboard/digital-twin",
+        "/api/digital-twin",
+      );
+      setSnapshot(payload);
+      setError("");
+      setIsLoading(false);
+      setLastUpdated(new Date());
+      setUpdateCount((prev) => prev + 1);
+    } catch (requestError) {
+      if (requestError instanceof PlatformAuthError) {
+        clearAuthSession();
+        router.replace("/login");
+        return;
+      }
+      console.error(requestError);
+      setError(t("pages.digital_twin.copy001"));
+      setIsLoading(false);
+    }
+  }, [router, t]);
 
   useEffect(() => {
     if (!ready) return;
@@ -54,24 +164,7 @@ export default function DigitalTwinPage() {
     let active = true;
 
     const load = async () => {
-      try {
-        const payload = await fetchPlatformData<DigitalTwinSnapshot>(
-          "/dashboard/digital-twin",
-          "/api/digital-twin",
-        );
-        if (!active) return;
-        setSnapshot(payload);
-        setError("");
-      } catch (requestError) {
-        if (!active) return;
-        if (requestError instanceof PlatformAuthError) {
-          clearAuthSession();
-          router.replace("/login");
-          return;
-        }
-        console.error(requestError);
-        setError(t("pages.digital_twin.copy001"));
-      }
+      await loadData();
     };
 
     load().catch(console.error);
@@ -81,8 +174,9 @@ export default function DigitalTwinPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [ready, router]);
+  }, [ready, loadData]);
 
+  // Sensor status filter options
   const sensorStatuses = useMemo(() => {
     const statuses = new Set<string>();
     snapshot?.sensors.forEach((sensor) => statuses.add(sensor.status));
@@ -95,14 +189,37 @@ export default function DigitalTwinPage() {
     }
   }, [activeSensorStatus, sensorStatuses]);
 
+  // Filtered sensors
   const filteredSensors = useMemo(() => {
     if (!snapshot) return [];
-    if (activeSensorStatus === "all") return snapshot.sensors;
-    return snapshot.sensors.filter(
-      (sensor) => sensor.status === activeSensorStatus,
-    );
+    const sensors =
+      activeSensorStatus === "all"
+        ? snapshot.sensors
+        : snapshot.sensors.filter(
+            (sensor) => sensor.status === activeSensorStatus,
+          );
+
+    // Sort: warnings first, then by absolute deviation
+    return [...sensors].sort((a, b) => {
+      const aTone = resolveSensorTone(a.status, a.value);
+      const bTone = resolveSensorTone(b.status, b.value);
+      const toneOrder = { danger: 0, warn: 1, good: 2 };
+      const toneDiff = (toneOrder[aTone] ?? 2) - (toneOrder[bTone] ?? 2);
+      if (toneDiff !== 0) return toneDiff;
+      return Math.abs(b.value) - Math.abs(a.value);
+    });
   }, [activeSensorStatus, snapshot]);
 
+  // Sensor status counts
+  const sensorStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    snapshot?.sensors.forEach((sensor) => {
+      counts[sensor.status] = (counts[sensor.status] || 0) + 1;
+    });
+    return counts;
+  }, [snapshot]);
+
+  // Workflow steps
   const workflowSteps = useMemo<WorkflowStep[]>(() => {
     const hasSnapshot = Boolean(snapshot);
     const sensorCount = snapshot?.sensors.length ?? 0;
@@ -143,8 +260,9 @@ export default function DigitalTwinPage() {
         state: deviceCount ? "active" : "upcoming",
       },
     ];
-  }, [snapshot, text]);
+  }, [snapshot, t]);
 
+  // Core metrics
   const coreMetrics = useMemo<CoreFlowMetric[]>(() => {
     return [
       {
@@ -168,8 +286,9 @@ export default function DigitalTwinPage() {
         note: t("pages.digital_twin.copy021"),
       },
     ];
-  }, [snapshot, text]);
+  }, [snapshot, t]);
 
+  // Core stages
   const coreStages = useMemo<CoreFlowStage[]>(() => {
     const hasSnapshot = Boolean(snapshot);
     const hasSensors = (snapshot?.sensors.length ?? 0) > 0;
@@ -207,12 +326,34 @@ export default function DigitalTwinPage() {
         state: hasSnapshot ? "upcoming" : "upcoming",
       },
     ];
-  }, [snapshot, text]);
+  }, [snapshot, t]);
+
+  // Sensor health summary
+  const sensorHealthSummary = useMemo(() => {
+    if (!snapshot?.sensors.length) return null;
+    const total = snapshot.sensors.length;
+    const good = snapshot.sensors.filter(
+      (s) => resolveSensorTone(s.status, s.value) === "good"
+    ).length;
+    const warn = snapshot.sensors.filter(
+      (s) => resolveSensorTone(s.status, s.value) === "warn"
+    ).length;
+    const danger = snapshot.sensors.filter(
+      (s) => resolveSensorTone(s.status, s.value) === "danger"
+    ).length;
+    return { total, good, warn, danger };
+  }, [snapshot]);
 
   const scrollToSection = (id: string) => {
     const target = document.getElementById(id);
     if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    const headerOffset = 80;
+    const elementPosition = target.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: "smooth",
+    });
   };
 
   if (!ready) {
@@ -241,14 +382,14 @@ export default function DigitalTwinPage() {
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-core")}
         >
-          {t("pages.digital_twin.copy037")}
+          {t("pages.digital_twin.coreFlow")}
         </button>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("twin-lanes")}
         >
-          {t("pages.digital_twin.copy038")}
+          {t("pages.digital_twin.lanes")}
         </button>
         <button
           type="button"
@@ -397,13 +538,51 @@ export default function DigitalTwinPage() {
         </Card>
       </section>
 
+      {/* Error state */}
       {error ? (
         <div className="empty-state">
           <span>!</span>
           {error}
+          <button
+            type="button"
+            className="enterprise-secondary-button"
+            style={{ marginTop: "0.75rem" }}
+            onClick={() => {
+              setIsLoading(true);
+              loadData();
+            }}
+          >
+            {t("common.refresh")}
+          </button>
         </div>
       ) : null}
 
+      {/* Sensor health summary */}
+      {sensorHealthSummary && (
+        <div className="sensor-health-summary">
+          <span className="sensor-health-label">
+            {t("pages.digital_twin.sensorHealth")}:
+          </span>
+          <div className="sensor-health-badges">
+            <span className="health-badge health-healthy">
+              {sensorHealthSummary.good}/{sensorHealthSummary.total}{" "}
+              {t("pages.digital_twin.healthy")}
+            </span>
+            {sensorHealthSummary.warn > 0 && (
+              <span className="health-badge health-warning">
+                {sensorHealthSummary.warn} {t("pages.digital_twin.warning")}
+              </span>
+            )}
+            {sensorHealthSummary.danger > 0 && (
+              <span className="health-badge health-critical">
+                {sensorHealthSummary.danger} {t("pages.digital_twin.critical")}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3D Scene + Process Flow */}
       <section className="twin-hero-grid">
         <Card id="twin-scene" className="twin-stage-card">
           <div className="panel-heading">
@@ -414,15 +593,24 @@ export default function DigitalTwinPage() {
               <h2>{t("pages.digital_twin.copy068")}</h2>
             </div>
             <span className="status-chip status-success">
+              <span className="status-dot-live" />
               {t("pages.digital_twin.copy069")}
             </span>
           </div>
 
           <div className="twin-stage-frame">
-            <ModelViewer />
+            {isLoading ? (
+              <div className="twin-stage-loading">
+                <div className="model-viewer-spinner" />
+                <span>{t("pages.digital_twin.loading3d")}</span>
+              </div>
+            ) : (
+              <ModelViewer />
+            )}
           </div>
         </Card>
 
+        {/* Process flow */}
         <Card id="twin-flow" className="xl:col-span-5">
           <div className="panel-heading">
             <div>
@@ -434,20 +622,28 @@ export default function DigitalTwinPage() {
           </div>
 
           <div className="twin-flow-list">
-            {snapshot?.flowSteps.length ? (
+            {isLoading && !snapshot?.flowSteps.length ? (
+              <>
+                <FlowSkeleton />
+                <FlowSkeleton />
+                <FlowSkeleton />
+              </>
+            ) : snapshot?.flowSteps.length ? (
               snapshot.flowSteps.map((step, index) => (
                 <div
                   key={`${step.title}-${index}`}
-                  className={`twin-flow-item ${index === 0 ? "active" : ""}`}
+                  className={`twin-flow-item ${
+                    index === 0 ? "active" : ""
+                  }`}
                 >
                   <div className="twin-flow-index">
                     {String(index + 1).padStart(2, "0")}
                   </div>
-                  <div>
+                  <div className="twin-flow-content">
                     <strong>{step.title}</strong>
                     <span>{step.meta}</span>
                   </div>
-                  <em>{step.duration}</em>
+                  <em className="twin-flow-duration">{step.duration}</em>
                 </div>
               ))
             ) : (
@@ -464,7 +660,9 @@ export default function DigitalTwinPage() {
         </Card>
       </section>
 
+      {/* Sensors + Devices side by side */}
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        {/* Sensor grid */}
         <Card id="twin-sensors" className="xl:col-span-7">
           <div className="panel-heading">
             <div>
@@ -473,60 +671,92 @@ export default function DigitalTwinPage() {
               </span>
               <h2>{t("pages.digital_twin.copy076")}</h2>
             </div>
+            {snapshot?.sensors.length ? (
+              <span className="sensor-count-badge">
+                {snapshot.sensors.length}
+              </span>
+            ) : null}
           </div>
 
-          <div className="workspace-tabs">
-            {sensorStatuses.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={`workspace-tab ${
-                  activeSensorStatus === status ? "workspace-tab-active" : ""
-                }`}
-                onClick={() => setActiveSensorStatus(status)}
-              >
-                {status === "all" ? t("pages.digital_twin.copy077") : status}
-              </button>
-            ))}
+          <div className="workspace-tabs" role="tablist">
+            {sensorStatuses.map((status) => {
+              const count =
+                status === "all"
+                  ? snapshot?.sensors.length ?? 0
+                  : sensorStatusCounts[status] ?? 0;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeSensorStatus === status}
+                  className={`workspace-tab ${
+                    activeSensorStatus === status ? "workspace-tab-active" : ""
+                  }`}
+                  onClick={() => setActiveSensorStatus(status)}
+                >
+                  {status === "all" ? t("pages.digital_twin.copy077") : status}
+                  {count > 0 && <span className="tab-count">{count}</span>}
+                </button>
+              );
+            })}
           </div>
 
-          <div className="sensor-grid mt-4">
-            {filteredSensors.length ? (
-              filteredSensors.map((sensor) => (
-                <div key={sensor.label} className="sensor-tile">
-                  <div className="sensor-tile-top">
-                    <span>{sensor.label}</span>
-                    <em
-                      className={`status-text ${resolveSensorTone(
-                        sensor.status,
-                        sensor.value,
-                      )}`}
-                    >
-                      {sensor.status}
-                    </em>
+          <div className="sensor-grid mt-4" role="tabpanel">
+            {isLoading && !snapshot ? (
+              <>
+                <SensorSkeleton />
+                <SensorSkeleton />
+                <SensorSkeleton />
+                <SensorSkeleton />
+                <SensorSkeleton />
+                <SensorSkeleton />
+              </>
+            ) : filteredSensors.length ? (
+              filteredSensors.map((sensor) => {
+                const tone = resolveSensorTone(sensor.status, sensor.value);
+                return (
+                  <div
+                    key={sensor.label}
+                    className={`sensor-tile sensor-tile-${tone}`}
+                  >
+                    <div className="sensor-tile-top">
+                      <span className="sensor-label-text">{sensor.label}</span>
+                      <em
+                        className={`status-text ${tone}`}
+                        title={sensor.status}
+                      >
+                        <span className="sensor-status-icon">
+                          {resolveSensorIcon(sensor.status)}
+                        </span>
+                        {sensor.status}
+                      </em>
+                    </div>
+                    <strong className="sensor-value-display">
+                      {formatSensorValue(sensor.value, sensor.unit)}
+                    </strong>
+                    <div className="sensor-meta">
+                      <span>
+                        {t("pages.digital_twin.copy078")} {sensor.target}
+                      </span>
+                      <span>
+                        {t("pages.digital_twin.copy079")} {sensor.deviation}
+                      </span>
+                    </div>
                   </div>
-                  <strong>
-                    {sensor.value}
-                    <small>{sensor.unit}</small>
-                  </strong>
-                  <div className="sensor-meta">
-                    <span>
-                      {t("pages.digital_twin.copy078")} {sensor.target}
-                    </span>
-                    <span>
-                      {t("pages.digital_twin.copy079")} {sensor.deviation}
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="loading-state">
-                {t("pages.digital_twin.copy080")}
+                {snapshot
+                  ? t("pages.digital_twin.noSensors")
+                  : t("pages.digital_twin.copy080")}
               </div>
             )}
           </div>
         </Card>
 
+        {/* Device status */}
         <Card id="twin-devices" className="xl:col-span-5">
           <div className="panel-heading">
             <div>
@@ -540,7 +770,13 @@ export default function DigitalTwinPage() {
             </span>
           </div>
           <div className="device-stack">
-            {snapshot?.devices.length ? (
+            {isLoading && !snapshot ? (
+              <>
+                <DeviceSkeleton />
+                <DeviceSkeleton />
+                <DeviceSkeleton />
+              </>
+            ) : snapshot?.devices.length ? (
               snapshot.devices.map((device) => (
                 <div key={device.name} className="device-item">
                   <div className="device-item-top">
@@ -550,18 +786,31 @@ export default function DigitalTwinPage() {
                         device.temperature,
                       )}`}
                     >
+                      {device.temperature >= 68 && (
+                        <span className="status-pulse" />
+                      )}
                       {device.status}
                     </span>
                   </div>
                   <div className="device-gauge">
-                    <span style={{ width: `${device.utilization}%` }} />
+                    <span
+                      style={{
+                        width: `${device.utilization}%`,
+                        background:
+                          device.utilization > 90
+                            ? "linear-gradient(90deg, #f59e0b, #ef4444)"
+                            : device.utilization > 70
+                              ? "linear-gradient(90deg, #3b82f6, #f59e0b)"
+                              : "linear-gradient(90deg, var(--accent), var(--accent-strong))",
+                      }}
+                    />
                   </div>
                   <div className="device-item-meta">
                     <span>
                       {t("pages.digital_twin.copy083")} {device.utilization}%
                     </span>
                     <span>
-                      {t("pages.digital_twin.copy084")} {device.temperature} C
+                      {t("pages.digital_twin.copy084")} {device.temperature}°C
                     </span>
                     <span>{device.note}</span>
                   </div>
@@ -569,12 +818,28 @@ export default function DigitalTwinPage() {
               ))
             ) : (
               <div className="loading-state">
-                {t("pages.digital_twin.copy085")}
+                {snapshot
+                  ? t("pages.digital_twin.noDevices")
+                  : t("pages.digital_twin.copy085")}
               </div>
             )}
           </div>
         </Card>
       </section>
+
+      {/* Last updated timestamp */}
+      {lastUpdated && (
+        <div className="last-updated-bar">
+          <span className="update-dot" />
+          {t("pages.digital_twin.lastUpdated")}{" "}
+          {lastUpdated.toLocaleTimeString()}
+          {updateCount > 0 && (
+            <span>
+              &middot; {t("pages.digital_twin.autoRefreshCount", { p1: updateCount })}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -168,7 +168,6 @@ export default function WorkspacePage() {
   }, [
     health?.aiMl.status,
     health?.backend.status,
-    locale,
     normalizedRole,
     overview,
     t,

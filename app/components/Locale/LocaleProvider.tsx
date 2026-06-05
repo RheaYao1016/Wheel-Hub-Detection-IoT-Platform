@@ -4,12 +4,9 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   AppLocale,
   DEFAULT_LOCALE,
-  isAppLocale,
   LOCALE_OPTIONS,
-  LOCALE_STORAGE_KEY,
 } from "@/lib/locale";
 import { ensureI18n, translate, translateInline } from "@/lib/i18n/client";
-import { clearRuntimeCaches } from "@/lib/runtime-cache";
 
 type LocaleContextValue = {
   locale: AppLocale;
@@ -26,8 +23,21 @@ type LocaleContextValue = {
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 function applyLocale(locale: AppLocale) {
+  if (typeof document === "undefined" || !document.documentElement) return;
   document.documentElement.lang = locale;
   document.documentElement.dataset.locale = locale;
+}
+
+const LOCALE_STORAGE_KEY = "preferred-locale";
+
+function getInitialLocale(): AppLocale {
+  if (typeof window !== "undefined") {
+    const saved = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (saved === "zh-CN" || saved === "en-US") {
+      return saved as AppLocale;
+    }
+  }
+  return DEFAULT_LOCALE;
 }
 
 export default function LocaleProvider({
@@ -35,30 +45,20 @@ export default function LocaleProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [locale, setLocaleState] = useState<AppLocale>(DEFAULT_LOCALE);
+  const [locale, setLocaleState] = useState<AppLocale>(getInitialLocale);
 
   useEffect(() => {
     ensureI18n();
-    const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    const initialLocale = isAppLocale(storedLocale)
-      ? storedLocale
-      : DEFAULT_LOCALE;
-    setLocaleState(initialLocale);
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, initialLocale);
-    applyLocale(initialLocale);
-  }, []);
+    applyLocale(locale);
+  }, [locale]);
 
-  const setLocale = (nextLocale: AppLocale) => {
-    if (nextLocale === locale) {
-      return;
-    }
-
-    setLocaleState(nextLocale);
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
-    applyLocale(nextLocale);
+  const setLocale = (newLocale: AppLocale) => {
+    setLocaleState(newLocale);
+    applyLocale(newLocale);
     ensureI18n();
-    translate(nextLocale, "common.loading");
-    clearRuntimeCaches();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, newLocale);
+    }
   };
 
   const value = useMemo(

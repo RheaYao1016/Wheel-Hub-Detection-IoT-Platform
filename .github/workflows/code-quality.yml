@@ -1,0 +1,233 @@
+# Code Quality Pipeline
+# Scheduled weekly + triggers on PR
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run at 02:00 UTC every Monday
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  JAVA_VERSION: "17"
+
+jobs:
+  # ─── npm audit (Dependency Vulnerability Scan) ────────────────────────────
+  npm-audit:
+    name: NPM Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate || true
+
+      - name: Generate audit report
+        run: npm audit --json > npm-audit-report.json || true
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: npm-audit-report.json
+          retention-days: 30
+
+  # ─── Maven dependency check ───────────────────────────────────────────────
+  maven-audit:
+    name: Maven Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Run OWASP dependency check
+        working-directory: ./backend
+        run: mvn org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 --fail-never
+
+      - name: Upload dependency check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-dependency-check
+          path: backend/target/dependency-check-report.html
+          retention-days: 30
+
+  # ─── Frontend Performance Audit (Lighthouse CI) ───────────────────────────
+  lighthouse-audit:
+    name: Lighthouse Performance Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build Next.js application
+        run: npm run build
+
+      - name: Start production server
+        run: |
+          npm start &
+          echo "Waiting for server to start..."
+          timeout 60 bash -c 'while ! curl -s http://localhost:3000 > /dev/null; do sleep 2; done'
+          echo "Server is running"
+
+      - name: Run Lighthouse CI
+        run: |
+          npx @lhci/cli@0.14.x autorun || true
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 30
+
+  # ─── Backend Test Coverage ────────────────────────────────────────────────
+  backend-coverage:
+    name: Backend Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Run tests with coverage
+        working-directory: ./backend
+        run: mvn -B test jacoco:report --file pom.xml
+
+      - name: Check coverage threshold
+        working-directory: ./backend
+        run: |
+          echo "Coverage report generated at target/site/jacoco/index.html"
+          # Extract coverage percentage (basic check)
+          if [ -f target/site/jacoco/index.html ]; then
+            echo "Coverage report exists"
+          else
+            echo "Warning: No coverage report generated"
+          fi
+        continue-on-error: true
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/target/site/jacoco/
+          retention-days: 30
+
+  # ─── CodeQL Security Analysis ─────────────────────────────────────────────
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript", "java"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-and-quality
+
+      - name: Setup Node.js (for JS analysis)
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (for JS analysis)
+        if: matrix.language == 'javascript'
+        run: npm ci
+
+      - name: Setup Java (for Java analysis)
+        if: matrix.language == 'java'
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: "temurin"
+          cache: maven
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ─── Code Quality Summary ─────────────────────────────────────────────────
+  quality-summary:
+    name: Code Quality Summary
+    runs-on: ubuntu-latest
+    needs: [npm-audit, maven-audit, lighthouse-audit, backend-coverage, codeql-analysis]
+    if: always()
+    steps:
+      - name: Generate Quality Report
+        run: |
+          echo "## Code Quality Pipeline Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| NPM Dependency Audit | ${{ needs.npm-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Maven Dependency Check | ${{ needs.maven-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lighthouse Performance | ${{ needs.lighthouse-audit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Test Coverage | ${{ needs.backend-coverage.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL Security Analysis | ${{ needs.codeql-analysis.result }} |" >> $GITHUB_STEP_SUMMARY

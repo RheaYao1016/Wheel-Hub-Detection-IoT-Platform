@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
@@ -19,6 +19,7 @@ import {
 import { localizePromptPreset } from "@/lib/enterprise-localization";
 import { readRuntimeEndpointConfig } from "@/lib/runtime-endpoint-config";
 import type {
+  AiProtocolEnvelope,
   AiProviderProfile,
   AnalysisJob,
   AssistantAction,
@@ -229,6 +230,19 @@ function renderIntent(intent: IntentAssessment | null | undefined, t: TranslateF
     ),
   };
 }
+
+function renderProtocolSummary(protocol: AiProtocolEnvelope | null | undefined) {
+  if (!protocol) {
+    return null;
+  }
+
+  return {
+    headline: `${protocol.intent} | ${protocol.operation}`,
+    detail: `${protocol.type} | ${protocol.auth} | ${protocol.followUp}`,
+    indexes: protocol.indexIds ?? [],
+    unknownIndexes: protocol.unknownIndexes ?? [],
+  };
+}
 function SectionHeader({
   kicker,
   title,
@@ -418,6 +432,20 @@ function AiAssistantContent() {
     Record<string, boolean>
   >({});
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [messages.length, scrollToBottom]);
+
   const analysisTemplates = useMemo(() => buildTemplateOptions(t), [t]);
   const personaOptions = useMemo(() => buildPersonaOptions(t), [t]);
   const verbosityOptions = useMemo(() => buildVerbosityOptions(t), [t]);
@@ -449,6 +477,7 @@ function AiAssistantContent() {
   );
   const latestAnalysis = analysisJobs[0] ?? null;
   const latestAnalysisResult = latestAnalysis?.result ?? null;
+  const latestAnalysisProtocol = renderProtocolSummary(latestAnalysisResult?.protocol);
   const lastAssistantMessage = useMemo(
     () =>
       [...messages].reverse().find((item) => item.role === "assistant") ?? null,
@@ -590,6 +619,7 @@ function AiAssistantContent() {
       messages.length,
       promptPresetId,
       selectedSourceIds.length,
+      t,
     ],
   );
 
@@ -652,7 +682,7 @@ function AiAssistantContent() {
     setMessages(sessionMessages);
   };
 
-  const loadAssistantData = async (attempt = 1) => {
+  const loadAssistantData = useCallback(async (attempt = 1) => {
     setBusy("loading");
     setPageError("");
     setNotice("");
@@ -745,12 +775,12 @@ function AiAssistantContent() {
         enterpriseErrorMessage(error, t("pages.ai_assistant.copy037")),
       );
     }
-  };
+  }, [t, activeSessionId]);
 
   useEffect(() => {
     if (!ready) return;
     loadAssistantData().catch(console.error);
-  }, [ready]);
+  }, [ready, loadAssistantData]);
 
   useEffect(() => {
     if (!activeSessionId) {
@@ -778,7 +808,7 @@ function AiAssistantContent() {
     }
   }, [selectedPreset]);
 
-  const createSession = async () => {
+  const createSession = useCallback(async () => {
     const session = await enterprisePost<ChatSession>("/ai/chat/sessions", {
       title: `${selectedPreset?.name ?? t("pages.ai_assistant.copy039")} ${sessions.length + 1}`,
       persona,
@@ -790,13 +820,13 @@ function AiAssistantContent() {
     setActiveSessionId(session.id);
     setMessages([]);
     return session;
-  };
+  }, [selectedPreset, t, sessions.length, persona, locale, promptPresetId, selectedSourceIds]);
 
-  const ensureSession = async () => {
+  const ensureSession = useCallback(async () => {
     if (activeSessionId) return activeSessionId;
     const created = await createSession();
     return created.id;
-  };
+  }, [activeSessionId, createSession]);
 
   const handleCreateProvider = async () => {
     if (!canManageProviders) {
@@ -873,7 +903,7 @@ function AiAssistantContent() {
     }
   };
 
-  const handleSendChat = async () => {
+  const handleSendChat = useCallback(async () => {
     if (!canSend) return;
 
     setBusy("sending");
@@ -903,7 +933,19 @@ function AiAssistantContent() {
     } finally {
       setBusy("idle");
     }
-  };
+  }, [canSend, ensureSession, prompt, verbosity, providerId, promptPresetId, persona, locale, t]);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (canSend && busy === "idle") {
+          handleSendChat();
+        }
+      }
+    },
+    [canSend, busy, handleSendChat],
+  );
 
   const handleCreateAnalysis = async () => {
     if (!canSend) return;
@@ -1193,35 +1235,38 @@ function AiAssistantContent() {
             />
 
             {sessionsExpanded ? (
-              <div className="enterprise-card-stack ai-assistant-scroll-stack">
-                {sessions.length ? (
-                  pagedSessions.items.map((session) => (
-                    <button
-                      key={session.id}
-                      type="button"
-                      className={`enterprise-session-item ${activeSessionId === session.id ? "enterprise-session-item-active" : ""}`}
-                      onClick={() => handleSelectSession(session)}
-                    >
-                      <strong>{session.title}</strong>
-                      <span>
-                        {session.lastMessagePreview ||
-                          t("pages.ai_assistant.copy090")}
-                      </span>
-                      <em className="ai-assistant-meta-line">
+              <>
+                <div className="enterprise-card-stack ai-assistant-scroll-stack">
+                  {sessions.length ? (
+                    pagedSessions.items.map((session) => (
+                      <button
+                        key={session.id}
+                        type="button"
+                        className={`enterprise-session-item ${activeSessionId === session.id ? "enterprise-session-item-active" : ""}`}
+                        onClick={() => handleSelectSession(session)}
+                      >
+                        <strong>{session.title}</strong>
+                        <span>
+                          {session.lastMessagePreview ||
+                            t("pages.ai_assistant.copy090")}
+                        </span>
+                        <em className="ai-assistant-meta-line">
                           {formatDateTime(session.updatedAt, locale, t)} |{" "}
-                        {personaOptions.find(
-                          (item) => item.value === session.persona,
-                        )?.label ?? session.persona}
-                      </em>
-                    </button>
-                  ))
-                ) : (
-                  <div className="enterprise-note-card ai-assistant-empty-card">
-                    <strong>{t("pages.ai_assistant.copy091")}</strong>
-                    <span>{t("pages.ai_assistant.copy092")}</span>
-                  </div>
-                )}
-              </div>
+                          {personaOptions.find(
+                            (item) => item.value === session.persona,
+                          )?.label ?? session.persona}
+                        </em>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="enterprise-note-card ai-assistant-empty-card">
+                      <strong>{t("pages.ai_assistant.copy091")}</strong>
+                      <span>{t("pages.ai_assistant.copy092")}</span>
+                    </div>
+                  )}
+                </div>
+                <div ref={messagesEndRef} />
+              </>
             ) : (
               <div className="ai-assistant-collapsed-note">
                 {t("pages.ai_assistant.copy093")}
@@ -1465,6 +1510,12 @@ function AiAssistantContent() {
                 className="enterprise-textarea ai-assistant-prompt"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={t(
+                  "pages.ai_assistant.copy200",
+                  undefined,
+                  "输入您的问题，按 Enter 发送，Shift+Enter 换行...",
+                )}
               />
             </label>
 
@@ -1566,10 +1617,12 @@ function AiAssistantContent() {
                     const preview = expanded
                       ? item.content
                       : buildMessagePreview(item.content);
+                    const protocolSummary = renderProtocolSummary(item.protocol);
                     const hasDetails = Boolean(
                       safeArray(item.sourceRefs).length ||
                         item.promptTokens ||
                         item.completionTokens ||
+                        item.protocol ||
                         item.intentAssessment ||
                         safeArray(item.actions).length,
                     );
@@ -1630,7 +1683,31 @@ function AiAssistantContent() {
                                   {item.intentAssessment.suggestedTemplate}
                                 </span>
                               ) : null}
+                              {protocolSummary ? (
+                                <span>{protocolSummary.headline}</span>
+                              ) : null}
                             </div>
+
+                            {protocolSummary ? (
+                              <div className="enterprise-note-card ai-assistant-empty-card">
+                                <strong>{protocolSummary.headline}</strong>
+                                <span>{protocolSummary.detail}</span>
+                                {protocolSummary.indexes.length ? (
+                                  <div className="ai-assistant-message-meta">
+                                    {protocolSummary.indexes.map((indexId) => (
+                                      <span key={indexId}>{indexId}</span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                {protocolSummary.unknownIndexes.length ? (
+                                  <div className="ai-assistant-message-meta">
+                                    {protocolSummary.unknownIndexes.map((indexId) => (
+                                      <span key={indexId}>Unknown {indexId}</span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
 
                             {safeArray(item.actions).length ? (
                               <div className="ai-assistant-inline-actions">
@@ -1780,6 +1857,13 @@ function AiAssistantContent() {
                     {latestAnalysisResult.tokenUsage?.totalTokens ?? 0} tokens
                   </span>
                 </div>
+                {latestAnalysisProtocol ? (
+                  <div className="ai-assistant-message-meta">
+                    <span>{latestAnalysisProtocol.headline}</span>
+                    <span>{latestAnalysisProtocol.detail}</span>
+                    <span>{latestAnalysisProtocol.indexes.join(", ")}</span>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="enterprise-note-card ai-assistant-empty-card">
@@ -2014,6 +2098,3 @@ function AiAssistantContent() {
     </div>
   );
 }
-
-
-

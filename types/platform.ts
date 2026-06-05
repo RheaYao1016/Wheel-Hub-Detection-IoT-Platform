@@ -126,3 +126,47 @@ export type AdminSnapshot = {
   devices: DeviceSnapshot[];
   alerts: AlertSnapshot[];
 };
+
+export type DiskMetric = {
+  mount: string;
+  total: number;
+  used: number;
+  available?: number;
+  free?: number;
+  usage?: number;
+  usagePercent?: number;
+  status: "healthy" | "warning" | "critical";
+  note?: string;
+};
+
+export type WheelHubRecord = {
+  id: string;
+  model: string;
+  batch: string;
+  type?: string;
+  inspectedAt?: string;
+  timestamp: string;
+  operator?: string;
+  station?: string;
+  result?: "PASS" | "FAIL";
+  status: "通过" | "失败" | "PASS" | "FAIL";
+  score?: number;
+  defects?: string[];
+};
+
+export type InspectionRecord = {
+  id: string;
+  wheelId: string;
+  inspectedAt?: string;
+  timestamp: string;
+  operator: string;
+  station: string;
+  result: "PASS" | "FAIL";
+  score: number;
+  defects?: string[];
+  dimensions?: Record<string, number>;
+  lateralRunout: number;
+  radialRunout: number;
+  conicity: number;
+  remarks: string;
+};

@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$repoRoot = "D:\Projects\Wheel-Hub-Detection-IoT-Platform"
+$repoRoot = "D:\Projects\Industrial-Surface-Defect-Detection-System"
 $outputDir = Join-Path $repoRoot "output\restart-check"
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 

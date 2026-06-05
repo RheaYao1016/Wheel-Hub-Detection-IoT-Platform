@@ -1,0 +1,30 @@
+{
+  "name": "工业表面缺陷智能检测系统",
+  "short_name": "工业检测",
+  "description": "企业级工业表面缺陷检测平台，覆盖监控、数字孪生、AI 分析、报告和工作流。",
+  "start_url": "/wheel/",
+  "scope": "/wheel/",
+  "display": "standalone",
+  "background_color": "#08090a",
+  "theme_color": "#0d0f14",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/wheel/images/logo.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/wheel/images/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/wheel/images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

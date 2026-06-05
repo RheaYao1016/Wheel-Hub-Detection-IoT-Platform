@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { AnchorHTMLAttributes, MouseEvent, ReactNode } from "react";
 import { navigateWithTransition } from "@/lib/navigation-transition";
 
 type TransitionLinkProps = {
   href: string;
   className?: string;
   children: ReactNode;
-};
+  title?: string;
+  onClick?: () => void;
+} & Pick<AnchorHTMLAttributes<HTMLAnchorElement>, "role" | "aria-selected" | "aria-label" | "aria-expanded" | "aria-haspopup" | "aria-hidden">;
 
-export default function TransitionLink({ href, className, children }: TransitionLinkProps) {
+export default function TransitionLink({ href, className, children, title, onClick, ...rest }: TransitionLinkProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -34,11 +36,12 @@ export default function TransitionLink({ href, className, children }: Transition
     }
 
     event.preventDefault();
+    onClick?.();
     navigateWithTransition(router, href);
   };
 
   return (
-    <Link href={href} className={className} onClick={handleClick}>
+    <Link href={href} className={className} onClick={handleClick} title={title} {...rest}>
       {children}
     </Link>
   );

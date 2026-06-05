@@ -1,5 +1,6 @@
 import wheelSeed from "@/data.json";
 import { prisma } from "@/lib/prisma";
+import { serverCache, CacheKeys, CacheTTL } from "@/lib/server-cache";
 import type {
   AdminSnapshot,
   AlertSnapshot,
@@ -86,9 +87,19 @@ async function loadWheelRecords(): Promise<WheelRecord[]> {
   }
 
   try {
+    // 优化: 使用select只查询需要的字段，减少数据传输
+    // 优化: 使用新增的createdAt DESC + type复合索引
     const wheels = await prisma.wheel.findMany({
       orderBy: { createdAt: "desc" },
       take: 240,
+      select: {
+        wheelNumber: true,
+        diameter: true,
+        averageBolt: true,
+        center: true,
+        pcd: true,
+        type: true,
+      },
     });
 
     if (!wheels.length) {
@@ -107,6 +118,18 @@ async function loadWheelRecords(): Promise<WheelRecord[]> {
     console.warn("Falling back to local wheel seed data.", error);
     return seeded;
   }
+}
+
+// 缓存所有快照数据，减少重复数据库查询
+async function getCachedWheelRecords(): Promise<WheelRecord[]> {
+  const cached = serverCache.get<WheelRecord[]>(CacheKeys.PLATFORM_DATA);
+  if (cached) {
+    return cached;
+  }
+
+  const records = await loadWheelRecords();
+  serverCache.set(CacheKeys.PLATFORM_DATA, records, CacheTTL.SHORT);
+  return records;
 }
 
 function formatTimestamp(offsetMinutes: number) {
@@ -283,11 +306,11 @@ function buildSensors(records: WheelRecord[]): SensorSnapshot[] {
 }
 
 export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot> {
-  const records = await loadWheelRecords();
+  const records = await getCachedWheelRecords();
 
   return {
     headline: {
-      title: "轮毂检测 IoT 指挥中心",
+      title: "工业表面缺陷智能检测指挥中心",
       subtitle: "Command Center / Inspection Intelligence",
       description: "面向检测执行、节拍分析、质量总览与工单流转的一体化运营入口，适合大屏展示与日常运营协同。",
     },
@@ -302,7 +325,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
 }
 
 export async function getDigitalTwinSnapshot(): Promise<DigitalTwinSnapshot> {
-  const records = await loadWheelRecords();
+  const records = await getCachedWheelRecords();
 
   return {
     summary: {
@@ -320,7 +343,7 @@ export async function getDigitalTwinSnapshot(): Promise<DigitalTwinSnapshot> {
 }
 
 export async function getMonitorSnapshot(): Promise<MonitorSnapshot> {
-  const records = await loadWheelRecords();
+  const records = await getCachedWheelRecords();
 
   return {
     headline: {
@@ -337,7 +360,7 @@ export async function getMonitorSnapshot(): Promise<MonitorSnapshot> {
 }
 
 export async function getAdminSnapshot(): Promise<AdminSnapshot> {
-  const records = await loadWheelRecords();
+  const records = await getCachedWheelRecords();
   const sizeDistribution = buildDistribution(records, SIZE_BANDS, (record) => record.diameter);
   const topSizes = [...sizeDistribution].sort((left, right) => right.value - left.value).slice(0, 5);
 

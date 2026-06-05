@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Card from "../components/Layout/Card";
-import { useLocale } from "../components/Locale/LocaleProvider";
 import {
   broadcastAuthChange,
   clearAuthSession,
@@ -13,6 +12,7 @@ import {
 } from "@/lib/auth-session";
 import { getBackendApiBase } from "@/lib/dashboard-client";
 import { navigateWithTransition } from "@/lib/navigation-transition";
+import { useLocale } from "@/app/components/Locale/LocaleProvider";
 import type { LoginResponse, RegisterResponse, UserRole } from "@/types/auth";
 
 type RegisterForm = {
@@ -33,6 +33,50 @@ const EMPTY_REGISTER_FORM: RegisterForm = {
   confirmPassword: "",
 };
 
+const DEMO_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEMO_ACCOUNTS === "true";
+
+type DemoAccount = {
+  username: string;
+  password: string;
+  role: UserRole;
+  labelKey: string;
+  noteKey: string;
+};
+
+function getDemoAccounts(): DemoAccount[] {
+  if (!DEMO_ENABLED) return [];
+  return [
+    {
+      username: "admin-demo",
+      password: "admin123",
+      role: "admin" as UserRole,
+      labelKey: "login.demoAdminLabel",
+      noteKey: "login.demoAdminNote",
+    },
+    {
+      username: "engineer-demo",
+      password: "engineer123",
+      role: "engineer" as UserRole,
+      labelKey: "login.demoEngineerLabel",
+      noteKey: "login.demoEngineerNote",
+    },
+    {
+      username: "operator-demo",
+      password: "user123",
+      role: "operator" as UserRole,
+      labelKey: "login.demoOperatorLabel",
+      noteKey: "login.demoOperatorNote",
+    },
+    {
+      username: "viewer-demo",
+      password: "viewer123",
+      role: "viewer" as UserRole,
+      labelKey: "login.demoViewerLabel",
+      noteKey: "login.demoViewerNote",
+    },
+  ];
+}
+
 export default function LoginPage() {
   return (
     <Suspense fallback={<LoginFallback />}>
@@ -44,10 +88,10 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const { text, t } = useLocale();
+  const { t } = useLocale();
   const [mode, setMode] = useState<"login" | "reg">("login");
   const [role, setRole] = useState<UserRole>("admin");
-  const [message, setMessage] = useState(t("pages.login.copy001"));
+  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -62,60 +106,41 @@ function LoginContent() {
     () => [
       {
         value: "admin" as UserRole,
-        label: t("pages.login.copy002"),
-        note: t("pages.login.copy003"),
+        label: t("login.roleAdmin"),
+        note: t("login.roleAdminNote"),
       },
       {
         value: "engineer" as UserRole,
-        label: t("pages.login.enhancedloginpage.copy013"),
-        note: t("pages.login.copy004"),
+        label: t("login.roleEngineer"),
+        note: t("login.roleEngineerNote"),
       },
       {
         value: "operator" as UserRole,
-        label: t("pages.admin.inspections.copy004"),
-        note: t("pages.login.copy005"),
+        label: t("login.roleOperator"),
+        note: t("login.roleOperatorNote"),
       },
       {
         value: "viewer" as UserRole,
-        label: t("pages.login.enhancedloginpage.copy014"),
-        note: t("pages.login.copy006"),
+        label: t("login.roleViewer"),
+        note: t("login.roleViewerNote"),
       },
     ],
-    [text],
+    [t],
   );
 
   const seededAccounts = useMemo(
-    () => [
-      {
-        username: "admin-demo",
-        password: "admin123",
-        role: "admin" as UserRole,
-        label: t("pages.login.copy007"),
-        note: t("pages.login.copy008"),
-      },
-      {
-        username: "engineer-demo",
-        password: "engineer123",
-        role: "engineer" as UserRole,
-        label: t("pages.login.copy009"),
-        note: t("pages.login.copy010"),
-      },
-      {
-        username: "operator-demo",
-        password: "user123",
-        role: "operator" as UserRole,
-        label: t("pages.login.copy011"),
-        note: t("pages.login.copy012"),
-      },
-      {
-        username: "viewer-demo",
-        password: "viewer123",
-        role: "viewer" as UserRole,
-        label: t("pages.login.copy013"),
-        note: t("pages.login.copy014"),
-      },
-    ],
-    [text],
+    () => getDemoAccounts(),
+    [],
+  );
+
+  const translatedDemoAccounts = useMemo(
+    () =>
+      seededAccounts.map((account) => ({
+        ...account,
+        label: t(account.labelKey),
+        note: t(account.noteKey),
+      })),
+    [seededAccounts, t],
   );
 
   useEffect(() => {
@@ -123,22 +148,22 @@ function LoginContent() {
   }, [params]);
 
   useEffect(() => {
+    setMessage(t("login.welcomeMessage"));
+  }, [t]);
+
+  useEffect(() => {
     const session = readStoredAuthSession();
     if (!session) return;
+    if (hasExpired(session.expiresAt)) {
+      clearAuthSession();
+      return;
+    }
     navigateWithTransition(
       router,
-      session.role === "admin"
-        ? "/admin"
-        : session.role === "operator"
-          ? "/visualize"
-          : "/workspace",
+      getRoleRedirect(session.role),
       { replace: true },
     );
   }, [router]);
-
-  useEffect(() => {
-    setMessage(t("pages.login.copy001"));
-  }, [text]);
 
   const currentRole = useMemo(
     () => roleOptions.find((item) => item.value === role),
@@ -155,12 +180,12 @@ function LoginContent() {
     return score;
   }, [mode, password, registerForm.password]);
 
-  const applySeededAccount = (account: (typeof seededAccounts)[number]) => {
+  const applySeededAccount = (account: (typeof translatedDemoAccounts)[number]) => {
     setMode("login");
     setRole(account.role);
     setUsername(account.username);
     setPassword(account.password);
-    setMessage(t("pages.login.copy015", { p1: account.label }));
+    setMessage(t("login.demoAccountSelected", { p1: account.label }));
   };
 
   const updateRegisterField = <K extends keyof RegisterForm>(
@@ -172,8 +197,8 @@ function LoginContent() {
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!username || !password) {
-      setMessage(t("pages.login.copy016"));
+    if (!username.trim() || !password) {
+      setMessage(t("login.enterUsernamePassword"));
       return;
     }
 
@@ -182,7 +207,7 @@ function LoginContent() {
       const response = await fetch(`${getBackendApiBase()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, role }),
+        body: JSON.stringify({ username: username.trim(), password, role }),
       });
       const payload = (await response.json()) as LoginResponse;
 
@@ -194,15 +219,11 @@ function LoginContent() {
 
       storeAuthSession(payload);
       broadcastAuthChange(payload.role);
-      setMessage(t("pages.login.copy017", { p1: payload.displayName }));
+      setMessage(t("login.welcomeBack", { p1: payload.displayName }));
       window.setTimeout(() => {
         navigateWithTransition(
           router,
-          payload.role === "admin"
-            ? "/admin"
-            : payload.role === "operator"
-              ? "/visualize"
-              : "/workspace",
+          getRoleRedirect(payload.role),
           { replace: true },
         );
       }, 220);
@@ -210,7 +231,7 @@ function LoginContent() {
       console.error("backend login failed", error);
       clearAuthSession();
       setMessage(
-        error instanceof Error ? error.message : t("pages.login.copy018"),
+        error instanceof Error ? error.message : t("login.loginFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -227,23 +248,25 @@ function LoginContent() {
       password: nextPassword,
       confirmPassword,
     } = registerForm;
-    if (
-      !displayName ||
-      !nextUsername ||
-      !email ||
-      !department ||
-      !nextPassword ||
-      !confirmPassword
-    ) {
-      setMessage(t("pages.login.copy019"));
+    
+    if (!displayName.trim() || !nextUsername.trim() || !email.trim() || !department.trim() || !nextPassword || !confirmPassword) {
+      setMessage(t("login.fillComplete"));
       return;
     }
+    
     if (nextPassword.length < 6) {
-      setMessage(t("pages.login.copy020"));
+      setMessage(t("login.passwordMinLength"));
       return;
     }
+    
     if (nextPassword !== confirmPassword) {
-      setMessage(t("pages.login.copy021"));
+      setMessage(t("login.passwordMismatch"));
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setMessage(t("login.invalidEmail"));
       return;
     }
 
@@ -252,7 +275,15 @@ function LoginContent() {
       const response = await fetch(`${getBackendApiBase()}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...registerForm, role }),
+        body: JSON.stringify({
+          displayName: displayName.trim(),
+          username: nextUsername.trim(),
+          email: email.trim(),
+          department: department.trim(),
+          password: nextPassword,
+          confirmPassword,
+          role,
+        }),
       });
       const payload = (await response.json()) as RegisterResponse;
 
@@ -264,14 +295,14 @@ function LoginContent() {
       }
 
       setMessage(payload.message);
-      setUsername(nextUsername);
+      setUsername(nextUsername.trim());
       setPassword(nextPassword);
       setRegisterForm(EMPTY_REGISTER_FORM);
       setMode("login");
     } catch (error) {
       console.error("backend register failed", error);
       setMessage(
-        error instanceof Error ? error.message : t("pages.login.copy022"),
+        error instanceof Error ? error.message : t("login.registerFailed"),
       );
     } finally {
       setSubmitting(false);
@@ -283,22 +314,22 @@ function LoginContent() {
       <div className="auth-backdrop" aria-hidden />
       <div className="auth-grid">
         <section className="auth-story">
-          <span className="auth-badge">{t("pages.login.copy023")}</span>
-          <h1>{t("pages.login.copy024")}</h1>
-          <p>{t("pages.login.copy025")}</p>
+          <span className="auth-badge">{t("login.badge")}</span>
+          <h1>{t("login.title")}</h1>
+          <p>{t("login.subtitle")}</p>
 
           <div className="auth-feature-list">
             <div>
-              <strong>{t("pages.login.copy026")}</strong>
-              <span>{t("pages.login.copy027")}</span>
+              <strong>{t("login.feature.monitoring")}</strong>
+              <span>{t("login.feature.monitoringDesc")}</span>
             </div>
             <div>
-              <strong>{t("pages.login.copy028")}</strong>
-              <span>{t("pages.login.copy029")}</span>
+              <strong>{t("login.feature.alerts")}</strong>
+              <span>{t("login.feature.alertsDesc")}</span>
             </div>
             <div>
-              <strong>{t("pages.login.copy030")}</strong>
-              <span>{t("pages.login.copy031")}</span>
+              <strong>{t("login.feature.ai")}</strong>
+              <span>{t("login.feature.aiDesc")}</span>
             </div>
           </div>
 
@@ -306,25 +337,28 @@ function LoginContent() {
             href="/platform-config"
             className="enterprise-secondary-button inline-flex w-fit items-center justify-center"
           >
-            {t("pages.login.copy032")}
+            {t("login.platformConfig")}
           </Link>
 
-          <div className="auth-demo-grid">
-            {seededAccounts.map((account) => (
-              <button
-                key={account.username}
-                type="button"
-                className="auth-demo-card"
-                onClick={() => applySeededAccount(account)}
-              >
-                <strong>{account.label}</strong>
-                <span>{account.note}</span>
-                <em>
-                  {account.username} / {account.password}
-                </em>
-              </button>
-            ))}
-          </div>
+          {translatedDemoAccounts.length > 0 && (
+            <div className="auth-demo-grid">
+              {translatedDemoAccounts.map((account) => (
+                <button
+                  key={account.username}
+                  type="button"
+                  className="auth-demo-card"
+                  onClick={() => applySeededAccount(account)}
+                  aria-label={t("login.demoSelect", { p1: account.label })}
+                >
+                  <strong>{account.label}</strong>
+                  <span>{account.note}</span>
+                  <em className="demo-credentials">
+                    {account.username} / {"•".repeat(account.password.length)}
+                  </em>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <Card className="auth-card">
@@ -334,22 +368,22 @@ function LoginContent() {
               className={mode === "login" ? "active" : ""}
               onClick={() => setMode("login")}
             >
-              {t("pages.login.copy033")}
+              {t("login.tabLogin")}
             </button>
             <button
               type="button"
               className={mode === "reg" ? "active" : ""}
               onClick={() => setMode("reg")}
             >
-              {t("pages.login.copy034")}
+              {t("login.tabRegister")}
             </button>
           </div>
 
           <div className="auth-card-copy">
             <h2>
               {mode === "login"
-                ? t("pages.login.copy035")
-                : t("pages.login.copy036")}
+                ? t("login.signIn")
+                : t("login.createAccount")}
             </h2>
             <p>{currentRole?.note}</p>
           </div>
@@ -369,147 +403,175 @@ function LoginContent() {
           </div>
 
           {mode === "login" ? (
-            <form className="auth-form" onSubmit={handleLogin}>
+            <form className="auth-form" onSubmit={handleLogin} noValidate>
               <label>
-                <span>{t("pages.login.copy037")}</span>
+                <span>{t("login.labelUsername")}</span>
                 <input
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
-                  placeholder={t("pages.login.copy038")}
+                  placeholder={t("login.placeholderUsername")}
                   autoComplete="username"
+                  required
+                  minLength={3}
                 />
               </label>
               <label className="auth-password">
-                <span>{t("pages.login.enhancedloginpage.copy009")}</span>
+                <span>{t("login.labelPassword")}</span>
                 <input
                   type={showLoginPassword ? "text" : "password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={t("pages.login.copy039")}
+                  placeholder={t("login.placeholderPassword")}
                   autoComplete="current-password"
+                  required
                 />
                 <button
                   type="button"
                   onClick={() => setShowLoginPassword((current) => !current)}
+                  aria-label={showLoginPassword ? t("login.hidePassword") : t("login.showPassword")}
                 >
                   {showLoginPassword
-                    ? t("pages.admin.data_import.copy053")
-                    : t("pages.login.copy040")}
+                    ? t("login.hideShort")
+                    : t("login.showShort")}
                 </button>
               </label>
               <div className="auth-strength-row">
-                <span>{t("pages.login.copy041")}</span>
+                <span>{t("login.passwordStrength")}</span>
                 <div className="auth-strength-track">
                   <div
                     className={`auth-strength-fill auth-strength-${passwordScore}`}
+                    role="progressbar"
+                    aria-valuenow={passwordScore}
+                    aria-valuemin={0}
+                    aria-valuemax={4}
                   />
                 </div>
               </div>
               <button
                 type="submit"
                 className="auth-submit"
-                disabled={submitting}
+                disabled={submitting || !username.trim() || !password}
               >
                 {submitting
-                  ? t("pages.login.enhancedloginpage.copy015")
-                  : t("pages.login.copy042", { p1: currentRole?.label ?? "" })}
+                  ? t("login.signingIn")
+                  : `${t("login.signInAs")} ${currentRole?.label ?? ""}`}
               </button>
             </form>
           ) : (
-            <form className="auth-form" onSubmit={handleRegister}>
+            <form className="auth-form" onSubmit={handleRegister} noValidate>
               <div className="auth-form-grid">
                 <label>
-                  <span>{t("pages.login.copy043")}</span>
+                  <span>{t("login.labelDisplayName")}</span>
                   <input
                     value={registerForm.displayName}
                     onChange={(event) =>
                       updateRegisterField("displayName", event.target.value)
                     }
-                    placeholder={t("pages.login.copy044")}
+                    placeholder={t("login.placeholderDisplayName")}
+                    required
+                    maxLength={50}
                   />
                 </label>
                 <label>
-                  <span>{t("pages.login.enhancedloginpage.copy007")}</span>
+                  <span>{t("login.labelUsername")}</span>
                   <input
                     value={registerForm.username}
                     onChange={(event) =>
                       updateRegisterField("username", event.target.value)
                     }
-                    placeholder={t("pages.login.copy045")}
+                    placeholder={t("login.placeholderLoginUsername")}
                     autoComplete="username"
+                    required
+                    minLength={3}
+                    maxLength={30}
                   />
                 </label>
               </div>
               <div className="auth-form-grid">
                 <label>
-                  <span>{t("pages.login.copy046")}</span>
+                  <span>{t("login.labelEmail")}</span>
                   <input
+                    type="email"
                     value={registerForm.email}
                     onChange={(event) =>
                       updateRegisterField("email", event.target.value)
                     }
-                    placeholder="name@company.com"
+                    placeholder={t("login.placeholderEmail")}
                     autoComplete="email"
+                    required
+                    maxLength={100}
                   />
                 </label>
                 <label>
-                  <span>{t("pages.login.copy047")}</span>
+                  <span>{t("login.labelDepartment")}</span>
                   <input
                     value={registerForm.department}
                     onChange={(event) =>
                       updateRegisterField("department", event.target.value)
                     }
-                    placeholder={t("pages.login.copy048")}
+                    placeholder={t("login.placeholderDepartment")}
+                    required
+                    maxLength={50}
                   />
                 </label>
               </div>
               <label className="auth-password">
-                <span>{t("pages.login.enhancedloginpage.copy009")}</span>
+                <span>{t("login.labelPassword")}</span>
                 <input
                   type={showRegisterPassword ? "text" : "password"}
                   value={registerForm.password}
                   onChange={(event) =>
                     updateRegisterField("password", event.target.value)
                   }
-                  placeholder={t("pages.login.copy049")}
+                  placeholder={t("login.placeholderSetPassword")}
                   autoComplete="new-password"
+                  required
+                  minLength={6}
+                  maxLength={100}
                 />
                 <button
                   type="button"
                   onClick={() => setShowRegisterPassword((current) => !current)}
+                  aria-label={showRegisterPassword ? t("login.hidePassword") : t("login.showPassword")}
                 >
                   {showRegisterPassword
-                    ? t("pages.admin.data_import.copy053")
-                    : t("pages.login.copy040")}
+                    ? t("login.hideShort")
+                    : t("login.showShort")}
                 </button>
               </label>
               <label className="auth-password">
-                <span>{t("pages.login.copy050")}</span>
+                <span>{t("login.labelConfirmPassword")}</span>
                 <input
                   type={showRegisterConfirmPassword ? "text" : "password"}
                   value={registerForm.confirmPassword}
                   onChange={(event) =>
                     updateRegisterField("confirmPassword", event.target.value)
                   }
-                  placeholder={t("pages.login.copy051")}
+                  placeholder={t("login.placeholderConfirmPassword")}
                   autoComplete="new-password"
+                  required
                 />
                 <button
                   type="button"
                   onClick={() =>
                     setShowRegisterConfirmPassword((current) => !current)
                   }
+                  aria-label={showRegisterConfirmPassword ? t("login.hidePassword") : t("login.showPassword")}
                 >
                   {showRegisterConfirmPassword
-                    ? t("pages.admin.data_import.copy053")
-                    : t("pages.login.copy040")}
+                    ? t("login.hideShort")
+                    : t("login.showShort")}
                 </button>
               </label>
               <div className="auth-strength-row">
-                <span>{t("pages.login.copy041")}</span>
+                <span>{t("login.passwordStrength")}</span>
                 <div className="auth-strength-track">
                   <div
                     className={`auth-strength-fill auth-strength-${passwordScore}`}
+                    role="progressbar"
+                    aria-valuenow={passwordScore}
+                    aria-valuemin={0}
+                    aria-valuemax={4}
                   />
                 </div>
               </div>
@@ -519,24 +581,52 @@ function LoginContent() {
                 disabled={submitting}
               >
                 {submitting
-                  ? t("pages.login.copy052")
-                  : t("pages.login.copy034")}
+                  ? t("login.creatingAccount")
+                  : t("login.register")}
               </button>
             </form>
           )}
 
-          <div className="auth-message">{message}</div>
+          {message && (
+            <div className={`auth-message ${message.includes("失败") || message.includes("failed") || message.includes("错误") || message.includes("错误") || message.includes("不一致") || message.includes("无效") || message.includes("锁定") ? "auth-message-error" : "auth-message-success"}`} role="alert">
+              {message}
+            </div>
+          )}
         </Card>
       </div>
     </div>
   );
 }
 
+function getRoleRedirect(role: UserRole): string {
+  switch (role) {
+    case "admin":
+      return "/admin";
+    case "operator":
+      return "/visualize";
+    case "engineer":
+      return "/workspace";
+    case "viewer":
+      return "/home";
+    default:
+      return "/home";
+  }
+}
+
+function hasExpired(expiresAt?: string): boolean {
+  if (!expiresAt) return true;
+  const parsed = Date.parse(expiresAt);
+  if (Number.isNaN(parsed)) return true;
+  return parsed <= Date.now();
+}
+
 function LoginFallback() {
+  const { t } = useLocale();
   return (
     <div className="auth-shell">
       <div className="loading-state">
-        Loading the enterprise sign-in page...
+        <div className="loading-spinner" aria-hidden />
+        <span>{t("login.loading")}</span>
       </div>
     </div>
   );

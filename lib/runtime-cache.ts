@@ -1,7 +1,5 @@
 "use client";
 
-import { LOCALE_STORAGE_KEY } from "@/lib/locale";
-
 const CACHE_PREFIX = "wheel-hub-runtime-cache:";
 const pendingJsonRequests = new Map<string, Promise<unknown>>();
 
@@ -15,7 +13,7 @@ function canUseStorage() {
 }
 
 export function buildRuntimeCacheKey(scope: string, target: string, token?: string | null) {
-  const locale = typeof window !== "undefined" ? window.localStorage.getItem(LOCALE_STORAGE_KEY) ?? "zh-CN" : "zh-CN";
+  const locale = "zh-CN";
   const actor = token ? token.slice(0, 16) : "anonymous";
   return `${CACHE_PREFIX}${scope}:${locale}:${actor}:${target}`;
 }

@@ -42,7 +42,7 @@ export function useSessionGuard(allowedRoles?: UserRole[]) {
   const router = useRouter();
   const [ready, setReady] = useState(() => canUseCurrentSession(allowedRoles));
   const roleSignature = useMemo(() => (allowedRoles ?? []).map((role) => normalizeRole(role)).join(","), [allowedRoles]);
-  const normalizedRoles = useMemo(() => (allowedRoles ? allowedRoles.map((role) => normalizeRole(role)).filter(Boolean) as UserRole[] : []), [roleSignature]);
+  const normalizedRoles = useMemo(() => (allowedRoles ? allowedRoles.map((role) => normalizeRole(role)).filter(Boolean) as UserRole[] : []), [allowedRoles]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

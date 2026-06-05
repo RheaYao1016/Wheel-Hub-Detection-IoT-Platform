@@ -50,6 +50,31 @@ public class JsonStorageService {
         }
     }
 
+    public synchronized <T> T readValue(String filename, Class<T> valueType, Supplier<T> defaultSupplier) {
+        Path filePath = resolve(filename);
+        if (Files.notExists(filePath)) {
+            T defaults = defaultSupplier.get();
+            writeValue(filename, defaults);
+            return defaults;
+        }
+
+        try {
+            return objectMapper.readValue(filePath.toFile(), valueType);
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to read storage file: " + filePath, exception);
+        }
+    }
+
+    public synchronized <T> void writeValue(String filename, T value) {
+        Path filePath = resolve(filename);
+        try {
+            Files.createDirectories(filePath.getParent());
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(filePath.toFile(), value);
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to write storage file: " + filePath, exception);
+        }
+    }
+
     public Path getDataDirectory() {
         return dataDirectory;
     }

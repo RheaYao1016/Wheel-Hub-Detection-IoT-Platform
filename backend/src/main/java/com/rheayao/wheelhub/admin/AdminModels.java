@@ -47,6 +47,25 @@ public final class AdminModels {
     ) {
     }
 
+    public record DiskMetric(
+        String mount,
+        long total,
+        long used,
+        long free,
+        int usage,
+        String status
+    ) {
+    }
+
+    public record WheelHubRecord(
+        String id,
+        String model,
+        String batch,
+        String timestamp,
+        String status
+    ) {
+    }
+
     public record LoginRequest(String username, String password, String role) {
     }
 

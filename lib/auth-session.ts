@@ -13,27 +13,58 @@ export type StoredAuthSession = {
   expiresAt?: string;
 };
 
+const TOKEN_KEY = "wh_auth_token";
+const USER_KEY = "wh_auth_user";
+const ROLE_KEY = "wh_auth_role";
+const DISPLAY_KEY = "wh_auth_display";
+const EMAIL_KEY = "wh_auth_email";
+const DEPT_KEY = "wh_auth_dept";
+const EXPIRES_KEY = "wh_auth_expires";
+
+function getStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage;
+}
+
 function normalizeRole(role: string | null): UserRole | null {
   if (!role) return null;
   if (role === "user") return "operator";
-  if (role === "admin" || role === "engineer" || role === "operator" || role === "viewer") {
-    return role;
+  const validRoles = ["admin", "engineer", "operator", "viewer"];
+  if (validRoles.includes(role)) {
+    return role as UserRole;
   }
   return null;
 }
 
-export function readStoredAuthSession(): StoredAuthSession | null {
-  if (typeof window === "undefined") return null;
+function parseJwtExpiry(token: string): number | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload.exp ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
-  const role = normalizeRole(window.localStorage.getItem("role"));
-  const token = window.localStorage.getItem("auth_token");
-  const username = window.localStorage.getItem("auth_user");
-  const displayName = window.localStorage.getItem("auth_display_name");
-  const email = window.localStorage.getItem("auth_email") || undefined;
-  const department = window.localStorage.getItem("auth_department") || undefined;
-  const expiresAt = window.localStorage.getItem("auth_expires_at") || undefined;
+export function readStoredAuthSession(): StoredAuthSession | null {
+  const storage = getStorage();
+  if (!storage) return null;
+
+  const role = normalizeRole(storage.getItem(ROLE_KEY));
+  const token = storage.getItem(TOKEN_KEY);
+  const username = storage.getItem(USER_KEY);
+  const displayName = storage.getItem(DISPLAY_KEY);
+  const email = storage.getItem(EMAIL_KEY) || undefined;
+  const department = storage.getItem(DEPT_KEY) || undefined;
+  const expiresAt = storage.getItem(EXPIRES_KEY) || undefined;
 
   if (!role || !token || !username) {
+    return null;
+  }
+
+  if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+    clearAuthSession();
     return null;
   }
 
@@ -49,54 +80,69 @@ export function readStoredAuthSession(): StoredAuthSession | null {
 }
 
 export function storeAuthSession(session: LoginResponse | SessionResponse) {
-  if (typeof window === "undefined" || !session.token || !session.role) return;
+  const storage = getStorage();
+  if (!storage || !session.token || !session.role) return;
 
   clearRuntimeCaches();
 
   const role = normalizeRole(session.role) ?? "operator";
-  window.localStorage.setItem("role", role);
-  window.localStorage.setItem("auth_token", session.token);
-  window.localStorage.setItem("auth_user", session.username);
-  window.localStorage.setItem("auth_display_name", session.displayName);
+  storage.setItem(ROLE_KEY, role);
+  storage.setItem(TOKEN_KEY, session.token);
+  storage.setItem(USER_KEY, session.username);
+  storage.setItem(DISPLAY_KEY, session.displayName || session.username);
+  
   if (session.email) {
-    window.localStorage.setItem("auth_email", session.email);
+    storage.setItem(EMAIL_KEY, session.email);
   } else {
-    window.localStorage.removeItem("auth_email");
+    storage.removeItem(EMAIL_KEY);
   }
+  
   if (session.department) {
-    window.localStorage.setItem("auth_department", session.department);
+    storage.setItem(DEPT_KEY, session.department);
   } else {
-    window.localStorage.removeItem("auth_department");
+    storage.removeItem(DEPT_KEY);
   }
 
-  if (session.expiresAt) {
-    window.localStorage.setItem("auth_expires_at", session.expiresAt);
+  const jwtExpiry = parseJwtExpiry(session.token);
+  const expiryTime = session.expiresAt || (jwtExpiry ? new Date(jwtExpiry).toISOString() : null);
+  if (expiryTime) {
+    storage.setItem(EXPIRES_KEY, expiryTime);
   } else {
-    window.localStorage.removeItem("auth_expires_at");
+    storage.removeItem(EXPIRES_KEY);
   }
 }
 
 export function clearAuthSession() {
-  if (typeof window === "undefined") return;
+  const storage = getStorage();
+  if (!storage) return;
 
   clearRuntimeCaches();
-  window.localStorage.removeItem("role");
-  window.localStorage.removeItem("auth_token");
-  window.localStorage.removeItem("auth_user");
-  window.localStorage.removeItem("auth_display_name");
-  window.localStorage.removeItem("auth_email");
-  window.localStorage.removeItem("auth_department");
-  window.localStorage.removeItem("auth_expires_at");
+  storage.removeItem(ROLE_KEY);
+  storage.removeItem(TOKEN_KEY);
+  storage.removeItem(USER_KEY);
+  storage.removeItem(DISPLAY_KEY);
+  storage.removeItem(EMAIL_KEY);
+  storage.removeItem(DEPT_KEY);
+  storage.removeItem(EXPIRES_KEY);
 }
 
-export function getAuthToken() {
-  return readStoredAuthSession()?.token ?? null;
+export function getAuthToken(): string | null {
+  const session = readStoredAuthSession();
+  return session?.token ?? null;
 }
 
-export function hasExpiredSession() {
+export function hasExpiredSession(): boolean {
   const session = readStoredAuthSession();
   if (!session?.expiresAt) return false;
   return Date.parse(session.expiresAt) <= Date.now();
+}
+
+export function isTokenExpiringSoon(thresholdMinutes: number = 5): boolean {
+  const session = readStoredAuthSession();
+  if (!session?.expiresAt) return false;
+  const expiryTime = Date.parse(session.expiresAt);
+  const thresholdMs = thresholdMinutes * 60 * 1000;
+  return (expiryTime - Date.now()) < thresholdMs;
 }
 
 export function broadcastAuthChange(role: UserRole | null) {

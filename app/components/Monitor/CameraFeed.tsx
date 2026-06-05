@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function CameraFeed() {
-  const videoRefs = [
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-  ];
+  const ref0 = useRef<HTMLVideoElement>(null);
+  const ref1 = useRef<HTMLVideoElement>(null);
+  const ref2 = useRef<HTMLVideoElement>(null);
+  const ref3 = useRef<HTMLVideoElement>(null);
+  const videoRefs = useMemo(() => [ref0, ref1, ref2, ref3], []);
   const [streams, setStreams] = useState<MediaStream[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 

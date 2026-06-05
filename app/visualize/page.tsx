@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "../components/Layout/BackButton";
 import PieChart from "../components/Charts/PieChart";
@@ -18,14 +18,47 @@ import { Badge } from "../components/ui/Badge";
 import { ScrollArea } from "../components/ui/ScrollArea";
 import { useLocale } from "../components/Locale/LocaleProvider";
 
+const REFRESH_INTERVAL_MS = 12000;
+const LOG_SCROLL_INTERVAL_MS = 2400;
+const MAX_LOG_LINES = 12;
+
 export default function VisualizePage() {
   const router = useRouter();
   const ready = useSessionGuard(["admin", "user"]);
   const { text, locale, t } = useLocale();
   const [snapshot, setSnapshot] = useState<CommandCenterSnapshot | null>(null);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const logBoxRef = useRef<HTMLDivElement>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      const payload = await fetchPlatformData<CommandCenterSnapshot>(
+        "/dashboard/command-center",
+        "/api/command-center",
+      );
+      setSnapshot(payload);
+      setLogs(payload.logs.slice(0, MAX_LOG_LINES));
+      setLastRefreshed(new Date());
+      setError("");
+      setIsLoading(false);
+    } catch (requestError) {
+      if (requestError instanceof PlatformAuthError) {
+        clearAuthSession();
+        router.replace("/login");
+        return;
+      }
+      console.error(requestError);
+      setError(t("pages.visualize.dataLoadFailed"));
+      setIsLoading(false);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [router, t]);
 
   useEffect(() => {
     if (!ready) return;
@@ -33,53 +66,32 @@ export default function VisualizePage() {
     let active = true;
 
     const load = async () => {
-      try {
-        const payload = await fetchPlatformData<CommandCenterSnapshot>(
-          "/dashboard/command-center",
-          "/api/command-center",
-        );
-        if (!active) return;
-        setSnapshot(payload);
-        setLogs(payload.logs);
-        setError("");
-      } catch (requestError) {
-        if (!active) return;
-        if (requestError instanceof PlatformAuthError) {
-          clearAuthSession();
-          router.replace("/login");
-          return;
-        }
-        console.error(requestError);
-        setError(
-          text(
-            "指挥中心数据加载失败，请稍后重试。",
-            "Command center data load failed. Please retry later.",
-          ),
-        );
-      }
+      if (!active) return;
+      await loadData();
     };
 
     load();
-    const timer = window.setInterval(load, 12000);
+    const timer = window.setInterval(load, REFRESH_INTERVAL_MS);
 
     return () => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [ready, router]);
+  }, [ready, loadData]);
 
   useEffect(() => {
     if (!snapshot?.logs.length) return;
 
-    setLogs(snapshot.logs);
     const timer = window.setInterval(() => {
       setLogs((previous) => {
-        const nextLine =
-          snapshot.logs[(previous.length + 1) % snapshot.logs.length];
+        const sourceLogs = snapshot.logs;
+        if (sourceLogs.length === 0) return previous;
+        const nextIndex = previous.length % sourceLogs.length;
+        const nextLine = sourceLogs[nextIndex];
         const next = [...previous, nextLine];
-        return next.length > 12 ? next.slice(next.length - 12) : next;
+        return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
       });
-    }, 2400);
+    }, LOG_SCROLL_INTERVAL_MS);
 
     return () => window.clearInterval(timer);
   }, [snapshot]);
@@ -108,7 +120,7 @@ export default function VisualizePage() {
         note: t("pages.visualize.copy009"),
       },
     ],
-    [text],
+    [t],
   );
 
   const workflowSteps = useMemo<WorkflowStep[]>(() => {
@@ -147,20 +159,34 @@ export default function VisualizePage() {
         state: hasQueue || hasLogs ? "done" : "upcoming",
       },
     ];
-  }, [logs.length, snapshot, text]);
+  }, [logs.length, snapshot, t]);
 
   const scrollToSection = (id: string) => {
     const target = document.getElementById(id);
     if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    const headerOffset = 80;
+    const elementPosition = target.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: "smooth",
+    });
+  };
+
+  const formatRefreshTime = (date: Date) => {
+    return date.toLocaleTimeString(locale === "zh-CN" ? "zh-CN" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   };
 
   if (!ready) {
     return (
       <PageLoadFallback
         fallbackHref="/home"
-        title={t("pages.visualize.copy020")}
-        description={t("pages.visualize.copy021")}
+        title={t("pages.visualize.title")}
+        description={t("pages.visualize.subtitle")}
       />
     );
   }
@@ -175,11 +201,13 @@ export default function VisualizePage() {
         steps={workflowSteps}
       />
 
-      <div className="quick-jump-strip">
+      {/* Quick Jump Navigation Strip */}
+      <nav className="quick-jump-strip" aria-label={t("pages.visualize.copy022")}>
         <button
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("cmd-hero")}
+          aria-label={t("pages.visualize.copy024")}
         >
           {t("pages.visualize.copy024")}
         </button>
@@ -187,6 +215,7 @@ export default function VisualizePage() {
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("cmd-quality")}
+          aria-label={t("pages.visualize.copy025")}
         >
           {t("pages.visualize.copy025")}
         </button>
@@ -194,6 +223,7 @@ export default function VisualizePage() {
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("cmd-queue")}
+          aria-label={t("pages.visualize.copy026")}
         >
           {t("pages.visualize.copy026")}
         </button>
@@ -201,11 +231,13 @@ export default function VisualizePage() {
           type="button"
           className="enterprise-secondary-button"
           onClick={() => scrollToSection("cmd-log")}
+          aria-label={t("pages.visualize.copy027")}
         >
           {t("pages.visualize.copy027")}
         </button>
-      </div>
+      </nav>
 
+      {/* Hero Section */}
       <section id="cmd-hero" className="command-hero animate-fade-in-up">
         <div className="command-copy">
           <span className="eyebrow text-gradient">
@@ -219,11 +251,13 @@ export default function VisualizePage() {
             {snapshot?.headline.description ??
               "Build one command entry around quality, throughput, work-orders, and execution logs."}
           </p>
+
+          {/* Story Cards */}
           <div className="command-story-strip">
             {storyCards.map((item, index) => (
               <div
                 key={item.label}
-                className={`command-story-card hover-lift stagger-${index + 1}`}
+                className={`command-story-card hover-lift stagger-${(index % 3) + 1}`}
               >
                 <span>{item.label}</span>
                 <strong className="text-gradient">{item.value}</strong>
@@ -231,11 +265,13 @@ export default function VisualizePage() {
               </div>
             ))}
           </div>
+
+          {/* Metric Tiles */}
           <div className="command-metric-row">
             {snapshot?.metrics.map((metric, index) => (
               <div
                 key={metric.label}
-                className={`command-metric-tile hover-lift stagger-${index + 1}`}
+                className={`command-metric-tile hover-lift stagger-${(index % 4) + 1}`}
               >
                 <span>{metric.label}</span>
                 <strong>{metric.value}</strong>
@@ -243,163 +279,184 @@ export default function VisualizePage() {
               </div>
             )) ?? (
               <div className="loading-state loading-skeleton">
-                {text("正在加载 KPI 指标...", "Loading KPI metrics...")}
+                {t("pages.visualize.loadingKPI")}
               </div>
             )}
           </div>
         </div>
 
+        {/* Operations Scope Card */}
         <Card className="command-hero-visual glow-border animate-scale-in stagger-2">
           <div className="panel-heading">
             <div>
               <span className="panel-kicker">
-                {text("运营边界", "Operations Scope")}
+                {t("pages.visualize.opsScope")}
               </span>
-              <h2>{text("本页职责范围", "Responsibility of this page")}</h2>
+              <h2>{t("pages.visualize.responsibility")}</h2>
             </div>
-            <Badge variant="success">{text("已确认", "Confirmed")}</Badge>
+            <Badge variant="success">{t("pages.visualize.confirmed")}</Badge>
           </div>
           <div className="enterprise-highlight-list">
             <div className="hover-lift">
               <strong className="text-gradient">
-                {text("保留在此", "Keep here")}
+                {t("pages.visualize.keepHere")}
               </strong>
               <p>
-                {text(
-                  "质量构成、总量、趋势、工单队列和执行流应保留在指挥中心统一查看。",
-                  "Quality composition, total volume, trend, work-order queue, and execution stream.",
-                )}
+                {t("pages.visualize.keepHereDesc")}
               </p>
             </div>
             <div className="hover-lift">
               <strong className="text-gradient">
-                {text("移出本页", "Move out")}
+                {t("pages.visualize.moveOut")}
               </strong>
               <p>
-                {text(
-                  "设备健康矩阵、实时告警时间线和三维映射应交给监控页与数字孪生页承载。",
-                  "Device health matrix, real-time alert timeline, and 3D mapping belong to monitor and digital twin pages.",
-                )}
+                {t("pages.visualize.moveOutDesc")}
               </p>
             </div>
             <div className="hover-lift">
               <strong className="text-gradient">
-                {text("建议路径", "Suggested route")}
+                {t("pages.visualize.suggestedRoute")}
               </strong>
               <p>
-                {text(
-                  "先在这里建立全局判断，再跳转到监控页、数字孪生页或后台做深入诊断和治理动作。",
-                  "Start here, then jump to monitor/twin/admin for deeper diagnosis and governance actions.",
-                )}
+                {t("pages.visualize.suggestedRouteDesc")}
               </p>
             </div>
           </div>
         </Card>
       </section>
 
+      {/* Error State */}
       {error ? (
-        <div className="empty-state animate-scale-in">
+        <div className="empty-state animate-scale-in" role="alert">
           <span>!</span>
-          {error}
+          <p>{error}</p>
+          <button
+            type="button"
+            className="enterprise-secondary-button mt-4"
+            onClick={loadData}
+          >
+            {t("common.refresh")}
+          </button>
         </div>
       ) : null}
 
+      {/* Charts Row - Quality & Throughput */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        {/* Quality Pie Chart */}
         <Card
           id="cmd-quality"
-          className="xl:col-span-4 chart-card animate-fade-in-up stagger-1"
+          className="xl:col-span-5 lg:col-span-6 chart-card animate-fade-in-up stagger-1"
         >
           <div className="panel-heading">
             <div>
               <span className="panel-kicker">
-                {text("质量构成", "Quality Mix")}
+                {t("pages.visualize.qualityMix")}
               </span>
-              <h2>{text("质量构成概览", "Quality composition overview")}</h2>
+              <h2>{t("pages.visualize.qualityOverview")}</h2>
             </div>
           </div>
           <div className="chart-body">
-            {snapshot ? (
+            {snapshot && !isLoading ? (
               <PieChart
-                title={text("质量构成", "Quality Mix")}
+                title={t("pages.visualize.qualityMix")}
                 data={snapshot.quality}
+                height="340px"
               />
             ) : (
-              <div className="loading-state loading-skeleton">
-                {text("正在加载图表...", "Loading chart...")}
+              <div className="loading-state loading-skeleton chart-skeleton">
+                <div className="skeleton-pulse" />
+                <p>{t("pages.visualize.loadingChart")}</p>
               </div>
             )}
           </div>
         </Card>
 
+        {/* Throughput Line Chart */}
         <Card
           id="cmd-throughput"
-          className="xl:col-span-8 chart-card animate-fade-in-up stagger-2"
+          className="xl:col-span-7 lg:col-span-6 chart-card animate-fade-in-up stagger-2"
         >
           <div className="panel-heading">
             <div>
               <span className="panel-kicker">
-                {text("30 天吞吐趋势", "30 Day Throughput")}
+                {t("pages.visualize.throughputTrend")}
               </span>
-              <h2>{text("最近 30 天检测趋势", "Last 30 days inspection trend")}</h2>
+              <h2>{t("pages.visualize.last30Days")}</h2>
             </div>
-            <Badge variant="outline">
-              {text("每 12 秒自动刷新", "Auto refresh every 12s")}
-            </Badge>
+            <div className="panel-actions">
+              <Badge variant="outline">
+                {t("pages.visualize.autoRefresh")}
+              </Badge>
+              {lastRefreshed && (
+                <span className="refresh-timestamp">
+                  {t("common.now")}: {formatRefreshTime(lastRefreshed)}
+                </span>
+              )}
+              {isRefreshing && <span className="refresh-spinner" />}
+            </div>
           </div>
           <div className="chart-body">
-            {snapshot ? (
-              <LineChart data={snapshot.trend} />
+            {snapshot && !isLoading ? (
+              <LineChart
+                data={snapshot.trend}
+                height="340px"
+              />
             ) : (
-              <div className="loading-state loading-skeleton">
-                {text("正在加载趋势...", "Loading trend...")}
+              <div className="loading-state loading-skeleton chart-skeleton">
+                <div className="skeleton-pulse" />
+                <p>{t("pages.visualize.loadingTrend")}</p>
               </div>
             )}
           </div>
         </Card>
       </div>
 
+      {/* Queue & Decision Notes Row */}
       <div id="cmd-queue" className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <Card className="xl:col-span-5 animate-fade-in-up stagger-3">
+        {/* Live Queue */}
+        <Card className="xl:col-span-5 lg:col-span-6 animate-fade-in-up stagger-3">
           <div className="panel-heading">
             <div>
               <span className="panel-kicker">
-                {text("实时队列", "Live Queue")}
+                {t("pages.visualize.liveQueue")}
               </span>
-              <h2>{text("实时工单队列", "Real-time work-order queue")}</h2>
+              <h2>{t("pages.visualize.liveQueueTitle")}</h2>
             </div>
             <Badge variant="outline">
-              {text("滚动显示当前批次", "Rolling current batches")}
+              {t("pages.visualize.rollingBatches")}
             </Badge>
           </div>
           <ScrollArea className="h-[400px]">
             <div className="live-queue pr-4">
-              {snapshot?.liveProjects.map((project, index) => (
-                <div
-                  key={project.id}
-                  className={`live-queue-item hover-lift stagger-${index + 1}`}
-                >
-                  <div>
-                    <strong>{project.id}</strong>
-                    <span>
-                      {project.stage} / {project.model}
-                    </span>
+              {snapshot?.liveProjects?.length ? (
+                snapshot.liveProjects.map((project, index) => (
+                  <div
+                    key={project.id}
+                    className={`live-queue-item hover-lift stagger-${(index % 6) + 1}`}
+                  >
+                    <div>
+                      <strong>{project.id}</strong>
+                      <span>
+                        {project.stage} / {project.model}
+                      </span>
+                    </div>
+                    <div className="live-queue-meta">
+                      <span>{project.eta}</span>
+                      <Badge
+                        variant={
+                          project.result === "FAIL"
+                            ? "destructive"
+                            : project.result === "PASS"
+                              ? "success"
+                              : "secondary"
+                        }
+                      >
+                        {project.result || t("pages.visualize.copy028")}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="live-queue-meta">
-                    <span>{project.eta}</span>
-                    <Badge
-                      variant={
-                        project.result === "FAIL"
-                          ? "destructive"
-                          : project.result === "PASS"
-                            ? "success"
-                            : "secondary"
-                      }
-                    >
-                      {project.result || t("pages.visualize.copy028")}
-                    </Badge>
-                  </div>
-                </div>
-              )) ?? (
+                ))
+              ) : (
                 <div className="loading-state loading-skeleton">
                   {t("pages.visualize.copy029")}
                 </div>
@@ -408,77 +465,69 @@ export default function VisualizePage() {
           </ScrollArea>
         </Card>
 
-        <Card className="xl:col-span-7 animate-fade-in-up stagger-4">
+        {/* Decision Notes */}
+        <Card className="xl:col-span-7 lg:col-span-6 animate-fade-in-up stagger-4">
           <div className="panel-heading">
             <div>
               <span className="panel-kicker">
-                {text("决策提示", "Decision Notes")}
+                {t("pages.visualize.decisionNotes")}
               </span>
-              <h2>{text("建议的下一步动作", "Recommended next actions")}</h2>
+              <h2>{t("pages.visualize.nextActions")}</h2>
             </div>
           </div>
           <div className="enterprise-highlight-list">
             <div className="hover-lift">
               <strong className="text-gradient">
-                {text("先看质量构成", "Start from quality mix")}
+                {t("pages.visualize.startFromQuality")}
               </strong>
               <p>
-                {text(
-                  "如果不合格比例上升，优先进入监控页查看告警流与现场视频证据。",
-                  "If fail ratio rises, enter monitoring page first to inspect alert stream and live camera evidence.",
-                )}
+                {t("pages.visualize.startFromQualityDesc")}
               </p>
             </div>
             <div className="hover-lift">
               <strong className="text-gradient">
-                {text("再看趋势变化", "Then inspect trend shift")}
+                {t("pages.visualize.inspectTrend")}
               </strong>
               <p>
-                {text(
-                  "在质量稳定但吞吐下降时，通常意味着节拍、缓存或检测流程出现瓶颈。",
-                  "Throughput drop with stable quality often means cycle-time, cache, or inspection workflow bottleneck.",
-                )}
+                {t("pages.visualize.inspectTrendDesc")}
               </p>
             </div>
             <div className="hover-lift">
               <strong className="text-gradient">
-                {text("最后检查队列流向", "Finally check queue flow")}
+                {t("pages.visualize.checkQueue")}
               </strong>
               <p>
-                {text(
-                  "队列可帮助识别复检积压、模型切换影响以及具体工序的堵点。",
-                  "Queue helps identify recheck backlog, model switch impact, and stage-level blockage.",
-                )}
+                {t("pages.visualize.checkQueueDesc")}
               </p>
             </div>
           </div>
         </Card>
       </div>
 
+      {/* Execution Log */}
       <Card id="cmd-log" className="animate-scale-in stagger-5">
         <div className="panel-heading">
           <div>
             <span className="panel-kicker">
-              {text("执行日志", "Execution Log")}
+              {t("pages.visualize.executionLog")}
             </span>
-            <h2>{text("实时执行流", "Real-time execution stream")}</h2>
+            <h2>{t("pages.visualize.executionStream")}</h2>
           </div>
           <Badge variant="outline">
-            {text(
-              "设备 / 工单 / 算法链路模拟",
-              "Device / work-order / algorithm chain simulation",
-            )}
+            {t("pages.visualize.logSimulation")}
           </Badge>
         </div>
         <ScrollArea className="h-[200px]">
-          <div ref={logBoxRef} className="logbox command-logbox pr-4">
+          <div ref={logBoxRef} className="logbox command-logbox pr-4" role="log" aria-live="polite">
             {logs.length ? (
               logs.map((line, index) => (
-                <div key={`${line}-${index}`}>{line}</div>
+                <div key={`${line}-${index}`} className="log-entry">
+                  {line}
+                </div>
               ))
             ) : (
               <div className="loading-state loading-skeleton">
-                {text("正在初始化日志...", "Initializing logs...")}
+                {t("pages.visualize.loadingLogs")}
               </div>
             )}
           </div>

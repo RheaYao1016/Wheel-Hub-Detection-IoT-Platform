@@ -1146,7 +1146,7 @@ def has_keywords(text: str, keywords: list[str]) -> bool:
 
 def localize_domain_name(domain_key: str, locale: str) -> str:
     names = {
-        "wheel_hub": {"zh-CN": "轮毂检测", "en-US": "Wheel Hub Inspection"},
+        "wheel_hub": {"zh-CN": "工业表面缺陷检测", "en-US": "Industrial Surface Defect Detection"},
         "bridge_cable": {"zh-CN": "桥梁拉索检测", "en-US": "Bridge Cable Inspection"},
         "weld_joint": {"zh-CN": "焊缝检测", "en-US": "Weld Joint Inspection"},
         "general_asset": {"zh-CN": "通用资产检测", "en-US": "General Asset Inspection"},

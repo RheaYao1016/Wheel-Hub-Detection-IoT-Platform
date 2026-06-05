@@ -66,3 +66,34 @@ resourse/
 installer/*.exe
 installer/output/
 
+# playwright e2e test results
+/e2e/test-results/
+/playwright-report/
+/test-results/
+/blob-report/
+
+# deploy scripts (generated during deployment)
+/deploy*.ps1
+/deploy*.bat
+/check*.ps1
+/debug*.ps1
+/fix*.ps1
+/deploy/
+/deploy_*
+*.ps1
+
+# standalone build output
+/.next-app/
+
+# testing and build artifacts
+/.testing/
+/build_check.txt
+/.m2/
+
+# IDE specific
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
