@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { navigateWithTransition } from "@/lib/navigation-transition";
 import { useLocale } from "../Locale/LocaleProvider";
+import { cn } from "@/lib/utils";
 
 interface BackButtonProps {
   label?: string;
@@ -18,8 +20,9 @@ export default function BackButton({
   variant = "fixed",
 }: BackButtonProps) {
   const router = useRouter();
-  const { text } = useLocale();
-  const resolvedLabel = label ?? text("返回", "Back");
+  const { t, text } = useLocale();
+  const resolvedLabel =
+    label ?? t("common.back", undefined, text("返回", "Back"));
 
   const handleClick = () => {
     if (
@@ -37,18 +40,18 @@ export default function BackButton({
     }
   };
 
-  const variantClass = variant === "fixed" ? "floating-back-button" : "";
-
   return (
     <button
       type="button"
       onClick={handleClick}
-      className={`group flex items-center gap-2 rounded-full border border-[rgba(91,189,247,0.35)] bg-[rgba(4,22,41,0.85)] px-4 py-1.5 text-xs font-semibold text-[rgba(232,243,255,0.95)] shadow-[0_12px_24px_rgba(0,0,0,0.35)] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(91,189,247,0.75)] hover:border-[rgba(91,189,247,0.6)] hover:text-white md:text-sm ${variantClass} ${className}`}
+      className={cn(
+        "group inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-4 py-1.5 text-xs font-semibold text-muted-foreground shadow-card transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:text-sm",
+        variant === "fixed" && "fixed left-4 top-20 z-40",
+        className
+      )}
       aria-label={resolvedLabel}
     >
-      <span aria-hidden className="text-base text-[var(--accent)] transition group-hover:-translate-x-0.5">
-        {"<"}
-      </span>
+      <ArrowLeft className="h-3.5 w-3.5 transition group-hover:-translate-x-0.5" />
       {resolvedLabel}
     </button>
   );

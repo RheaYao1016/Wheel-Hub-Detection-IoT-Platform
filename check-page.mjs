@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+const url = process.argv[2] || 'http://118.31.164.41:8080/wheelhub/login';
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage();
+page.on('pageerror', e => console.log('PAGEERROR:', e.message));
+page.on('console', msg => console.log('CONSOLE', msg.type(), msg.text()));
+await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+const html = await page.content();
+console.log('TITLE:', await page.title());
+console.log('BODY_LENGTH:', html.length);
+console.log('BODY_FIRST_500:', html.slice(0,500));
+await page.screenshot({ path: '/tmp/wheelhub-login.png' });
+await browser.close();

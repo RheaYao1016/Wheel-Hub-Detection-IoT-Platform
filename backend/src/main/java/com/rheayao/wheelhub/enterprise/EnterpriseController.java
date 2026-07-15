@@ -3,6 +3,7 @@ package com.rheayao.wheelhub.enterprise;
 import com.rheayao.wheelhub.auth.AuthInterceptor;
 import com.rheayao.wheelhub.auth.AuthSession;
 import com.rheayao.wheelhub.common.ApiEnvelope;
+import com.rheayao.wheelhub.common.UnauthorizedException;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.CreateAnalysisJobRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.CreateAnnotationProjectRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.CreateChatSessionRequest;
@@ -14,6 +15,7 @@ import com.rheayao.wheelhub.enterprise.EnterpriseModels.ProviderTestRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.SaveAnnotationLabelRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.SendChatMessageRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingActionRequest;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.UpdateAssistantProtocolSettingsRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.UpdateChatSessionProfileRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -60,6 +62,39 @@ public class EnterpriseController {
     public ApiEnvelope<?> listPromptPresets(HttpServletRequest request) {
         requireAnyRole(request, "admin", "engineer", "operator", "viewer", "user");
         return ApiEnvelope.ok("AI prompt presets loaded.", enterprisePlatformService.listPromptPresets());
+    }
+
+    @GetMapping("/ai/protocol/spec")
+    public ApiEnvelope<?> getAssistantProtocolSpec(HttpServletRequest request) {
+        requireAnyRole(request, "admin", "engineer", "operator", "viewer", "user");
+        return ApiEnvelope.ok("Assistant protocol spec loaded.", enterprisePlatformService.getAssistantProtocolSpec());
+    }
+
+    @GetMapping("/ai/protocol/settings")
+    public ApiEnvelope<?> getAssistantProtocolSettings(HttpServletRequest request) {
+        requireAnyRole(request, "admin", "engineer", "operator", "viewer", "user");
+        return ApiEnvelope.ok("Assistant protocol settings loaded.", enterprisePlatformService.getAssistantProtocolSettings());
+    }
+
+    @PostMapping("/ai/protocol/settings")
+    public ApiEnvelope<?> updateAssistantProtocolSettings(
+        @RequestBody UpdateAssistantProtocolSettingsRequest requestBody,
+        HttpServletRequest request
+    ) {
+        AuthSession session = requireAnyRole(request, "admin", "engineer");
+        return ApiEnvelope.ok(
+            "Assistant protocol settings updated.",
+            enterprisePlatformService.updateAssistantProtocolSettings(requestBody, session)
+        );
+    }
+
+    @GetMapping("/ai/index-catalog")
+    public ApiEnvelope<?> getAssistantIndexCatalog(
+        @RequestParam(value = "lookbackDays", required = false) Integer lookbackDays,
+        HttpServletRequest request
+    ) {
+        requireAnyRole(request, "admin", "engineer", "operator", "viewer", "user");
+        return ApiEnvelope.ok("Assistant index catalog loaded.", enterprisePlatformService.getAssistantIndexCatalog(lookbackDays));
     }
 
     @PostMapping("/ai/providers")
@@ -277,7 +312,7 @@ public class EnterpriseController {
     private AuthSession requireAnyRole(HttpServletRequest request, String... roles) {
         AuthSession session = (AuthSession) request.getAttribute(AuthInterceptor.AUTH_SESSION_ATTRIBUTE);
         if (session == null) {
-            throw new IllegalStateException("No authenticated session was found");
+            throw new UnauthorizedException("No authenticated session was found");
         }
         List<String> allowed = List.of(roles);
         String normalizedRole = "user".equals(session.role()) ? "operator" : session.role();

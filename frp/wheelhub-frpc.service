@@ -1,0 +1,13 @@
+[Unit]
+Description=WheelHub FRP Client Tunnel
+After=network-online.target ai-website-frp-tunnel.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/jarvis/Projects/Wheel-Hub-Detection-IoT-Platform/frp/frpc -c /home/jarvis/Projects/Wheel-Hub-Detection-IoT-Platform/frp/frpc.toml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

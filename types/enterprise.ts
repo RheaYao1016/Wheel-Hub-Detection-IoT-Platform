@@ -71,6 +71,27 @@ export type AssistantAction = {
   confidence: number;
 };
 
+export type AssistantProtocolOption = {
+  id: string;
+  label: string;
+  description: string;
+};
+
+export type AssistantProtocolCommand = {
+  raw: string;
+  displayText: string;
+  version: string;
+  intentCategory: string;
+  responseKind: string;
+  indexes: string[];
+  targetTypes: string[];
+  route: string;
+  authorizationMode: string;
+  highlightMode: string;
+  options: AssistantProtocolOption[];
+  payload: Record<string, string>;
+};
+
 export type ChatMessage = {
   id: string;
   sessionId: string;
@@ -83,6 +104,8 @@ export type ChatMessage = {
   sourceRefs: string[];
   intentAssessment: IntentAssessment | null;
   actions: AssistantAction[];
+  responseProtocolRaw: string;
+  responseProtocol: AssistantProtocolCommand | null;
 };
 
 export type AnalysisResult = {
@@ -93,6 +116,11 @@ export type AnalysisResult = {
   evidence: Array<{ label: string; detail: string }>;
   riskLevel: string;
   confidence: number;
+  inspectionDomain?: string;
+  riskScore?: number;
+  metrics?: Array<{ label: string; value: number }>;
+  chartSeries?: Array<{ name: string; value: number }>;
+  sourceSummary?: string;
   tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
   sourceRefs: string[];
   appliedStrategy: string;

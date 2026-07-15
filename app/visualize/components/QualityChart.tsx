@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import PieChart from "@/app/components/Charts/PieChart";
+import { getApiPath } from "@/lib/api-path";
 
 export default function QualityChart() {
   const [data, setData] = useState<Array<{ name: string; value: number }>>([]);
 
   useEffect(() => {
-    fetch("/api/statistics?type=quality")
+    fetch(getApiPath("/api/statistics?type=quality"))
       .then((res) => res.json())
       .then((d) =>
         setData([

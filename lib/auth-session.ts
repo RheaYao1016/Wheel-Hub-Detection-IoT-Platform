@@ -96,7 +96,9 @@ export function getAuthToken() {
 export function hasExpiredSession() {
   const session = readStoredAuthSession();
   if (!session?.expiresAt) return false;
-  return Date.parse(session.expiresAt) <= Date.now();
+  const parsed = Date.parse(session.expiresAt);
+  if (Number.isNaN(parsed)) return true;
+  return parsed <= Date.now();
 }
 
 export function broadcastAuthChange(role: UserRole | null) {

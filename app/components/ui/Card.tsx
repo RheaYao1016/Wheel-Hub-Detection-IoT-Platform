@@ -10,24 +10,23 @@ const Card = React.forwardRef<
 >(({ className, variant = "default", interactive = false, ...props }, ref) => {
   const variants = {
     default:
-      "bg-[var(--card-bg)] border border-[var(--card-border)] backdrop-blur-xl",
+      "bg-card border border-border text-card-foreground shadow-card backdrop-blur-xl",
     glass:
-      "bg-[var(--card-bg)]/60 border border-[var(--ring-soft)] backdrop-blur-2xl",
+      "bg-card/55 border border-border/60 text-card-foreground shadow-card backdrop-blur-2xl",
     elevated:
-      "bg-[var(--surface-elevated)] border border-[var(--ring-strong)] shadow-2xl",
+      "bg-card border border-border text-card-foreground shadow-card-hover",
     bordered:
-      "bg-transparent border-2 border-[var(--accent)]/30",
+      "bg-transparent border-2 border-primary/30 text-card-foreground",
   };
 
   return (
     <div
       ref={ref}
       className={cn(
-        "rounded-[var(--card-radius)] p-[var(--card-padding)] shadow-[var(--shadow-strong)]",
-        "transition-all duration-300 ease-out",
+        "rounded-lg p-6 transition-all duration-300 ease-out",
         variants[variant],
         interactive &&
-          "cursor-pointer hover:scale-[1.01] hover:shadow-2xl hover:border-[var(--accent)]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2",
+          "cursor-pointer hover:scale-[1.01] hover:border-primary/40 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className
       )}
       {...props}
@@ -55,7 +54,7 @@ const CardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "text-xl font-bold leading-none tracking-tight text-[var(--text-primary)]",
+      "text-lg font-semibold leading-none tracking-tight",
       className
     )}
     {...props}
@@ -69,7 +68,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn("text-sm text-[var(--text-secondary)]", className)}
+    className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />
 ));

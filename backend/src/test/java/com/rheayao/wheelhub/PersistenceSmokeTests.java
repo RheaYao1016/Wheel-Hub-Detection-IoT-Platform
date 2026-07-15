@@ -26,11 +26,11 @@ class PersistenceSmokeTests {
     void registeredUserPersistsAcrossServiceReload() {
         JsonStorageService storageService = new JsonStorageService(new ObjectMapper(), tempDirectory.toString());
         SessionService sessionService = new SessionService(storageService, java.time.Clock.systemUTC(), 12);
-        AuthService authService = new AuthService(storageService, sessionService);
+        AuthService authService = new AuthService(storageService, sessionService, true);
 
         authService.register(new RegisterRequest("persist-admin", "持久化管理员", "persist-admin@platform.local", "平台治理中心", "secret123", "secret123", "admin"));
 
-        AuthService reloadedAuthService = new AuthService(storageService, new SessionService(storageService, java.time.Clock.systemUTC(), 12));
+        AuthService reloadedAuthService = new AuthService(storageService, new SessionService(storageService, java.time.Clock.systemUTC(), 12), true);
         var response = reloadedAuthService.login(new LoginRequest("persist-admin", "secret123", "admin"));
 
         assertTrue(response.success());
@@ -80,13 +80,13 @@ class PersistenceSmokeTests {
     void sessionPersistsAcrossServiceReloadUntilLogout() {
         JsonStorageService storageService = new JsonStorageService(new ObjectMapper(), tempDirectory.toString());
         SessionService sessionService = new SessionService(storageService, java.time.Clock.systemUTC(), 12);
-        AuthService authService = new AuthService(storageService, sessionService);
+        AuthService authService = new AuthService(storageService, sessionService, true);
 
         var loginResponse = authService.login(new LoginRequest("admin-demo", "admin123", "admin"));
         assertTrue(loginResponse.success());
 
         String authorizationHeader = "Bearer " + loginResponse.token();
-        var reloadedAuthService = new AuthService(storageService, new SessionService(storageService, java.time.Clock.systemUTC(), 12));
+        var reloadedAuthService = new AuthService(storageService, new SessionService(storageService, java.time.Clock.systemUTC(), 12), true);
         var sessionResponse = reloadedAuthService.currentSession(authorizationHeader);
         assertTrue(sessionResponse.authenticated());
         assertEquals("admin", sessionResponse.role());

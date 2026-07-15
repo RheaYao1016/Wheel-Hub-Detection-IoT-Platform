@@ -7,6 +7,8 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export default function ModelViewer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -16,6 +18,7 @@ export default function ModelViewer() {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const container = containerRef.current;
 
     // 初始化场景
     const scene = new THREE.Scene();
@@ -24,7 +27,7 @@ export default function ModelViewer() {
     // 初始化摄像机
     const camera = new THREE.PerspectiveCamera(
       45,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      container.clientWidth / container.clientHeight,
       0.01,
       100000
     );
@@ -34,14 +37,14 @@ export default function ModelViewer() {
     // 初始化渲染器
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(
-      containerRef.current.clientWidth,
-      containerRef.current.clientHeight
+      container.clientWidth,
+      container.clientHeight
     );
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.BasicShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace as any;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    containerRef.current.appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
     // 添加灯光
@@ -55,17 +58,17 @@ export default function ModelViewer() {
 
     // 加载环境贴图
     const loaderRGB = new RGBELoader();
-    loaderRGB.load("/models/20.hdr", (texture) => {
+    loaderRGB.load(`${BASE_PATH}/models/20.hdr`, (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping;
       scene.environment = texture;
     });
 
     // 加载GLB模型
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath("/draco/");
+    dracoLoader.setDecoderPath(`${BASE_PATH}/draco/`);
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
-    loader.load("/models/1.glb", (gltf) => {
+    loader.load(`${BASE_PATH}/models/1.glb`, (gltf) => {
       scene.add(gltf.scene);
     });
 
@@ -89,12 +92,12 @@ export default function ModelViewer() {
     const handleResize = () => {
       if (!containerRef.current || !camera || !renderer) return;
       camera.aspect =
-        containerRef.current.clientWidth /
-        containerRef.current.clientHeight;
+        container.clientWidth /
+        container.clientHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(
-        containerRef.current.clientWidth,
-        containerRef.current.clientHeight
+        container.clientWidth,
+        container.clientHeight
       );
     };
     window.addEventListener("resize", handleResize);
@@ -102,8 +105,8 @@ export default function ModelViewer() {
     // 清理
     return () => {
       window.removeEventListener("resize", handleResize);
-      if (renderer && containerRef.current) {
-        containerRef.current.removeChild(renderer.domElement);
+      if (renderer && container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
       }
       renderer.dispose();
     };

@@ -1,49 +1,47 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  Eye,
+  Monitor,
+  Radio,
+  Video,
+  Wrench,
+} from "lucide-react";
 import BackButton from "../components/Layout/BackButton";
 import Card from "../components/Layout/Card";
-import WorkflowSteps, {
-  type WorkflowStep,
-} from "../components/Layout/WorkflowSteps";
-import CoreFlowHeader, {
-  type CoreFlowMetric,
-  type CoreFlowStage,
-} from "../components/Layout/CoreFlowHeader";
+import EmptyStateCard from "../components/Layout/EmptyStateCard";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
+import TaskSection from "../components/Layout/TaskSection";
+import WorkflowHero from "../components/Layout/WorkflowHero";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Progress } from "../components/ui/Progress";
 import { PlatformAuthError, fetchPlatformData } from "@/lib/dashboard-client";
 import { clearAuthSession } from "@/lib/auth-session";
 import { useSessionGuard } from "../hooks/useSessionGuard";
+import { useLocale } from "../components/Locale/LocaleProvider";
 import type { MonitorSnapshot } from "@/types/platform";
 
-function resolveAlertTone(level: string, index: number) {
-  const normalized = level.toLowerCase();
-  if (
-    normalized.includes("critical") ||
-    normalized.includes("high") ||
-    normalized.includes("p1")
-  ) {
-    return "status-danger";
-  }
-  if (normalized.includes("low") || normalized.includes("p3")) {
-    return "status-success";
-  }
-  if (index === 0) {
-    return "status-danger";
-  }
-  return "status-warning";
+function resolveAlertVariant(level: string) {
+  if (level === "高") return "destructive" as const;
+  if (level === "中") return "warning" as const;
+  return "secondary" as const;
 }
 
-function resolveDeviceTone(temperature: number) {
-  if (temperature >= 68) return "status-danger";
-  if (temperature >= 58) return "status-warning";
-  return "status-success";
+function resolveDeviceVariant(temperature: number) {
+  if (temperature >= 68) return "destructive" as const;
+  if (temperature >= 58) return "warning" as const;
+  return "success" as const;
 }
 
 export default function MonitorPage() {
   const router = useRouter();
-  const ready = useSessionGuard(["admin", "user"]);
+  const ready = useSessionGuard(["admin", "operator"]);
+  const { text, t } = useLocale();
   const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null);
   const [error, setError] = useState("");
   const [cameraToast, setCameraToast] = useState<string | null>(null);
@@ -55,6 +53,7 @@ export default function MonitorPage() {
     if (!ready) return;
 
     let active = true;
+    const currentVideoRefs = videoRefs.current;
 
     const load = async () => {
       try {
@@ -73,24 +72,24 @@ export default function MonitorPage() {
           return;
         }
         console.error(requestError);
-        setError(
-          "Monitoring data is temporarily unavailable. Please retry in a moment.",
-        );
+        setError(t("pages.monitor.copy001"));
       }
     };
 
     load().catch(console.error);
-    const timer = window.setInterval(load, 12000);
+    const timer = window.setInterval(() => {
+      load().catch(console.error);
+    }, 12000);
 
     return () => {
       active = false;
       window.clearInterval(timer);
-      videoRefs.current.forEach((video) => {
+      currentVideoRefs.forEach((video) => {
         const stream = video?.srcObject as MediaStream | undefined;
         stream?.getTracks().forEach((track) => track.stop());
       });
     };
-  }, [ready, router]);
+  }, [ready, router, t]);
 
   useEffect(() => {
     if (!cameraToast) return;
@@ -117,106 +116,8 @@ export default function MonitorPage() {
   }, [activeAlertLevel, snapshot]);
 
   const previewCount = Object.keys(openedPreviews).length;
-
-  const workflowSteps = useMemo<WorkflowStep[]>(() => {
-    const hasSnapshot = Boolean(snapshot);
-    const alertCount = snapshot?.alerts.length ?? 0;
-    const deviceCount = snapshot?.devices.length ?? 0;
-
-    return [
-      {
-        id: "monitor-step-overview",
-        title: "Review summary",
-        detail: hasSnapshot ? "Snapshot is ready for this shift" : "Waiting for feed",
-        state: hasSnapshot ? "done" : "active",
-      },
-      {
-        id: "monitor-step-cameras",
-        title: "Open camera previews",
-        detail:
-          previewCount > 0
-            ? `${previewCount} local preview(s) opened`
-            : "Start at least one preview for visual validation",
-        state: previewCount > 0 ? "done" : hasSnapshot ? "active" : "upcoming",
-      },
-      {
-        id: "monitor-step-alerts",
-        title: "Triage alert queue",
-        detail: alertCount ? `${alertCount} event(s) in queue` : "No pending events",
-        state: alertCount ? "active" : hasSnapshot ? "done" : "upcoming",
-      },
-      {
-        id: "monitor-step-devices",
-        title: "Confirm device health",
-        detail: deviceCount ? `${deviceCount} nodes to verify` : "Waiting for device stream",
-        state: deviceCount ? "active" : "upcoming",
-      },
-    ];
-  }, [previewCount, snapshot]);
-
-  const coreMetrics = useMemo<CoreFlowMetric[]>(() => {
-    return [
-      {
-        label: "Camera channels",
-        value: String(snapshot?.cameras.length ?? 0),
-        note: "Live wall channels available for operator inspection.",
-      },
-      {
-        label: "Preview sessions",
-        value: String(previewCount),
-        note: "Opened local video previews for this shift.",
-      },
-      {
-        label: "Alert queue",
-        value: String(snapshot?.alerts.length ?? 0),
-        note: "Events requiring triage by shift lead and line engineers.",
-      },
-      {
-        label: "Tracked devices",
-        value: String(snapshot?.devices.length ?? 0),
-        note: "Machine nodes mapped to this monitor domain.",
-      },
-    ];
-  }, [previewCount, snapshot]);
-
-  const coreStages = useMemo<CoreFlowStage[]>(() => {
-    const hasSnapshot = Boolean(snapshot);
-    const hasAlerts = (snapshot?.alerts.length ?? 0) > 0;
-    const hasDevices = (snapshot?.devices.length ?? 0) > 0;
-
-    return [
-      {
-        id: "monitor-core-observe",
-        title: "Observe camera wall",
-        detail: hasSnapshot
-          ? "Use channel previews to validate actual line condition."
-          : "Waiting for monitoring feed.",
-        state: hasSnapshot ? "done" : "active",
-      },
-      {
-        id: "monitor-core-diagnose",
-        title: "Diagnose alert context",
-        detail: hasAlerts
-          ? "Prioritize by severity, station and timestamp."
-          : "No pending alerts in current queue.",
-        state: hasAlerts ? "active" : hasSnapshot ? "done" : "upcoming",
-      },
-      {
-        id: "monitor-core-act",
-        title: "Act on device health",
-        detail: hasDevices
-          ? "Validate utilization and thermal risk for each asset."
-          : "Device telemetry is still loading.",
-        state: hasDevices ? "active" : "upcoming",
-      },
-      {
-        id: "monitor-core-close",
-        title: "Close with escalation",
-        detail: "Escalate spatial or process root-cause to Digital Twin when needed.",
-        state: hasSnapshot ? "upcoming" : "upcoming",
-      },
-    ];
-  }, [snapshot]);
+  const onlineCount =
+    snapshot?.cameras.filter((camera) => camera.status === "在线").length ?? 0;
 
   const startCamera = async (index: number) => {
     const target = videoRefs.current[index];
@@ -228,338 +129,300 @@ export default function MonitorPage() {
       await target.play();
       setOpenedPreviews((previous) => ({ ...previous, [index]: true }));
 
-      const title = snapshot?.cameras[index]?.title ?? `Camera ${index + 1}`;
-      setCameraToast(`Preview connected: ${title}`);
+      const title =
+        snapshot?.cameras[index]?.title ??
+        t("pages.monitor.copy033", { p1: index + 1 }, `Camera ${index + 1}`);
+      setCameraToast(
+        t("pages.monitor.copy034", { p1: title }, `${title} preview started.`),
+      );
     } catch (requestError) {
       console.error(requestError);
-      setCameraToast("Camera preview failed. Check browser media permissions.");
+      setCameraToast(t("pages.monitor.copy035", undefined, "Unable to start camera preview."));
     }
-  };
-
-  const scrollToSection = (id: string) => {
-    const target = document.getElementById(id);
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   if (!ready) {
     return (
       <PageLoadFallback
         fallbackHref="/operations"
-        title="Loading Monitoring Center"
-        description="Preparing the live camera wall and triage workspace..."
+        title={t("pages.monitor.copy036")}
+        description={t("pages.monitor.copy037")}
       />
     );
   }
 
   return (
-    <div className="page-shell monitor-shell pt-0 pb-10">
-      <BackButton fallbackHref="/operations" />
-
-      <WorkflowSteps
-        title="Monitoring Flow"
-        subtitle="Use this order to keep incident handling consistent across shifts."
-        steps={workflowSteps}
-      />
-
-      <div className="quick-jump-strip">
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("monitor-core")}
-        >
-          Core Flow
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("monitor-lanes")}
-        >
-          Action Lanes
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("monitor-cameras")}
-        >
-          Camera Wall
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("monitor-alerts")}
-        >
-          Alert Queue
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("monitor-devices")}
-        >
-          Device Health
-        </button>
+    <div className="relative mx-auto max-w-[1920px] px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-24 right-0 h-72 w-72 rounded-full bg-primary/10 blur-[110px]" />
+        <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-accent/10 blur-[110px]" />
       </div>
 
-      <CoreFlowHeader
-        id="monitor-core"
-        eyebrow="Monitoring Domain / Shift Console"
-        title="Real-time Camera and Incident Triage"
+      <BackButton fallbackHref="/operations" />
+
+      <WorkflowHero
+        eyebrow={text("监控中心", "Monitoring center")}
+        title={text(
+          "这里负责实时画面、警报分诊和设备即时报障",
+          "This page owns live feeds, alert triage, and immediate device checks",
+        )}
         description={
           snapshot?.headline.description ??
-          "This page is designed for frontline execution: capture evidence, classify alerts, and dispatch actions without context switching."
+          text(
+            "监控页只做实时观察和快速响应，不重复趋势分析和 3D 设备上下文。需要工位解释时再跳到数字孪生。",
+            "Monitoring is for real-time observation and quick response. Use Digital Twin only when location or process context is needed.",
+          )
         }
-        metrics={coreMetrics}
-        stages={coreStages}
+        stats={[
+          {
+            label: text("在线通道", "Online channels"),
+            value: `${onlineCount}`,
+            detail: text("可直接进入实时预览", "Available for live preview"),
+            icon: <Video className="h-5 w-5" />,
+            tone: onlineCount > 0 ? "success" : "warning",
+          },
+          {
+            label: text("已打开预览", "Opened previews"),
+            value: `${previewCount}`,
+            detail: text("当前操作员已打开画面", "Feeds opened in this session"),
+            icon: <Eye className="h-5 w-5" />,
+            tone: previewCount > 0 ? "info" : "default",
+          },
+          {
+            label: text("待处理告警", "Open alerts"),
+            value: `${snapshot?.alerts.length ?? 0}`,
+            detail: text("先做分诊，再决定升级", "Triage before escalation"),
+            icon: <AlertTriangle className="h-5 w-5" />,
+            tone: (snapshot?.alerts.length ?? 0) > 0 ? "warning" : "success",
+          },
+          {
+            label: text("巡检设备", "Watched devices"),
+            value: `${snapshot?.devices.length ?? 0}`,
+            detail: text("用于快速判断设备热状态", "Quick device health check"),
+            icon: <Wrench className="h-5 w-5" />,
+          },
+        ]}
         actions={
           <>
-            <button
-              type="button"
-              className="enterprise-primary-button"
-              onClick={() => scrollToSection("monitor-alerts")}
-            >
-              Start Alert Triage
-            </button>
-            <button
-              type="button"
-              className="enterprise-secondary-button"
-              onClick={() => scrollToSection("monitor-cameras")}
-            >
-              Open Camera Wall
-            </button>
-            <button
-              type="button"
-              className="enterprise-secondary-button"
-              onClick={() => router.push("/digital-twin")}
-            >
-              Escalate to Twin
-            </button>
+            <Button asChild>
+              <Link href="/operations">{text("返回运营中台", "Back To Operations")}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/digital-twin">{text("需要上下文时去数字孪生", "Open Digital Twin When Needed")}</Link>
+            </Button>
           </>
         }
-        sideNote={
-          <div className="enterprise-highlight-list">
-            <div>
-              <strong>Role focus</strong>
-              <p>Keep live incident handling in monitoring and avoid duplicate analysis views.</p>
+        aside={
+          <Card variant="glass" className="h-full border-border/60">
+            <div className="space-y-4">
+              <Badge variant="secondary" className="w-fit">
+                {text("监控页顺序", "Monitoring order")}
+              </Badge>
+              <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+                <p>{text("1. 先开最关键的实时画面。", "1. Open the most important live feed first.")}</p>
+                <p>{text("2. 再看警报队列，决定是否升级。", "2. Triage the alert queue before escalating.")}</p>
+                <p>{text("3. 最后看设备热状态，判断是不是设备异常。", "3. Check device temperature and utilization last.")}</p>
+              </div>
             </div>
-            <div>
-              <strong>Handoff rule</strong>
-              <p>When root-cause needs process-space interpretation, jump to digital twin immediately.</p>
-            </div>
-          </div>
+          </Card>
         }
       />
 
-      <section id="monitor-lanes" className="core-flow-lane-grid">
-        <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Observe</span>
-          <h3>Camera validation lane</h3>
-          <p>
-            Open one or more channel previews and confirm physical line behavior
-            before triaging the event queue.
-          </p>
-          <div className="core-flow-lane-actions">
-            <button
-              type="button"
-              className="enterprise-primary-button"
-              onClick={() => scrollToSection("monitor-cameras")}
-            >
-              Review Cameras
-            </button>
-          </div>
-        </Card>
-
-        <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Diagnose</span>
-          <h3>Alert investigation lane</h3>
-          <p>
-            Classify severity, identify station impact, and isolate the shortest
-            path to containment for the current shift.
-          </p>
-          <div className="core-flow-lane-actions">
-            <button
-              type="button"
-              className="enterprise-primary-button"
-              onClick={() => scrollToSection("monitor-alerts")}
-            >
-              Triage Alerts
-            </button>
-          </div>
-        </Card>
-
-        <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Act + Close</span>
-          <h3>Device response lane</h3>
-          <p>
-            Verify thermal and utilization states, then escalate to twin domain
-            for process-space root-cause and closure decisions.
-          </p>
-          <div className="core-flow-lane-actions">
-            <button
-              type="button"
-              className="enterprise-primary-button"
-              onClick={() => scrollToSection("monitor-devices")}
-            >
-              Inspect Devices
-            </button>
-            <button
-              type="button"
-              className="enterprise-secondary-button"
-              onClick={() => router.push("/digital-twin")}
-            >
-              Open Digital Twin
-            </button>
-          </div>
-        </Card>
-      </section>
-
       {error ? (
-        <div className="empty-state">
-          <span>!</span>
-          {error}
+        <div className="mb-10">
+          <EmptyStateCard
+            icon={<AlertTriangle className="h-6 w-6" />}
+            title={text("监控数据暂时不可用", "Monitoring data is unavailable")}
+            description={error}
+            action={<Button onClick={() => window.location.reload()}>{text("重新加载", "Reload")}</Button>}
+          />
         </div>
       ) : null}
 
-      <Card id="monitor-cameras">
-        <div className="panel-heading">
-          <div>
-            <span className="panel-kicker">Camera Wall</span>
-            <h2>Multi-channel preview workspace</h2>
-          </div>
-          <span className="panel-caption">
-            Open local previews per channel to validate operator-visible evidence.
-          </span>
-        </div>
-
-        <div className="camera-grid">
+      <TaskSection
+        eyebrow={text("实时画面", "Live feeds")}
+        title={text("先看最需要响应的画面", "Start with the feeds that need immediate response")}
+        description={text(
+          "这里保留快速打开预览的能力，但不把监控页做成花哨的视频展示墙。",
+          "The feed wall stays actionable without turning into a decorative video surface.",
+        )}
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {(snapshot?.cameras.length ? snapshot.cameras : new Array(4).fill(null)).map(
             (camera, index) => {
-              const cameraLabel = camera?.title ?? `Camera ${index + 1}`;
-              const locationLabel = camera?.location ?? "Production line zone";
-              const statusLabel = camera?.status ?? "Standby";
+              const cameraLabel =
+                camera?.title ?? t("pages.monitor.copy033", { p1: index + 1 }, `Camera ${index + 1}`);
+              const locationLabel = camera?.location ?? text("待分配位置", "Pending location");
+              const statusLabel = camera?.status ?? text("待命", "Idle");
               const descLabel =
-                camera?.description ?? "Waiting for live feed assignment.";
+                camera?.description ?? text("等待现场视频描述。", "Waiting for feed description.");
 
               return (
-                <div key={camera?.id ?? index} className="camera-card">
-                  <video
-                    ref={(node) => {
-                      videoRefs.current[index] = node;
-                    }}
-                    className="camera-frame"
-                    muted
-                    playsInline
-                  />
-                  <div className="camera-status-chip">{statusLabel}</div>
-
-                  <div className="camera-overlay">
-                    <div>
-                      <strong>{cameraLabel}</strong>
-                      <span>{locationLabel}</span>
-                      <p>{descLabel}</p>
+                <Card key={camera?.id ?? index} variant="glass" className="overflow-hidden border-border/60 p-0">
+                  <div className="relative aspect-video bg-muted/30">
+                    <video
+                      ref={(node) => {
+                        videoRefs.current[index] = node;
+                      }}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                    />
+                    <div className="absolute left-3 top-3">
+                      <Badge variant={statusLabel === "在线" ? "success" : "secondary"}>
+                        <Radio className="mr-1 h-3 w-3" />
+                        {statusLabel}
+                      </Badge>
                     </div>
-                    <button type="button" onClick={() => startCamera(index)}>
-                      {openedPreviews[index] ? "Refresh preview" : "Open preview"}
-                    </button>
                   </div>
-                </div>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold">{cameraLabel}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{locationLabel}</p>
+                      </div>
+                      <Badge variant="outline">{text("实时", "Live")}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{descLabel}</p>
+                    <Button className="mt-4 w-full" onClick={() => startCamera(index)}>
+                      {openedPreviews[index]
+                        ? text("重新打开预览", "Reopen Preview")
+                        : text("打开预览", "Open Preview")}
+                    </Button>
+                  </div>
+                </Card>
               );
             },
           )}
         </div>
-      </Card>
+      </TaskSection>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <Card id="monitor-alerts" className="xl:col-span-7">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Exception Feed</span>
-              <h2>Alert queue and response context</h2>
-            </div>
-          </div>
-
-          <div className="workspace-tabs">
+      <TaskSection
+        className="mt-10"
+        eyebrow={text("警报分诊", "Alert triage")}
+        title={text("先按等级过滤，再决定谁需要升级", "Filter by severity before escalating anything")}
+        description={text(
+          "监控页的任务不是写结论，而是让人快速看到哪个站点现在最需要介入。",
+          "Monitoring should show which station needs intervention now, not produce a full diagnosis.",
+        )}
+        action={
+          <div className="flex flex-wrap gap-2">
             {alertLevels.map((level) => (
-              <button
+              <Button
                 key={level}
-                type="button"
-                className={`workspace-tab ${
-                  activeAlertLevel === level ? "workspace-tab-active" : ""
-                }`}
+                variant={activeAlertLevel === level ? "default" : "outline"}
+                size="sm"
                 onClick={() => setActiveAlertLevel(level)}
               >
-                {level === "all" ? "All levels" : level}
-              </button>
+                {level === "all" ? text("全部", "All") : level}
+              </Button>
             ))}
           </div>
-
-          <div className="alert-stack mt-4">
-            {filteredAlerts.length ? (
-              filteredAlerts.map((alert, index) => (
-                <div key={alert.id} className="alert-item">
-                  <div
-                    className={`alert-level status-chip ${resolveAlertTone(
-                      alert.level,
-                      index,
-                    )}`}
-                  >
-                    {alert.level}
+        }
+      >
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.8fr)]">
+          <Card variant="glass" className="border-border/60">
+            <div className="space-y-3">
+              {filteredAlerts.length ? (
+                filteredAlerts.map((alert) => (
+                  <div key={alert.id} className="rounded-2xl border border-border/60 bg-background/40 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold">{alert.title}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {alert.station} / {alert.timestamp}
+                        </p>
+                      </div>
+                      <Badge variant={resolveAlertVariant(alert.level)}>{alert.level}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">{alert.detail}</p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <Badge variant="outline">{alert.status}</Badge>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href="/admin/alerts">{text("升级到治理", "Escalate")}</Link>
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <strong>{alert.title}</strong>
-                    <span>
-                      {alert.station} / {alert.timestamp}
-                    </span>
-                    <p>{alert.detail}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="loading-state">
-                No alert found for this filter.
-              </div>
-            )}
-          </div>
-        </Card>
-
-        <Card id="monitor-devices" className="xl:col-span-5">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Device Watch</span>
-              <h2>Line-side machine health checks</h2>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {text("当前筛选下没有告警。", "No alert matches the current filter.")}
+                </p>
+              )}
             </div>
-          </div>
-          <div className="device-stack">
-            {snapshot?.devices.length ? (
-              snapshot.devices.map((device) => (
-                <div key={device.name} className="device-item">
-                  <div className="device-item-top">
-                    <strong>{device.name}</strong>
-                    <span
-                      className={`status-chip ${resolveDeviceTone(
-                        device.temperature,
-                      )}`}
-                    >
-                      {device.status}
-                    </span>
+          </Card>
+
+          <Card variant="gradient" className="border-border/60">
+            <div className="flex items-center gap-3">
+              <Monitor className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-bold">{text("监控页边界", "Monitoring boundary")}</h3>
+            </div>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-muted-foreground">
+              <p>{text("这里负责实时视频、站点警报和设备快检。", "This page owns live video, station alerts, and quick device inspection.")}</p>
+              <p>{text("如果需要解释工位、流程或设备上下文，请跳到数字孪生。", "If location, process, or equipment context is needed, move to Digital Twin.")}</p>
+              <p>{text("如果问题已经跨班次或需要策略动作，再进入治理后台。", "Move to Admin only when the issue now requires governance action.")}</p>
+            </div>
+          </Card>
+        </div>
+      </TaskSection>
+
+      <TaskSection
+        className="mt-10"
+        eyebrow={text("设备快检", "Device quick check")}
+        title={text("只保留足够支持即时判断的设备信息", "Keep only the device data needed for immediate judgment")}
+        description={text(
+          "监控页只用来判断设备是不是明显异常，不替代数字孪生里的设备上下文解释。",
+          "Monitoring checks whether a device looks unhealthy. It does not replace the deeper context in Digital Twin.",
+        )}
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {snapshot?.devices.length ? (
+            snapshot.devices.map((device) => (
+              <Card key={device.name} variant="glass" className="border-border/60">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold">{device.name}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{device.note}</p>
                   </div>
-                  <div className="device-gauge">
-                    <span style={{ width: `${device.utilization}%` }} />
+                  <Badge variant={resolveDeviceVariant(device.temperature)}>{device.status}</Badge>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{text("利用率", "Utilization")}</span>
+                    <span>{device.utilization}%</span>
                   </div>
-                  <div className="device-item-meta">
-                    <span>Utilization {device.utilization}%</span>
-                    <span>Temperature {device.temperature} C</span>
-                    <span>{device.note}</span>
+                  <Progress value={device.utilization} />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div className="rounded-xl border border-border/60 bg-background/40 p-3">
+                    <div className="text-muted-foreground">{text("温度", "Temperature")}</div>
+                    <div className="mt-1 font-bold">{device.temperature}°C</div>
+                  </div>
+                  <div className="rounded-xl border border-border/60 bg-background/40 p-3">
+                    <div className="text-muted-foreground">{text("运行时长", "Runtime")}</div>
+                    <div className="mt-1 font-bold">{device.runtimeHours}h</div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="loading-state">Device feed is loading...</div>
-            )}
-          </div>
-        </Card>
-      </section>
+              </Card>
+            ))
+          ) : (
+            <EmptyStateCard
+              icon={<Wrench className="h-6 w-6" />}
+              title={text("暂无设备数据", "No device data yet")}
+              description={text(
+                "当前没有设备快检信息可展示。",
+                "No quick-check device information is available right now.",
+              )}
+            />
+          )}
+        </div>
+      </TaskSection>
 
-      {cameraToast ? <div className="floating-toast success">{cameraToast}</div> : null}
+      {cameraToast ? (
+        <div className="fixed bottom-6 right-6 z-50 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary shadow-card-hover">
+          {cameraToast}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -55,7 +55,11 @@ public class JsonStorageService {
     }
 
     private Path resolve(String filename) {
-        return dataDirectory.resolve(filename).normalize();
+        Path resolved = dataDirectory.resolve(filename).normalize();
+        if (!resolved.startsWith(dataDirectory)) {
+            throw new IllegalArgumentException("Invalid storage path: " + filename);
+        }
+        return resolved;
     }
 
     private String sanitizePath(String path) {

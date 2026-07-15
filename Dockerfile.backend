@@ -1,0 +1,24 @@
+FROM maven:3.9.9-eclipse-temurin-17 AS build
+
+WORKDIR /build
+
+COPY backend/pom.xml backend/mvnw backend/mvnw.cmd ./backend/
+COPY backend/.mvn ./backend/.mvn
+COPY backend/src ./backend/src
+
+RUN cd backend && ./mvnw -q -DskipTests package
+
+FROM eclipse-temurin:17-jre-jammy
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /build/backend/target/*.jar /app/backend.jar
+COPY backend/data /workspace
+
+EXPOSE 18081
+
+CMD ["java", "-jar", "/app/backend.jar"]

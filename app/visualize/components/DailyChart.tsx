@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import LineChart from "@/app/components/Charts/LineChart";
+import { getApiPath } from "@/lib/api-path";
 
 export default function DailyChart() {
   const [data, setData] = useState<Array<{ time: string; count: number }>>(
@@ -9,7 +10,7 @@ export default function DailyChart() {
   );
 
   useEffect(() => {
-    fetch("/api/statistics?type=daily")
+    fetch(getApiPath("/api/statistics?type=daily"))
       .then((res) => res.json())
       .then(setData);
   }, []);

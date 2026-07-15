@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,11 +21,18 @@ public class AuthService {
 
     private final JsonStorageService storageService;
     private final SessionService sessionService;
+    private final BCryptPasswordEncoder passwordEncoder;
+    private final boolean demoEnabled;
     private final Map<String, AuthUser> users = new ConcurrentHashMap<>();
 
-    public AuthService(JsonStorageService storageService, SessionService sessionService) {
+    public AuthService(
+            JsonStorageService storageService,
+            SessionService sessionService,
+            @Value("${app.demo.enabled:true}") boolean demoEnabled) {
         this.storageService = storageService;
         this.sessionService = sessionService;
+        this.passwordEncoder = new BCryptPasswordEncoder();
+        this.demoEnabled = demoEnabled;
         loadUsers();
     }
 
@@ -36,24 +45,28 @@ public class AuthService {
         if (user == null) {
             return new LoginResponse(false, "", "", "", "", "", "", "", "Account not found. Create an account first or use one of the seeded review accounts.");
         }
-        if (!user.password().equals(request.password())) {
+
+        if (!verifyPassword(request.password(), user.password())) {
             return new LoginResponse(false, "", "", "", "", "", "", "", "Incorrect password. Please try again.");
         }
 
-        String role = normalizeRole(request.role() == null || request.role().isBlank() ? user.role() : request.role());
-        if (!user.role().equals(role)) {
+        // Transparently migrate legacy plaintext passwords to bcrypt hashes.
+        AuthUser activeUser = maybeRehashPassword(user, request.password());
+
+        String role = normalizeRole(request.role() == null || request.role().isBlank() ? activeUser.role() : request.role());
+        if (!activeUser.role().equals(role)) {
             return new LoginResponse(false, "", "", "", "", "", "", "", "The selected role does not match this account.");
         }
 
-        AuthSession session = sessionService.createSession(user);
+        AuthSession session = sessionService.createSession(activeUser);
         return new LoginResponse(
             true,
-            user.username(),
+            activeUser.username(),
             role,
             session.token(),
-            user.displayName(),
-            user.email(),
-            user.department(),
+            activeUser.displayName(),
+            activeUser.email(),
+            activeUser.department(),
             session.expiresAt(),
             "Login successful."
         );
@@ -102,7 +115,7 @@ public class AuthService {
 
         AuthUser user = new AuthUser(
             username,
-            request.password(),
+            passwordEncoder.encode(request.password()),
             role,
             displayName,
             email,
@@ -141,15 +154,19 @@ public class AuthService {
     }
 
     private void loadUsers() {
-        List<AuthUser> storedUsers = storageService.readList(USERS_FILE, AuthUser.class, AuthService::seedUsers);
-        users.clear();
+        List<AuthUser> storedUsers = storageService.readList(USERS_FILE, AuthUser.class, this::seedUsers);
+        Map<String, AuthUser> rebuilt = new ConcurrentHashMap<>();
         for (AuthUser user : storedUsers) {
             AuthUser sanitized = sanitizeStoredUser(user);
-            users.put(sanitized.username(), sanitized);
+            rebuilt.put(sanitized.username(), sanitized);
         }
-        for (AuthUser seeded : seedUsers()) {
-            users.putIfAbsent(seeded.username(), seeded);
+        if (demoEnabled) {
+            for (AuthUser seeded : seedUsers()) {
+                rebuilt.putIfAbsent(seeded.username(), seeded);
+            }
         }
+        users.clear();
+        users.putAll(rebuilt);
         persistUsers();
     }
 
@@ -157,13 +174,16 @@ public class AuthService {
         storageService.writeList(USERS_FILE, users.values().stream().toList());
     }
 
-    private static List<AuthUser> seedUsers() {
+    private List<AuthUser> seedUsers() {
+        if (!demoEnabled) {
+            return List.of();
+        }
         String now = LocalDateTime.now().toString();
         return List.of(
-            new AuthUser("admin-demo", "admin123", "admin", "Administrator review account", "admin-demo@platform.local", "Platform Governance", now),
-            new AuthUser("engineer-demo", "engineer123", "engineer", "Engineer review account", "engineer-demo@platform.local", "AI and Data Engineering", now),
-            new AuthUser("operator-demo", "user123", "operator", "Operator review account", "operator-demo@platform.local", "Production Operations", now),
-            new AuthUser("viewer-demo", "viewer123", "viewer", "Viewer review account", "viewer-demo@platform.local", "Business Review", now)
+            new AuthUser("admin-demo", passwordEncoder.encode("admin123"), "admin", "Administrator review account", "admin-demo@platform.local", "Platform Governance", now),
+            new AuthUser("engineer-demo", passwordEncoder.encode("engineer123"), "engineer", "Engineer review account", "engineer-demo@platform.local", "AI and Data Engineering", now),
+            new AuthUser("operator-demo", passwordEncoder.encode("user123"), "operator", "Operator review account", "operator-demo@platform.local", "Production Operations", now),
+            new AuthUser("viewer-demo", passwordEncoder.encode("viewer123"), "viewer", "Viewer review account", "viewer-demo@platform.local", "Business Review", now)
         );
     }
 
@@ -174,6 +194,39 @@ public class AuthService {
         String department = user.department() == null || user.department().isBlank() ? "Unassigned" : normalizeLegacyText(user.department().trim());
         String createdAt = user.createdAt() == null || user.createdAt().isBlank() ? LocalDateTime.now().toString() : user.createdAt();
         return new AuthUser(username, user.password(), normalizeRole(user.role()), displayName, email, department, createdAt);
+    }
+
+    private boolean verifyPassword(String rawPassword, String storedPassword) {
+        if (storedPassword == null || storedPassword.isBlank()) {
+            return false;
+        }
+        if (passwordEncoder.matches(rawPassword, storedPassword)) {
+            return true;
+        }
+        // Legacy plaintext comparison for migrations.
+        return rawPassword.equals(storedPassword);
+    }
+
+    private AuthUser maybeRehashPassword(AuthUser user, String rawPassword) {
+        String storedPassword = user.password();
+        if (storedPassword == null || storedPassword.isBlank() || passwordEncoder.matches(rawPassword, storedPassword)) {
+            return user;
+        }
+        if (rawPassword.equals(storedPassword)) {
+            AuthUser rehashed = new AuthUser(
+                user.username(),
+                passwordEncoder.encode(rawPassword),
+                user.role(),
+                user.displayName(),
+                user.email(),
+                user.department(),
+                user.createdAt()
+            );
+            users.put(user.username(), rehashed);
+            persistUsers();
+            return rehashed;
+        }
+        return user;
     }
 
     private AuthUser findUserByIdentifier(String identifier) {

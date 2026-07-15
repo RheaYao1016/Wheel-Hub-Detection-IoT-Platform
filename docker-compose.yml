@@ -1,0 +1,77 @@
+services:
+  ai-ml:
+    build:
+      context: .
+      dockerfile: Dockerfile.ai-ml
+    container_name: wheel-ai-ml
+    environment:
+      AI_ML_WORKSPACE: /workspace/ai-ml
+      AI_ML_FORCE_CPU: "true"
+    volumes:
+      - backend-data:/workspace
+    ports:
+      - "18100:18100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18100/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: wheel-backend
+    environment:
+      SERVER_PORT: "18081"
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      APP_AI_ML_BASE_URL: http://ai-ml:18100
+      APP_DATA_HOME: /workspace
+      APP_SECURITY_SECRET: wheel-hub-platform-secret
+      APP_DEMO_ENABLED: "true"
+    volumes:
+      - backend-data:/workspace
+    ports:
+      - "18081:18081"
+    depends_on:
+      ai-ml:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18081/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:18081/api
+    container_name: wheel-frontend
+    environment:
+      PORT: "3001"
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:18081/api
+      DATABASE_URL: file:/app/backend/data/platform.db
+    volumes:
+      - backend-data:/app/backend/data
+    ports:
+      - "3001:3001"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001').then(r => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  backend-data:

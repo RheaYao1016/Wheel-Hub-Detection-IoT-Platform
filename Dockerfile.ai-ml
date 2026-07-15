@@ -1,0 +1,24 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DEFAULT_TIMEOUT=1000
+ENV PIP_PROGRESS_BAR=off
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY services/ai-ml/requirements.txt /app/requirements.txt
+RUN python -m pip install --upgrade pip \
+    && python -m pip install --retries 20 -r /app/requirements.txt
+
+COPY services/ai-ml /app
+COPY backend/data /workspace
+
+EXPOSE 18100
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "18100"]

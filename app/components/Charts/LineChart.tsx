@@ -2,9 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as echarts from "echarts";
-import { DEFAULT_CHART_THEME_TOKENS, type ChartThemeTokens, readChartThemeTokens } from "@/lib/theme";
+import { Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Badge } from "../ui/Badge";
+import {
+  DEFAULT_CHART_THEME_TOKENS,
+  type ChartThemeTokens,
+  colorWithAlpha,
+  readChartThemeTokens,
+} from "@/lib/theme";
+import { cn } from "@/lib/utils";
 
-type LineDatum = { name: string; value: number } | { time: string; count: number };
+type LineDatum =
+  | { name: string; value: number }
+  | { time: string; count: number };
 
 interface LineChartProps {
   data: LineDatum[];
@@ -37,7 +47,9 @@ export default function LineChart({ data, height = "100%", id }: LineChartProps)
     const values = data.map((item) => ("value" in item ? item.value : item.count));
     const lastValue = values.at(-1) ?? 0;
     const peakValue = values.length ? Math.max(...values) : 0;
-    const averageValue = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+    const averageValue = values.length
+      ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+      : 0;
     const deltaValue = values.length > 1 ? lastValue - values[values.length - 2] : 0;
 
     return {
@@ -117,12 +129,12 @@ export default function LineChart({ data, height = "100%", id }: LineChartProps)
             width: 3,
             color: tokens.accent,
             shadowBlur: 18,
-            shadowColor: `${tokens.accent}66`,
+            shadowColor: colorWithAlpha(tokens.accent, 0.4),
           },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: `${tokens.accent}66` },
-              { offset: 0.45, color: `${tokens.accentStrong}26` },
+              { offset: 0, color: colorWithAlpha(tokens.accent, 0.4) },
+              { offset: 0.45, color: colorWithAlpha(tokens.accentStrong, 0.15) },
               { offset: 1, color: "rgba(255,255,255,0.02)" },
             ]),
           },
@@ -151,7 +163,7 @@ export default function LineChart({ data, height = "100%", id }: LineChartProps)
             silent: true,
             symbol: "none",
             lineStyle: {
-              color: `${tokens.accentWarm}88`,
+              color: colorWithAlpha(tokens.accentWarm, 0.53),
               type: "dashed",
             },
             label: {
@@ -194,26 +206,42 @@ export default function LineChart({ data, height = "100%", id }: LineChartProps)
     };
   }, []);
 
+  const trendVariant =
+    chartData.deltaValue > 0 ? "success" : chartData.deltaValue < 0 ? "destructive" : "secondary";
+  const TrendIcon =
+    chartData.deltaValue > 0 ? TrendingUp : chartData.deltaValue < 0 ? TrendingDown : Minus;
+
   return (
-    <div className="line-chart-shell">
-      <div className="line-chart-meta">
-        <div className="line-chart-metric">
-          <span>最新值</span>
-          <strong>{chartData.lastValue}</strong>
+    <div className="flex h-full flex-col">
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-border bg-card/50 p-2 text-center">
+          <div className="text-xs text-muted-foreground">最新值</div>
+          <div className="text-xl font-black text-foreground">
+            {chartData.lastValue}
+          </div>
         </div>
-        <div className="line-chart-metric">
-          <span>峰值</span>
-          <strong>{chartData.peakValue}</strong>
+        <div className="rounded-xl border border-border bg-card/50 p-2 text-center">
+          <div className="text-xs text-muted-foreground">峰值</div>
+          <div className="text-xl font-black text-primary">
+            {chartData.peakValue}
+          </div>
         </div>
-        <div className="line-chart-metric">
-          <span>波动</span>
-          <strong className={chartData.deltaValue >= 0 ? "metric-positive" : "metric-warning"}>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card/50 p-2 text-center">
+          <div className="text-xs text-muted-foreground">波动</div>
+          <Badge variant={trendVariant} className="mt-0.5 text-[10px]">
+            <TrendIcon className="mr-1 h-3 w-3" />
             {chartData.deltaValue >= 0 ? "+" : ""}
             {chartData.deltaValue}
-          </strong>
+          </Badge>
         </div>
       </div>
-      <div ref={containerRef} id={id} className="line-chart-canvas" style={{ width: "100%", height }} />
+
+      <div
+        ref={containerRef}
+        id={id}
+        className={cn("w-full flex-1", height === "100%" && "h-full min-h-[200px]")}
+        style={{ height, width: "100%" }}
+      />
     </div>
   );
 }

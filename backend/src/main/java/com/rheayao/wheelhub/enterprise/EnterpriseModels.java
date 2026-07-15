@@ -74,6 +74,29 @@ public final class EnterpriseModels {
     ) {
     }
 
+    public record AssistantProtocolOption(
+        String id,
+        String label,
+        String description
+    ) {
+    }
+
+    public record AssistantProtocolCommand(
+        String raw,
+        String displayText,
+        String version,
+        String intentCategory,
+        String responseKind,
+        List<String> indexes,
+        List<String> targetTypes,
+        String route,
+        String authorizationMode,
+        String highlightMode,
+        List<AssistantProtocolOption> options,
+        Map<String, String> payload
+    ) {
+    }
+
     public record IntentAssessment(
         String intent,
         String reason,
@@ -92,7 +115,9 @@ public final class EnterpriseModels {
         int completionTokens,
         List<String> sourceRefs,
         IntentAssessment intentAssessment,
-        List<AssistantAction> actions
+        List<AssistantAction> actions,
+        String responseProtocolRaw,
+        AssistantProtocolCommand responseProtocol
     ) {
     }
 
@@ -110,6 +135,11 @@ public final class EnterpriseModels {
         List<EvidenceItem> evidence,
         String riskLevel,
         double confidence,
+        String inspectionDomain,
+        Double riskScore,
+        List<Map<String, Object>> metrics,
+        List<Map<String, Object>> chartSeries,
+        String sourceSummary,
         TokenUsage tokenUsage,
         List<String> sourceRefs,
         String appliedStrategy,
@@ -242,6 +272,47 @@ public final class EnterpriseModels {
     ) {
     }
 
+    public record AssistantIndexRecord(
+        String indexId,
+        String indexType,
+        String label,
+        String route,
+        String entityId,
+        boolean requiresAuthorization,
+        String actionType,
+        String updatedAt,
+        Map<String, String> metadata
+    ) {
+    }
+
+    public record AssistantIndexCatalogSnapshot(
+        int lookbackDays,
+        String generatedAt,
+        String csvContent,
+        List<AssistantIndexRecord> entries
+    ) {
+    }
+
+    public record AssistantProtocolSettings(
+        int indexLookbackDays,
+        boolean refreshOnSessionLoad,
+        boolean refreshOnMutation
+    ) {
+    }
+
+    public record AssistantProtocolSpec(
+        String version,
+        String delimiter,
+        String indexPrefix,
+        String summary,
+        String chatProtocolGuide,
+        List<String> intentCategories,
+        List<String> responseKinds,
+        List<String> targetTypes,
+        String example
+    ) {
+    }
+
     public record CreateProviderRequest(
         String id,
         String name,
@@ -288,6 +359,9 @@ public final class EnterpriseModels {
     }
 
     public record CreateReportRequest(String format) {
+    }
+
+    public record UpdateAssistantProtocolSettingsRequest(Integer indexLookbackDays) {
     }
 
     public record CreateAnnotationProjectRequest(String name, String description, List<String> categories) {

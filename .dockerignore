@@ -1,0 +1,13 @@
+.git
+.next
+.playwright-cli
+node_modules
+backend/target
+services/ai-ml/.venv
+test-results
+test-screenshots
+*.log
+installer/output
+installer/DefectDetection-Setup.exe
+output
+scans

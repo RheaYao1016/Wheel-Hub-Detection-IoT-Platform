@@ -193,6 +193,30 @@ npm run dev
 |------|------|
 | 前端 | http://localhost:3001 |
 | 后端API | http://localhost:18081/api |
+
+#### 演示账号
+
+启动时若 `APP_DEMO_ENABLED=true`（默认开启），系统会自动创建以下演示账号：
+
+| 账号 | 密码 | 角色 |
+|------|------|------|
+| `admin-demo` | `admin123` | 管理员 |
+| `engineer-demo` | `engineer123` | 工程师 |
+| `operator-demo` | `user123` | 操作员 |
+| `viewer-demo` | `viewer123` | 访客 |
+
+#### 运行测试
+
+```bash
+# 类型检查
+npm run typecheck
+
+# 前端 + E2E 测试
+npx playwright test
+
+# 后端单元测试
+cd backend && ./mvnw test
+```
 | AI/ML服务 | http://localhost:18100 |
 
 ---
@@ -422,17 +446,18 @@ chore: 构建/工具相关
 | 方法 | 路径 | 描述 |
 |------|------|------|
 | GET | `/api/dashboard/command-center` | 指挥中心数据 |
+| GET | `/api/dashboard/monitor` | 监控数据 |
+| GET | `/api/dashboard/digital-twin` | 数字孪生数据 |
 | GET | `/api/dashboard/health` | 健康检查 |
-| GET | `/api/dashboard/statistics` | 统计数据 |
 
 #### 企业API
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
-| GET | `/api/enterprise/providers` | 获取AI提供商列表 |
-| POST | `/api/enterprise/providers` | 创建AI提供商 |
-| GET | `/api/enterprise/sessions` | 获取会话列表 |
-| POST | `/api/enterprise/chat` | 发送聊天消息 |
+| GET | `/api/ai/providers` | 获取AI提供商列表 |
+| POST | `/api/ai/providers` | 创建AI提供商 |
+| GET | `/api/ai/chat/sessions` | 获取会话列表 |
+| POST | `/api/ai/chat/sessions/{id}/messages` | 发送聊天消息 |
 
 ---
 

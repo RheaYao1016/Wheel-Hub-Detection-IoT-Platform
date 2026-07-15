@@ -1,0 +1,24 @@
+serverAddr = "127.0.0.1"
+serverPort = 7000
+loginFailExit = false
+
+[auth]
+method = "token"
+token = "aiwebsite"
+
+[transport]
+heartbeatInterval = 30
+
+[[proxies]]
+name = "wheelhub-frontend-tcp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3001
+remotePort = 3001
+
+[[proxies]]
+name = "wheelhub-api-tcp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 18081
+remotePort = 18081

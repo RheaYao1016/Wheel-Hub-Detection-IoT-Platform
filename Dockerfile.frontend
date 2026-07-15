@@ -1,0 +1,26 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:18081/api
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+RUN npm ci
+
+COPY . .
+RUN npx prisma generate && npm run build
+
+ENV NODE_ENV=production
+
+COPY scripts/docker/frontend-entrypoint.sh /frontend-entrypoint.sh
+RUN chmod +x /frontend-entrypoint.sh
+
+EXPOSE 3001
+
+CMD ["/frontend-entrypoint.sh"]

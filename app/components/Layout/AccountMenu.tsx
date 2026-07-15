@@ -1,36 +1,50 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { AppLocale } from "@/lib/locale";
-import { broadcastAuthChange, clearAuthSession, readStoredAuthSession } from "@/lib/auth-session";
+import { useEffect, useState } from "react";
+import { LogOut, UserRound, Users } from "lucide-react";
+import {
+  broadcastAuthChange,
+  clearAuthSession,
+  readStoredAuthSession,
+} from "@/lib/auth-session";
 import { requestPlatformJson } from "@/lib/dashboard-client";
-import { navigateWithTransition } from "@/lib/navigation-transition";
+import { safeNavigate, safeRedirect } from "@/lib/safe-navigation";
 import type { UserRole } from "@/types/auth";
 import { useLocale } from "../Locale/LocaleProvider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/DropdownMenu";
+import { Avatar, AvatarFallback } from "../ui/Avatar";
+import { Button } from "../ui/Button";
 
 type RoleState = UserRole | null;
 
-function formatRole(role: RoleState, locale: AppLocale) {
+function formatRole(role: RoleState, text: (zh: string, en: string) => string) {
   const normalized = role === "user" ? "operator" : role;
   return {
-    admin: locale === "zh-CN" ? "管理员" : "Administrator",
-    engineer: locale === "zh-CN" ? "工程师" : "Engineer",
-    operator: locale === "zh-CN" ? "操作员" : "Operator",
-    viewer: locale === "zh-CN" ? "访客" : "Viewer",
-    null: locale === "zh-CN" ? "访客" : "Viewer",
-  }[String(normalized) as "admin" | "engineer" | "operator" | "viewer" | "null"];
+    admin: text("管理员", "Administrator"),
+    engineer: text("工程师", "Engineer"),
+    operator: text("操作员", "Operator"),
+    viewer: text("访客", "Viewer"),
+    null: text("访客", "Viewer"),
+  }[
+    String(normalized) as "admin" | "engineer" | "operator" | "viewer" | "null"
+  ];
 }
 
 export default function AccountMenu() {
   const router = useRouter();
-  const { locale, text } = useLocale();
-  const [open, setOpen] = useState(false);
+  const { text } = useLocale();
   const [role, setRole] = useState<RoleState>(null);
   const [displayName, setDisplayName] = useState(text("访客", "Guest"));
   const [department, setDepartment] = useState(text("未登录", "Not signed in"));
   const [email, setEmail] = useState("");
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -38,8 +52,15 @@ export default function AccountMenu() {
     const syncRole = () => {
       const session = readStoredAuthSession();
       setRole(session?.role ?? null);
-      setDisplayName(session?.displayName || session?.username || text("访客", "Guest"));
-      setDepartment(session?.department || (session ? text("未分配部门", "Unassigned department") : text("未登录", "Not signed in")));
+      setDisplayName(
+        session?.displayName || session?.username || text("访客", "Guest"),
+      );
+      setDepartment(
+        session?.department ||
+          (session
+            ? text("未分配部门", "Unassigned department")
+            : text("未登录", "Not signed in")),
+      );
       setEmail(session?.email || "");
     };
 
@@ -53,25 +74,11 @@ export default function AccountMenu() {
     };
   }, [text]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    window.addEventListener("click", handleClickOutside);
-    return () => window.removeEventListener("click", handleClickOutside);
-  }, [open]);
-
   const resetLocalState = () => {
     setRole(null);
     setDisplayName(text("访客", "Guest"));
     setDepartment(text("未登录", "Not signed in"));
     setEmail("");
-    setOpen(false);
   };
 
   const handleLogout = async () => {
@@ -83,7 +90,7 @@ export default function AccountMenu() {
       clearAuthSession();
       resetLocalState();
       broadcastAuthChange(null);
-      navigateWithTransition(router, "/visualize", { replace: true });
+      safeRedirect(router, "/visualize");
     }
   };
 
@@ -91,50 +98,71 @@ export default function AccountMenu() {
     clearAuthSession();
     resetLocalState();
     broadcastAuthChange(null);
-    navigateWithTransition(router, "/login?switch=1");
+    safeNavigate(router, "/login?switch=1");
   };
 
-  const avatar = (displayName || text("访客", "Guest")).charAt(0).toUpperCase();
+  const avatar = (displayName || text("访客", "Guest"))
+    .charAt(0)
+    .toUpperCase();
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button className="profile-trigger" onClick={() => setOpen((prev) => !prev)} type="button">
-        <span className="profile-avatar">{avatar}</span>
-        <span className="hidden text-sm md:inline">{displayName}</span>
-        <svg className={`h-4 w-4 transition-transform ${open ? "rotate-180" : "rotate-0"}`} viewBox="0 0 20 20" fill="none">
-          <path d="M5 7l5 6 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open && (
-        <div className="profile-dropdown">
-          {role ? (
-            <>
-              <div className="profile-dropdown-meta">
-                <strong>{displayName}</strong>
-                <span>
-                  {formatRole(role, locale)} / {department}
-                </span>
-                {email ? <em>{email}</em> : null}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-2 pl-2 pr-3 text-foreground hover:bg-accent/10"
+        >
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="text-xs">{avatar}</AvatarFallback>
+          </Avatar>
+          <span className="hidden text-sm font-medium md:inline">
+            {displayName}
+          </span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        {role ? (
+          <>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium">{displayName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatRole(role, text)} / {department}
+                </p>
+                {email ? (
+                  <p className="text-xs text-muted-foreground">{email}</p>
+                ) : null}
               </div>
-              <button className="profile-dropdown-item" onClick={handleSwitch}>
-                {text("切换账号", "Switch account")}
-              </button>
-              <button className="profile-dropdown-item profile-dropdown-item-danger" onClick={handleLogout}>
-                {text("退出登录", "Sign out")}
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="profile-dropdown-item" onClick={() => navigateWithTransition(router, "/login")}>
-                {text("登录", "Sign in")}
-              </button>
-              <button className="profile-dropdown-item" onClick={() => navigateWithTransition(router, "/login?mode=reg")}>
-                {text("创建账号", "Create account")}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSwitch}>
+              <Users className="mr-2 h-4 w-4" />
+              {text("切换账号", "Switch account")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              {text("退出登录", "Sign out")}
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuItem onClick={() => safeNavigate(router, "/login")}>
+              <UserRound className="mr-2 h-4 w-4" />
+              {text("登录", "Sign in")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => safeNavigate(router, "/login?mode=reg")}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              {text("创建账号", "Create account")}
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

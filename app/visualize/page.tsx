@@ -1,22 +1,43 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  BarChart3,
+  ClipboardList,
+  Eye,
+  Layers3,
+  Terminal,
+  TrendingUp,
+} from "lucide-react";
 import BackButton from "../components/Layout/BackButton";
-import PieChart from "../components/Charts/PieChart";
 import LineChart from "../components/Charts/LineChart";
+import PieChart from "../components/Charts/PieChart";
 import Card from "../components/Layout/Card";
+import EmptyStateCard from "../components/Layout/EmptyStateCard";
 import PageLoadFallback from "../components/Layout/PageLoadFallback";
-import { PlatformAuthError, fetchPlatformData } from "@/lib/dashboard-client";
+import TaskSection from "../components/Layout/TaskSection";
+import WorkflowHero from "../components/Layout/WorkflowHero";
+import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { ScrollArea } from "../components/ui/ScrollArea";
+import {
+  PlatformAuthError,
+  fetchPlatformData,
+} from "@/lib/dashboard-client";
 import { clearAuthSession } from "@/lib/auth-session";
 import { useSessionGuard } from "@/app/hooks/useSessionGuard";
 import type { CommandCenterSnapshot } from "@/types/platform";
-import { Badge } from "../components/ui/Badge";
-import { ScrollArea } from "../components/ui/ScrollArea";
+import { useLocale } from "../components/Locale/LocaleProvider";
 
 export default function VisualizePage() {
   const router = useRouter();
-  const ready = useSessionGuard(["admin", "user"]);
+  const ready = useSessionGuard(["admin", "operator"]);
+  const { text, t } = useLocale();
   const [snapshot, setSnapshot] = useState<CommandCenterSnapshot | null>(null);
   const [error, setError] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
@@ -29,10 +50,13 @@ export default function VisualizePage() {
 
     const load = async () => {
       try {
-        const payload = await fetchPlatformData<CommandCenterSnapshot>("/dashboard/command-center", "/api/command-center");
+        const payload = await fetchPlatformData<CommandCenterSnapshot>(
+          "/dashboard/command-center",
+          "/api/command-center",
+        );
         if (!active) return;
         setSnapshot(payload);
-        setLogs(payload.logs);
+        setLogs(payload.logs.slice(-12));
         setError("");
       } catch (requestError) {
         if (!active) return;
@@ -42,28 +66,37 @@ export default function VisualizePage() {
           return;
         }
         console.error(requestError);
-        setError("指挥中心数据加载失败，请稍后重试。");
+        setError(
+          t(
+            "pages.visualize.copy030",
+            undefined,
+            "Command center data load failed. Please retry later.",
+          ),
+        );
       }
     };
 
-    load();
-    const timer = window.setInterval(load, 12000);
+    load().catch(console.error);
+    const timer = window.setInterval(() => {
+      load().catch(console.error);
+    }, 12000);
 
     return () => {
       active = false;
       window.clearInterval(timer);
     };
-  }, [ready, router]);
+  }, [ready, router, t]);
 
   useEffect(() => {
     if (!snapshot?.logs.length) return;
 
-    setLogs(snapshot.logs);
     const timer = window.setInterval(() => {
       setLogs((previous) => {
-        const nextLine = snapshot.logs[(previous.length + 1) % snapshot.logs.length];
-        const next = [...previous, nextLine];
-        return next.length > 12 ? next.slice(next.length - 12) : next;
+        const current = previous.length ? previous : snapshot.logs.slice(-12);
+        const nextLine =
+          snapshot.logs[(current.length + snapshot.logs.length) % snapshot.logs.length];
+        const next = [...current, nextLine];
+        return next.slice(-12);
       });
     }, 2400);
 
@@ -76,191 +109,333 @@ export default function VisualizePage() {
     }
   }, [logs]);
 
-  const storyCards = useMemo(
-    () => [
-      { label: "页面职责", value: "运营总览", note: "只保留全局指标、质量结构、节拍趋势与工单流转。" },
-      { label: "数据视角", value: "统一看板", note: "不再重复展示监控、孪生和后台中的同类设备与告警模块。" },
-      { label: "适用场景", value: "汇报 / 展厅 / 调度", note: "强化管理层与运营侧的一屏式理解效率。" },
-    ],
-    [],
-  );
+  const summary = useMemo(() => {
+    const openAlerts = snapshot?.alerts.length ?? 0;
+    const activeQueue = snapshot?.liveProjects.length ?? 0;
+    const devices = snapshot?.devices.length ?? 0;
+    const logCount = snapshot?.logs.length ?? 0;
+
+    return { openAlerts, activeQueue, devices, logCount };
+  }, [snapshot]);
+
+  const recommendedRoutes = useMemo(() => {
+    const firstAlert = snapshot?.alerts[0];
+    const firstQueue = snapshot?.liveProjects[0];
+
+    return [
+      {
+        title: text("先判断是否要去监控页", "Decide if Monitoring comes first"),
+        body: firstAlert
+          ? text(
+              `当前最紧急告警来自 ${firstAlert.station}，建议先进入监控中心看视频和告警流。`,
+              `The highest-priority issue is at ${firstAlert.station}; Monitoring should be the next stop.`,
+            )
+          : text("目前没有明显告警压力，可以优先看趋势和队列。", "No urgent alert pressure is active, so trend and queue can be reviewed first."),
+        href: "/monitor",
+      },
+      {
+        title: text("再判断是否要去数字孪生", "Then decide if Digital Twin is needed"),
+        body: firstQueue
+          ? text(
+              `当前队列里最前面的工单是 ${firstQueue.id}，如果需要定位工位或工序影响，请进入数字孪生。`,
+              `The lead queue item is ${firstQueue.id}; use Digital Twin if station or process context is needed.`,
+            )
+          : text("如果要解释设备、工位和工序关联，再进入数字孪生页。", "Open Digital Twin only when equipment or process context is required."),
+        href: "/digital-twin",
+      },
+      {
+        title: text("最后才做治理升级", "Escalate only at the end"),
+        body: text(
+          "治理后台用于跨团队和跨班次问题，不应该作为指挥中心的第一跳。",
+          "Admin governance is for cross-team or cross-shift issues, not the first destination from the command view.",
+        ),
+        href: "/admin",
+      },
+    ];
+  }, [snapshot, text]);
 
   if (!ready) {
     return (
       <PageLoadFallback
         fallbackHref="/home"
-        title="Loading Command Center"
-        description="Preparing the command center layout and operational overview..."
+        title={t("pages.visualize.copy020", undefined, "Loading Command Center")}
+        description={t(
+          "pages.visualize.copy021",
+          undefined,
+          "Preparing command center layout and operations overview...",
+        )}
       />
     );
   }
 
   return (
-    <div className="page-shell command-center-shell pt-0 pb-10">
+    <div className="relative mx-auto max-w-[1920px] px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -right-40 -top-40 h-[30rem] w-[30rem] rounded-full bg-primary/10 blur-[120px]" />
+        <div className="absolute -bottom-40 -left-40 h-[26rem] w-[26rem] rounded-full bg-accent/10 blur-[120px]" />
+      </div>
+
       <BackButton fallbackHref="/home" />
 
-      <section className="command-hero animate-fade-in-up">
-        <div className="command-copy">
-          <span className="eyebrow text-gradient">{snapshot?.headline.subtitle ?? "Command Center / Inspection Intelligence"}</span>
-          <h1 className="text-gradient">{snapshot?.headline.title ?? "轮毂检测 IoT 指挥中心"}</h1>
-          <p>
-            {snapshot?.headline.description ??
-              "围绕质量、节拍、工单和执行日志构建统一运营入口，用一页完成整体态势理解。"}
-          </p>
-          <div className="command-story-strip">
-            {storyCards.map((item, index) => (
-              <div key={item.label} className={`command-story-card hover-lift stagger-${index + 1}`}>
-                <span>{item.label}</span>
-                <strong className="text-gradient">{item.value}</strong>
-                <em>{item.note}</em>
+      <WorkflowHero
+        eyebrow={text("指挥中心", "Command Center")}
+        title={
+          snapshot?.headline.title ??
+          text(
+            "先看全局态势，再决定现场下一跳",
+            "Read overall posture first, then decide the next field action",
+          )
+        }
+        description={
+          snapshot?.headline.description ??
+          text(
+            "指挥中心只保留班次级和管理级判断所需的信息：质量结构、趋势、队列和执行日志。更细的实时监控和设备上下文应该分别进入监控中心和数字孪生。",
+            "The command center keeps only what is needed for shift-level decision making: quality mix, trend, queue, and execution logs.",
+          )
+        }
+        stats={[
+          {
+            label: text("待处理告警", "Open alerts"),
+            value: `${summary.openAlerts}`,
+            detail: text("决定是否先去监控页", "Decides whether Monitoring comes first"),
+            icon: <AlertTriangle className="h-5 w-5" />,
+            tone: summary.openAlerts > 0 ? "warning" : "success",
+          },
+          {
+            label: text("活动队列", "Active queue"),
+            value: `${summary.activeQueue}`,
+            detail: text("当前工单和批次压力", "Current batch and work-order pressure"),
+            icon: <ClipboardList className="h-5 w-5" />,
+          },
+          {
+            label: text("设备覆盖", "Device coverage"),
+            value: `${summary.devices}`,
+            detail: text("用于决定是否进入数字孪生", "Used to decide if Digital Twin is needed"),
+            icon: <Layers3 className="h-5 w-5" />,
+            tone: "info",
+          },
+          {
+            label: text("执行日志", "Execution logs"),
+            value: `${summary.logCount}`,
+            detail: text("保留决策线索，不做治理动作", "Decision trace, not governance action"),
+            icon: <Terminal className="h-5 w-5" />,
+          },
+        ]}
+        actions={
+          <>
+            <Button asChild>
+              <Link href="/operations">{text("进入运营中台", "Open Operations Hub")}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/monitor">{text("优先看监控", "Open Monitoring")}</Link>
+            </Button>
+          </>
+        }
+        aside={
+          <Card variant="glass" className="h-full border-border/60">
+            <div className="space-y-4">
+              <Badge variant="secondary" className="w-fit">
+                {text("这页该做什么", "What this page is for")}
+              </Badge>
+              <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+                <p>{text("1. 判断告警、趋势和队列谁最值得先处理。", "1. Decide whether alerts, trend, or queue deserve attention first.")}</p>
+                <p>{text("2. 明确下一步去哪一页，而不是在这里做所有事情。", "2. Decide the next page instead of doing everything here.")}</p>
+                <p>{text("3. 只保留班次级概览，不堆实时设备细节。", "3. Keep shift-level overview instead of deep real-time detail.")}</p>
               </div>
-            ))}
-          </div>
-          <div className="command-metric-row">
-            {snapshot?.metrics.map((metric, index) => (
-              <div key={metric.label} className={`command-metric-tile hover-lift stagger-${index + 1}`}>
-                <span>{metric.label}</span>
-                <strong>{metric.value}</strong>
-                <em className={`trend-${metric.trend}`}>{metric.delta}</em>
-              </div>
-            )) ?? <div className="loading-state loading-skeleton">正在加载经营指标...</div>}
-          </div>
-        </div>
+            </div>
+          </Card>
+        }
+      />
 
-        <Card className="command-hero-visual glow-border animate-scale-in stagger-2">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Operations Scope</span>
-              <h2>页面职责说明</h2>
-            </div>
-            <Badge variant="success">已收口</Badge>
-          </div>
-          <div className="enterprise-highlight-list">
-            <div className="hover-lift">
-              <strong className="text-gradient">保留在这里的数据</strong>
-              <p>质量结构、总量指标、产线趋势、工单队列和执行日志，作为运营总览统一展示。</p>
-            </div>
-            <div className="hover-lift">
-              <strong className="text-gradient">移出的重复内容</strong>
-              <p>设备健康矩阵、实时告警和 3D 场景已分别归入监控页与数字孪生页，避免跨页重复。</p>
-            </div>
-            <div className="hover-lift">
-              <strong className="text-gradient">浏览路径建议</strong>
-              <p>先看指挥中心，再按需进入监控、孪生或后台做更细的排查和管理动作。</p>
-            </div>
-          </div>
-        </Card>
-      </section>
+      <TaskSection
+        eyebrow={text("建议路径", "Suggested routes")}
+        title={text("用动作路由替代重复的大盘", "Route action instead of duplicating specialist dashboards")}
+        description={text(
+          "这三张卡片告诉班组长现在下一步应该去哪，而不是继续在指挥页停留。",
+          "These cards tell shift leads where to go next instead of trapping them in the command page.",
+        )}
+      >
+        <div className="grid gap-4 xl:grid-cols-3">
+          {recommendedRoutes.map((route) => (
+            <Card key={route.title} variant="glass" className="h-full border-border/60">
+              <h3 className="text-lg font-bold">{route.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{route.body}</p>
+              <Button asChild className="mt-5 w-fit">
+                <Link href={route.href}>
+                  {text("去处理", "Open")}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </Card>
+          ))}
+        </div>
+      </TaskSection>
 
       {error ? (
-        <div className="empty-state animate-scale-in">
-          <span>!</span>
-          {error}
+        <div className="mt-10">
+          <EmptyStateCard
+            icon={<AlertTriangle className="h-6 w-6" />}
+            title={text("指挥中心数据暂时不可用", "Command center is unavailable")}
+            description={error}
+            action={<Button onClick={() => window.location.reload()}>{text("重新加载", "Reload")}</Button>}
+          />
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <Card className="xl:col-span-4 chart-card animate-fade-in-up stagger-1">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Quality Mix</span>
-              <h2>质量结构总览</h2>
+      <TaskSection
+        className="mt-10"
+        eyebrow={text("态势摘要", "Posture summary")}
+        title={text("保留最关键的两块图表", "Keep only the two charts that change command decisions")}
+        description={text(
+          "质量结构决定问题类型，趋势决定压力方向。其他细节应该交给专用页面处理。",
+          "Quality mix explains what kind of problem exists; throughput trend explains where pressure is moving.",
+        )}
+      >
+        <div className="grid gap-4 lg:grid-cols-12">
+          <Card className="lg:col-span-5 border-border/60" variant="gradient">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-bold">{text("质量结构", "Quality mix")}</h3>
+              </div>
+              <Badge variant="outline">{text("判断问题类型", "Problem type")}</Badge>
             </div>
-          </div>
-          <div className="chart-body">
-            {snapshot ? <PieChart title="质量结构" data={snapshot.quality} /> : <div className="loading-state loading-skeleton">图表加载中...</div>}
-          </div>
-        </Card>
+            {snapshot ? (
+              <PieChart title="Quality Mix" data={snapshot.quality} />
+            ) : (
+              <div className="flex h-80 items-center justify-center rounded-xl border border-border/60 bg-muted/20 text-sm text-muted-foreground">
+                {text("加载质量图表中…", "Loading quality chart...")}
+              </div>
+            )}
+          </Card>
 
-        <Card className="xl:col-span-8 chart-card animate-fade-in-up stagger-2">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">30 Day Throughput</span>
-              <h2>近 30 天检测趋势</h2>
+          <Card className="lg:col-span-7 border-border/60" variant="gradient">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="h-5 w-5 text-accent" />
+                <h3 className="text-lg font-bold">{text("30 天趋势", "30-day trend")}</h3>
+              </div>
+              <Badge variant="outline">{text("判断压力方向", "Pressure direction")}</Badge>
             </div>
-            <Badge variant="outline">每 12 秒自动刷新</Badge>
-          </div>
-          <div className="chart-body">
-            {snapshot ? <LineChart data={snapshot.trend} /> : <div className="loading-state loading-skeleton">趋势加载中...</div>}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <Card className="xl:col-span-5 animate-fade-in-up stagger-3">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Live Queue</span>
-              <h2>实时工单队列</h2>
-            </div>
-            <Badge variant="outline">滚动显示当前批次</Badge>
-          </div>
-          <ScrollArea className="h-[400px]">
-            <div className="live-queue pr-4">
-              {snapshot?.liveProjects.map((project, index) => (
-                <div key={project.id} className={`live-queue-item hover-lift stagger-${index + 1}`}>
-                  <div>
-                    <strong>{project.id}</strong>
-                    <span>
-                      {project.stage} · {project.model}
-                    </span>
-                  </div>
-                  <div className="live-queue-meta">
-                    <span>{project.eta}</span>
-                    <Badge 
-                      variant={
-                        project.result === "FAIL" ? "destructive" : 
-                        project.result === "PASS" ? "success" : 
-                        "secondary"
-                      }
-                    >
-                      {project.result || "进行中"}
-                    </Badge>
-                  </div>
+            <div className="h-[360px]">
+              {snapshot ? (
+                <LineChart data={snapshot.trend} />
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl border border-border/60 bg-muted/20 text-sm text-muted-foreground">
+                  {text("加载趋势图中…", "Loading trend chart...")}
                 </div>
-              )) ?? <div className="loading-state loading-skeleton">队列加载中...</div>}
+              )}
             </div>
-          </ScrollArea>
-        </Card>
-
-        <Card className="xl:col-span-7 animate-fade-in-up stagger-4">
-          <div className="panel-heading">
-            <div>
-              <span className="panel-kicker">Decision Notes</span>
-              <h2>本页推荐动作</h2>
-            </div>
-          </div>
-          <div className="enterprise-highlight-list">
-            <div className="hover-lift">
-              <strong className="text-gradient">先看质量结构</strong>
-              <p>如果不合格占比抬升，优先进入实时监控页查看告警流和视频墙，确认问题是现场波动还是批次异常。</p>
-            </div>
-            <div className="hover-lift">
-              <strong className="text-gradient">再看趋势变化</strong>
-              <p>如果趋势突然下滑但质量正常，更可能是节拍、缓存或巡检动作导致，可转去后台和监控页联动排查。</p>
-            </div>
-            <div className="hover-lift">
-              <strong className="text-gradient">最后看工单流转</strong>
-              <p>工单队列适合判断是否存在复检积压、模型切换或阶段阻塞，是运营调度最直接的入口。</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Card className="animate-scale-in stagger-5">
-        <div className="panel-heading">
-          <div>
-            <span className="panel-kicker">Execution Log</span>
-            <h2>实时执行日志</h2>
-          </div>
-          <Badge variant="outline">日志滚动模拟当前设备、工单与算法链路联动</Badge>
+          </Card>
         </div>
-        <ScrollArea className="h-[200px]">
-          <div ref={logBoxRef} className="logbox command-logbox pr-4">
-            {logs.length ? logs.map((line, index) => <div key={`${line}-${index}`}>{line}</div>) : <div className="loading-state loading-skeleton">日志初始化中...</div>}
-          </div>
-        </ScrollArea>
-      </Card>
+      </TaskSection>
+
+      <TaskSection
+        className="mt-10"
+        eyebrow={text("执行线索", "Execution cues")}
+        title={text("队列、风险和日志放在一起看", "Review queue, risk, and logs together")}
+        description={text(
+          "这三块组合起来，足够支持‘下一步去哪里’的决策，不需要再把监控页和孪生页搬过来。",
+          "These three blocks are enough to decide the next operational page without copying Monitoring or Digital Twin into Command Center.",
+        )}
+      >
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <Card variant="glass" className="border-border/60">
+            <div className="mb-4 flex items-center gap-3">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-bold">{text("活动队列", "Live queue")}</h3>
+            </div>
+            <div className="space-y-3">
+              {snapshot?.liveProjects.length ? (
+                snapshot.liveProjects.slice(0, 6).map((project) => (
+                  <div key={project.id} className="rounded-2xl border border-border/60 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <strong>{project.id}</strong>
+                      <Badge
+                        variant={
+                          project.result === "FAIL"
+                            ? "destructive"
+                            : project.result === "PASS"
+                              ? "success"
+                              : "secondary"
+                        }
+                      >
+                        {project.result || text("处理中", "In progress")}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {project.stage} / {project.model} / {project.eta}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {text("当前没有活动队列。", "No live queue is available right now.")}
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card variant="glass" className="border-border/60">
+            <div className="mb-4 flex items-center gap-3">
+              <Eye className="h-5 w-5 text-warning" />
+              <h3 className="text-lg font-bold">{text("风险观察", "Risk watchlist")}</h3>
+            </div>
+            <div className="space-y-3">
+              {snapshot?.alerts.length ? (
+                snapshot.alerts.slice(0, 5).map((alert) => (
+                  <div key={alert.id} className="rounded-2xl border border-border/60 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <strong>{alert.title}</strong>
+                      <Badge
+                        variant={
+                          alert.level === "高"
+                            ? "destructive"
+                            : alert.level === "中"
+                              ? "warning"
+                              : "secondary"
+                        }
+                      >
+                        {alert.level}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {alert.station} / {alert.timestamp}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {text("当前没有告警。", "No active alert is available right now.")}
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card variant="glass" className="border-border/60">
+            <div className="mb-4 flex items-center gap-3">
+              <Terminal className="h-5 w-5 text-accent" />
+              <h3 className="text-lg font-bold">{text("执行日志", "Execution log")}</h3>
+            </div>
+            <ScrollArea className="h-[360px] rounded-2xl border border-border/60 bg-black/30">
+              <div ref={logBoxRef} className="space-y-2 p-4 font-mono text-xs">
+                {logs.length ? (
+                  logs.map((line, index) => (
+                    <div key={`${line}-${index}`} className="border-b border-border/20 pb-2 text-muted-foreground last:border-b-0">
+                      <span className="mr-2 text-primary">[{index + 1}]</span>
+                      {line}
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    {text("正在初始化日志…", "Initializing logs...")}
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </Card>
+        </div>
+      </TaskSection>
     </div>
   );
 }

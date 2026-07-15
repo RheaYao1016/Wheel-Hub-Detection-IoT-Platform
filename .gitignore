@@ -33,6 +33,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.backup
 
 # vercel
 .vercel
@@ -50,4 +51,9 @@ prisma/migrations
 ai-ml-restart*.log
 backend-restart*.log
 backend-wmi.log
+.npm-cache/
+output/
+scans/
+backend/backend/
+prisma/backend/
 

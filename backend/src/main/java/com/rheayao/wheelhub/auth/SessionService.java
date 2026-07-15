@@ -63,8 +63,8 @@ public class SessionService {
         }
 
         Instant now = clock.instant();
-        Instant expiresAt = Instant.parse(session.expiresAt());
-        if (!expiresAt.isAfter(now)) {
+        Instant expiresAt = parseExpiresAt(session.expiresAt());
+        if (expiresAt == null || !expiresAt.isAfter(now)) {
             sessions.remove(token);
             persistSessions();
             return null;
@@ -101,11 +101,23 @@ public class SessionService {
         sessions.clear();
         Instant now = clock.instant();
         for (AuthSession session : storedSessions) {
-            if (Instant.parse(session.expiresAt()).isAfter(now)) {
+            Instant expiresAt = parseExpiresAt(session.expiresAt());
+            if (expiresAt != null && expiresAt.isAfter(now)) {
                 sessions.put(session.token(), session);
             }
         }
         persistSessions();
+    }
+
+    private Instant parseExpiresAt(String expiresAt) {
+        if (expiresAt == null || expiresAt.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(expiresAt);
+        } catch (Exception exception) {
+            return null;
+        }
     }
 
     private void persistSessions() {

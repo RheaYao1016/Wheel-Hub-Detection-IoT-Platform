@@ -2,11 +2,21 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import {
+  BarChart3,
+  Bot,
+  Database,
+  LayoutDashboard,
+  Radar,
+  Settings2,
+  ShieldCheck,
+  Video,
+} from "lucide-react";
 import { readStoredAuthSession } from "@/lib/auth-session";
 import type { UserRole } from "@/types/auth";
+import { cn } from "@/lib/utils";
 import { useLocale } from "../Locale/LocaleProvider";
 import TransitionLink from "./TransitionLink";
-import { cn } from "@/lib/utils";
 
 type RoleState = UserRole | null;
 
@@ -14,27 +24,128 @@ type NavItem = {
   href: string;
   labelZh: string;
   labelEn: string;
+  descriptionZh: string;
+  descriptionEn: string;
+  icon: React.ReactNode;
   aliases?: string[];
+  roles?: UserRole[];
 };
 
-const CORE_ITEMS: NavItem[] = [
-  { href: "/home", labelZh: "项目总览", labelEn: "Overview" },
-  { href: "/visualize", labelZh: "指挥中心", labelEn: "Command Center" },
-  { href: "/operations", labelZh: "现场中台", labelEn: "Operations Hub", aliases: ["/monitor", "/digital-twin"] },
-  {
-    href: "/workspace",
-    labelZh: "智能工作台",
-    labelEn: "AI Workspace",
-    aliases: ["/ai-assistant", "/data-hub", "/reports", "/training", "/annotation"],
-  },
-];
+type NavSection = {
+  id: string;
+  labelZh: string;
+  labelEn: string;
+  items: NavItem[];
+};
 
-const ADMIN_ITEMS: NavItem[] = [
+const NAV_SECTIONS: NavSection[] = [
   {
-    href: "/admin",
-    labelZh: "运营后台",
-    labelEn: "Admin Console",
-    aliases: ["/admin/alerts", "/admin/data-import", "/admin/inspections", "/admin/storage", "/admin/wheels"],
+    id: "observe",
+    labelZh: "总览与态势",
+    labelEn: "Observe",
+    items: [
+      {
+        href: "/home",
+        labelZh: "平台首页",
+        labelEn: "Platform Home",
+        descriptionZh: "先理解平台分工与当前工作路径",
+        descriptionEn: "Start with the platform map and current workflows",
+        icon: <LayoutDashboard className="h-4 w-4" />,
+      },
+      {
+        href: "/visualize",
+        labelZh: "指挥中心",
+        labelEn: "Command Center",
+        descriptionZh: "查看质量、趋势和生产态势",
+        descriptionEn: "Track quality, throughput, and shift posture",
+        icon: <BarChart3 className="h-4 w-4" />,
+        roles: ["admin", "operator", "user"],
+      },
+    ],
+  },
+  {
+    id: "operate",
+    labelZh: "现场执行",
+    labelEn: "Operate",
+    items: [
+      {
+        href: "/operations",
+        labelZh: "运营中台",
+        labelEn: "Operations Hub",
+        descriptionZh: "连接监控与数字孪生的现场入口",
+        descriptionEn: "Unify monitoring and digital-twin handoff",
+        icon: <Radar className="h-4 w-4" />,
+        aliases: ["/monitor", "/digital-twin"],
+        roles: ["admin", "operator", "user"],
+      },
+      {
+        href: "/workspace",
+        labelZh: "智能工作台",
+        labelEn: "Intelligence Workspace",
+        descriptionZh: "集中处理 AI、数据、报告和训练",
+        descriptionEn: "Run AI, data, report, and training work",
+        icon: <Bot className="h-4 w-4" />,
+        aliases: [
+          "/ai-assistant",
+          "/data-hub",
+          "/reports",
+          "/training",
+          "/annotation",
+          "/platform-config",
+        ],
+      },
+    ],
+  },
+  {
+    id: "govern",
+    labelZh: "治理与支持",
+    labelEn: "Govern",
+    items: [
+      {
+        href: "/data-hub",
+        labelZh: "数据中心",
+        labelEn: "Data Hub",
+        descriptionZh: "管理数据源、质量与连接状态",
+        descriptionEn: "Manage sources, quality, and connectivity",
+        icon: <Database className="h-4 w-4" />,
+        aliases: ["/annotation"],
+        roles: ["admin", "engineer", "viewer", "operator", "user"],
+      },
+      {
+        href: "/admin",
+        labelZh: "治理后台",
+        labelEn: "Admin Console",
+        descriptionZh: "处理警报、导入和系统治理",
+        descriptionEn: "Handle alerts, imports, and governance",
+        icon: <ShieldCheck className="h-4 w-4" />,
+        aliases: [
+          "/admin/alerts",
+          "/admin/data-import",
+          "/admin/inspections",
+          "/admin/storage",
+          "/admin/wheels",
+        ],
+        roles: ["admin"],
+      },
+      {
+        href: "/monitor",
+        labelZh: "监控中心",
+        labelEn: "Monitoring",
+        descriptionZh: "直接打开实时视频和警报队列",
+        descriptionEn: "Jump straight into live feeds and alert triage",
+        icon: <Video className="h-4 w-4" />,
+        roles: ["admin", "operator", "user"],
+      },
+      {
+        href: "/platform-config",
+        labelZh: "平台配置",
+        labelEn: "Platform Config",
+        descriptionZh: "检查服务、供应商和端点配置",
+        descriptionEn: "Inspect services, providers, and endpoints",
+        icon: <Settings2 className="h-4 w-4" />,
+        roles: ["admin", "engineer", "viewer"],
+      },
+    ],
   },
 ];
 
@@ -47,13 +158,17 @@ function matchesRoute(currentPath: string, item: NavItem) {
     return true;
   }
 
-  return item.aliases?.some((alias) => currentPath === alias || currentPath.startsWith(`${alias}/`)) ?? false;
+  return (
+    item.aliases?.some(
+      (alias) => currentPath === alias || currentPath.startsWith(`${alias}/`),
+    ) ?? false
+  );
 }
 
 export default function Navigation() {
-  const { locale } = useLocale();
   const pathname = usePathname();
   const currentPath = pathname === "/" ? "/home" : pathname;
+  const { text } = useLocale();
   const [role, setRole] = useState<RoleState>(null);
 
   useEffect(() => {
@@ -74,53 +189,70 @@ export default function Navigation() {
     };
   }, []);
 
-  const navItems = useMemo(() => {
+  const sections = useMemo(() => {
     const normalizedRole = normalizeRole(role);
 
-    if (normalizedRole === "admin") {
-      return [...CORE_ITEMS, ...ADMIN_ITEMS];
-    }
-
-    if (normalizedRole === "operator") {
-      return CORE_ITEMS;
-    }
-
-    if (normalizedRole === "engineer" || normalizedRole === "viewer") {
-      return CORE_ITEMS.filter((item) => item.href !== "/visualize" && item.href !== "/operations");
-    }
-
-    return CORE_ITEMS;
+    return NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!item.roles || !normalizedRole) return !item.roles || item.roles.includes("operator");
+        return item.roles.includes(normalizedRole);
+      }),
+    })).filter((section) => section.items.length > 0);
   }, [role]);
 
   return (
-    <nav className="flex flex-1 justify-center">
-      <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
-        {navItems.map((item) => {
-          const isActive = matchesRoute(currentPath, item);
-          return (
-            <TransitionLink
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "nav-pill relative px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300",
-                "hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2",
-                isActive && [
-                  "nav-pill-active",
-                  "bg-gradient-to-r from-[var(--accent)]/20 to-[var(--accent-strong)]/20",
-                  "text-[var(--accent)]",
-                  "border border-[var(--accent)]/30",
-                  "shadow-[0_0_20px_var(--accent)]/10",
-                ]
-              )}
-            >
-              {locale === "zh-CN" ? item.labelZh : item.labelEn}
-              {isActive && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-strong)] rounded-full" />
-              )}
-            </TransitionLink>
-          );
-        })}
+    <nav className="border-t border-border/80 py-3">
+      <div className="grid gap-3 xl:grid-cols-3">
+        {sections.map((section) => (
+          <div
+            key={section.id}
+            className="rounded-2xl border border-border/60 bg-background/40 p-2.5 backdrop-blur"
+          >
+            <div className="mb-2 flex items-center gap-2 px-2">
+              <div className="h-2 w-2 rounded-full bg-primary/70" />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {text(section.labelZh, section.labelEn)}
+              </p>
+            </div>
+            <div className="grid gap-2">
+              {section.items.map((item) => {
+                const isActive = matchesRoute(currentPath, item);
+                return (
+                  <TransitionLink
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "group flex items-start gap-3 rounded-2xl border px-3 py-3 transition-all duration-200",
+                      isActive
+                        ? "border-primary/40 bg-primary/10 text-foreground shadow-glow-sm"
+                        : "border-transparent text-muted-foreground hover:border-border hover:bg-accent/10 hover:text-foreground",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "mt-0.5 rounded-xl border p-2",
+                        isActive
+                          ? "border-primary/30 bg-primary/10 text-primary"
+                          : "border-border/60 bg-background/60 text-muted-foreground group-hover:text-primary",
+                      )}
+                    >
+                      {item.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold tracking-wide">
+                        {text(item.labelZh, item.labelEn)}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {text(item.descriptionZh, item.descriptionEn)}
+                      </p>
+                    </div>
+                  </TransitionLink>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </nav>
   );

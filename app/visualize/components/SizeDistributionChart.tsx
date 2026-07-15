@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import PieChart from "@/app/components/Charts/PieChart";
+import { getApiPath } from "@/lib/api-path";
 
 export default function SizeDistributionChart() {
   const [data, setData] = useState<Array<{ name: string; value: number }>>([]);
 
   useEffect(() => {
-    fetch("/api/statistics?type=size-dist")
+    fetch(getApiPath("/api/statistics?type=size-dist"))
       .then((res) => res.json())
       .then((d) =>
         setData(

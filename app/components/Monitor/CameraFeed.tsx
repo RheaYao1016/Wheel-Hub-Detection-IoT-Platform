@@ -2,14 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
+const CAMERA_COUNT = 4;
+
 export default function CameraFeed() {
-  const videoRefs = [
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-  ];
-  const [streams, setStreams] = useState<MediaStream[]>([]);
+  const videoRefs = useRef<Array<HTMLVideoElement | null>>(
+    Array.from({ length: CAMERA_COUNT }, () => null),
+  );
+  const streamsRef = useRef<MediaStream[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,12 +18,12 @@ export default function CameraFeed() {
     const handleStart = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        videoRefs.forEach((videoRef) => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
+        videoRefs.current.forEach((videoRef) => {
+          if (videoRef) {
+            videoRef.srcObject = stream;
           }
         });
-        setStreams([stream]);
+        streamsRef.current = [stream];
         setMessage("本机摄像头预览已启动。");
       } catch (error) {
         console.error("unable to get camera permission", error);
@@ -36,17 +35,26 @@ export default function CameraFeed() {
 
     return () => {
       startButton.removeEventListener("click", handleStart);
-      streams.forEach((stream) => {
+      streamsRef.current.forEach((stream) => {
         stream.getTracks().forEach((track) => track.stop());
       });
+      streamsRef.current = [];
     };
-  }, [streams, videoRefs]);
+  }, []);
 
   return (
     <div className="grid h-full grid-cols-2 gap-4">
-      {[1, 2, 3, 4].map((index) => (
+      {Array.from({ length: CAMERA_COUNT }, (_, index) => index + 1).map((index) => (
         <div key={index} className="overflow-hidden rounded bg-black/50">
-          <video ref={videoRefs[index - 1]} autoPlay playsInline muted className="h-full w-full object-contain" />
+          <video
+            ref={(node) => {
+              videoRefs.current[index - 1] = node;
+            }}
+            autoPlay
+            playsInline
+            muted
+            className="h-full w-full object-contain"
+          />
         </div>
       ))}
       {message ? <div className="floating-toast success">{message}</div> : null}

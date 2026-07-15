@@ -7,13 +7,18 @@ import {
   setPendingJsonRequest,
   writeRuntimeJsonCache,
 } from "@/lib/runtime-cache";
+import {
+  listRuntimeApiBaseCandidates,
+  readRuntimeEndpointConfig,
+  rememberWorkingApiBase,
+} from "@/lib/runtime-endpoint-config";
 
 /**
  * Resolve data from Spring Boot as the only supported source of truth.
  * If the backend is unavailable, the request must fail with a real error.
  */
 export function getBackendApiBase() {
-  return process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:18081/api";
+  return readRuntimeEndpointConfig().apiBaseUrl;
 }
 
 const BACKEND_TIMEOUT_MS = 8000;
@@ -69,7 +74,10 @@ function shouldStopFallback(error: unknown) {
 
 function getTargets(backendPath: string, fallbackPath: string) {
   const backendBase = getBackendApiBase();
-  const targets = [`${backendBase}${backendPath}`];
+  const targets = listRuntimeApiBaseCandidates().map((base) => ({
+    base,
+    target: `${base}${backendPath}`,
+  }));
 
   return { backendBase, targets };
 }
@@ -91,9 +99,9 @@ export async function fetchPlatformData<T>(backendPath: string, fallbackPath: st
   let lastError: unknown;
 
   const execute = async () => {
-    for (const target of targets) {
+    for (const entry of targets) {
       try {
-        const response = await fetchWithOptionalTimeout(target, backendBase, { cache: "no-store", ...withAuthHeaders() });
+        const response = await fetchWithOptionalTimeout(entry.target, entry.base, { cache: "no-store", ...withAuthHeaders() });
         if (!response.ok) {
           if (response.status === 401 || response.status === 403) {
             throw new PlatformAuthError(response.status, `Request failed: ${response.status} ${response.statusText}`);
@@ -101,6 +109,9 @@ export async function fetchPlatformData<T>(backendPath: string, fallbackPath: st
           throw new Error(`Request failed: ${response.status} ${response.statusText}`);
         }
         const data = (await response.json()) as T;
+        if (entry.base !== backendBase) {
+          rememberWorkingApiBase(entry.base);
+        }
         writeRuntimeJsonCache(cacheKey, data, BACKEND_CACHE_TTL_MS);
         return data;
       } catch (error) {
@@ -137,9 +148,9 @@ export async function requestPlatformJson<T>(backendPath: string, fallbackPath: 
   let lastError: unknown;
 
   const execute = async () => {
-    for (const target of targets) {
+    for (const entry of targets) {
       try {
-        const response = await fetchWithOptionalTimeout(target, backendBase, {
+        const response = await fetchWithOptionalTimeout(entry.target, entry.base, {
           cache: "no-store",
           ...withAuthHeaders(init),
         });
@@ -150,6 +161,9 @@ export async function requestPlatformJson<T>(backendPath: string, fallbackPath: 
           throw new Error(`Request failed: ${response.status} ${response.statusText}`);
         }
         const data = (await response.json()) as T;
+        if (entry.base !== backendBase) {
+          rememberWorkingApiBase(entry.base);
+        }
         if (method === "GET") {
           writeRuntimeJsonCache(cacheKey, data, BACKEND_CACHE_TTL_MS);
         } else {
@@ -174,9 +188,9 @@ export async function requestPlatformBlob(backendPath: string, fallbackPath: str
   const { backendBase, targets } = getTargets(backendPath, fallbackPath);
   let lastError: unknown;
 
-  for (const target of targets) {
+  for (const entry of targets) {
     try {
-      const response = await fetchWithOptionalTimeout(target, backendBase, {
+      const response = await fetchWithOptionalTimeout(entry.target, entry.base, {
         cache: "no-store",
         ...withAuthHeaders(init),
       });
@@ -185,6 +199,9 @@ export async function requestPlatformBlob(backendPath: string, fallbackPath: str
           throw new PlatformAuthError(response.status, `Request failed: ${response.status} ${response.statusText}`);
         }
         throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+      }
+      if (entry.base !== backendBase) {
+        rememberWorkingApiBase(entry.base);
       }
       return await response.blob();
     } catch (error) {

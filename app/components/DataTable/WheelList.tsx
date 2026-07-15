@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getApiPath } from "@/lib/api-path";
+import { getImagePath } from "@/lib/image-path";
 
 interface Wheel {
   id: string;
@@ -25,7 +27,7 @@ export default function WheelList() {
 
   const fetchWheels = async () => {
     try {
-      const res = await fetch("/api/wheels?limit=50");
+      const res = await fetch(getApiPath("/api/wheels?limit=50"));
       if (res.ok) {
         const data = await res.json();
         setWheels(data.data || []);
@@ -49,10 +51,10 @@ export default function WheelList() {
     <div className="bg-white/30 border border-primary-500 rounded p-4 h-full relative">
       {/* 背景装饰 */}
       <div className="absolute inset-0 pointer-events-none">
-        <img src="/images/bj-1.png" alt="" className="absolute left-0 top-0" />
-        <img src="/images/bj-2.png" alt="" className="absolute right-0 top-0" />
-        <img src="/images/bj-3.png" alt="" className="absolute right-0 bottom-0" />
-        <img src="/images/bj-4.png" alt="" className="absolute left-0 bottom-0" />
+        <img src={getImagePath("/images/bj-1.png")} alt="" className="absolute left-0 top-0" />
+        <img src={getImagePath("/images/bj-2.png")} alt="" className="absolute right-0 top-0" />
+        <img src={getImagePath("/images/bj-3.png")} alt="" className="absolute right-0 bottom-0" />
+        <img src={getImagePath("/images/bj-4.png")} alt="" className="absolute left-0 bottom-0" />
       </div>
 
       <div className="text-white text-base font-semibold mb-4 relative z-10">

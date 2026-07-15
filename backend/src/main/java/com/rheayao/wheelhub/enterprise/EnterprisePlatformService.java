@@ -7,6 +7,10 @@ import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnnotationAsset;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnnotationLabel;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AnnotationProject;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.AuditLog;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AssistantIndexCatalogSnapshot;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AssistantIndexRecord;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AssistantProtocolSettings;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.AssistantProtocolSpec;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.ChatMessageRecord;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.ChatSessionRecord;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.CreateAnalysisJobRequest;
@@ -26,6 +30,7 @@ import com.rheayao.wheelhub.enterprise.EnterpriseModels.SaveAnnotationLabelReque
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingActionRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingJob;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.TrainingMetricPoint;
+import com.rheayao.wheelhub.enterprise.EnterpriseModels.UpdateAssistantProtocolSettingsRequest;
 import com.rheayao.wheelhub.enterprise.EnterpriseModels.UpdateChatSessionProfileRequest;
 import com.rheayao.wheelhub.security.SecretCodecService;
 import com.rheayao.wheelhub.storage.JsonStorageService;
@@ -34,7 +39,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -60,6 +67,8 @@ public class EnterprisePlatformService {
     private static final String TRAINING_FILE = "enterprise/training-jobs.json";
     private static final String MODEL_VERSIONS_FILE = "enterprise/model-versions.json";
     private static final String AUDIT_FILE = "enterprise/audit-logs.json";
+    private static final String PROTOCOL_SETTINGS_FILE = "enterprise/assistant-protocol-settings.json";
+    private static final String INDEX_CATALOG_FILE = "enterprise/assistant-index-catalog.csv";
 
     private final JsonStorageService storageService;
     private final SecretCodecService secretCodecService;
@@ -77,6 +86,7 @@ public class EnterprisePlatformService {
     private final CopyOnWriteArrayList<ModelVersion> modelVersions;
     private final CopyOnWriteArrayList<AuditLog> auditLogs;
     private final List<PromptPreset> promptPresets;
+    private volatile AssistantProtocolSettings assistantProtocolSettings;
 
     public EnterprisePlatformService(
         JsonStorageService storageService,
@@ -98,10 +108,16 @@ public class EnterprisePlatformService {
         this.trainingJobs = new CopyOnWriteArrayList<>(storageService.readList(TRAINING_FILE, TrainingJob.class, EnterprisePlatformService::seedTrainingJobs));
         this.modelVersions = new CopyOnWriteArrayList<>(storageService.readList(MODEL_VERSIONS_FILE, ModelVersion.class, EnterprisePlatformService::seedModelVersions));
         this.auditLogs = new CopyOnWriteArrayList<>(storageService.readList(AUDIT_FILE, AuditLog.class, List::of));
+        this.assistantProtocolSettings = storageService
+            .readList(PROTOCOL_SETTINGS_FILE, AssistantProtocolSettings.class, () -> List.of(defaultAssistantProtocolSettings()))
+            .stream()
+            .findFirst()
+            .orElse(defaultAssistantProtocolSettings());
         this.promptPresets = List.copyOf(seedPromptPresets());
 
         ensureEnterpriseSeeds();
         cleanupLegacyEnterpriseArtifacts();
+        persistAssistantIndexCatalog(assistantProtocolSettings.indexLookbackDays());
     }
 
     public DashboardSummary getOverview() {
@@ -115,6 +131,45 @@ public class EnterprisePlatformService {
             listModelVersions(),
             listAuditLogs().stream().limit(12).toList()
         );
+    }
+
+    public AssistantProtocolSpec getAssistantProtocolSpec() {
+        return AssistantProtocolSupport.buildSpec();
+    }
+
+    public AssistantProtocolSettings getAssistantProtocolSettings() {
+        return assistantProtocolSettings;
+    }
+
+    public AssistantProtocolSettings updateAssistantProtocolSettings(
+        UpdateAssistantProtocolSettingsRequest request,
+        AuthSession session
+    ) {
+        int nextLookbackDays = request == null || request.indexLookbackDays() == null
+            ? assistantProtocolSettings.indexLookbackDays()
+            : Math.max(30, Math.min(730, request.indexLookbackDays()));
+        assistantProtocolSettings = new AssistantProtocolSettings(
+            nextLookbackDays,
+            assistantProtocolSettings.refreshOnSessionLoad(),
+            assistantProtocolSettings.refreshOnMutation()
+        );
+        persistAssistantProtocolSettings();
+        persistAssistantIndexCatalog(nextLookbackDays);
+        audit(
+            session,
+            "update_assistant_protocol_settings",
+            "assistant_protocol_settings",
+            "default",
+            "Updated assistant index lookback window to " + nextLookbackDays + " days"
+        );
+        return assistantProtocolSettings;
+    }
+
+    public AssistantIndexCatalogSnapshot getAssistantIndexCatalog(Integer lookbackDaysOverride) {
+        int lookbackDays = lookbackDaysOverride == null
+            ? assistantProtocolSettings.indexLookbackDays()
+            : Math.max(30, Math.min(730, lookbackDaysOverride));
+        return persistAssistantIndexCatalog(lookbackDays);
     }
 
     public List<PromptPreset> listPromptPresets() {
@@ -185,7 +240,9 @@ public class EnterprisePlatformService {
             "standard",
             provider,
             resolvePromptPresetOrDefault("quality-ops-briefing"),
-            List.of()
+            List.of(),
+            buildAssistantIndexCatalogSnapshot(assistantProtocolSettings.indexLookbackDays()).csvContent(),
+            assistantProtocolSettings.indexLookbackDays()
         );
         String verifiedAt = LocalDateTime.now().toString();
         ProviderProfile verifiedProvider = new ProviderProfile(
@@ -378,7 +435,9 @@ public class EnterprisePlatformService {
                 0,
                 List.of(),
                 null,
-                List.of()
+                List.of(),
+                "",
+                null
             )
         );
         ChatMessageRecord assistant = aiMlBridgeService.generateChatReply(
@@ -389,7 +448,9 @@ public class EnterprisePlatformService {
             defaultText(verbosity, "standard"),
             provider,
             promptPreset,
-            sources
+            sources,
+            buildAssistantIndexCatalogSnapshot(assistantProtocolSettings.indexLookbackDays()).csvContent(),
+            assistantProtocolSettings.indexLookbackDays()
         );
         chatMessages.add(assistant);
         replaceChatSession(
@@ -458,9 +519,14 @@ public class EnterprisePlatformService {
         String format = defaultText(request.format(), "docx").toLowerCase();
         String reportId = UUID.randomUUID().toString();
         Map<String, String> generated = aiMlBridgeService.generateReport(format, reportId, job.result());
-        Path target = generated.get("storagePath").isBlank()
-            ? storageService.getDataDirectory().resolve("enterprise/reports").resolve(generated.get("filename"))
-            : Path.of(generated.get("storagePath"));
+        String storagePath = generated.get("storagePath");
+        String filename = generated.get("filename");
+        if (filename == null || filename.isBlank()) {
+            throw new IllegalStateException("The AI/ML service did not return a report filename.");
+        }
+        Path target = storagePath == null || storagePath.isBlank()
+            ? storageService.getDataDirectory().resolve("enterprise/reports").resolve(filename)
+            : Path.of(storagePath);
 
         if (!Files.exists(target)) {
             throw new IllegalStateException(
@@ -535,6 +601,7 @@ public class EnterprisePlatformService {
         String assetId = UUID.randomUUID().toString();
         String filename = assetId + "-" + sanitizeFilename(file.getOriginalFilename());
         Path target = storageService.getDataDirectory().resolve("enterprise/annotation-assets").resolve(filename);
+        String relativeStoragePath = "enterprise/annotation-assets/" + filename;
 
         try {
             Files.createDirectories(target.getParent());
@@ -547,7 +614,7 @@ public class EnterprisePlatformService {
             assetId,
             projectId,
             defaultText(file.getOriginalFilename(), filename),
-            target.toString(),
+            relativeStoragePath,
             defaultText(split, "train"),
             1280,
             720,
@@ -577,7 +644,13 @@ public class EnterprisePlatformService {
 
     public Path resolveAnnotationAssetPath(String assetId) {
         AnnotationAsset asset = annotationAssets.stream().filter(item -> item.id().equals(assetId)).findFirst().orElseThrow(() -> new IllegalArgumentException("Annotation asset not found."));
-        return Path.of(asset.storagePath());
+        String storagePath = asset.storagePath();
+        Path candidate = Path.of(storagePath);
+        // Use cross-platform resolution: prefer absolute if it exists, otherwise resolve relative to data dir.
+        if (candidate.isAbsolute() && Files.exists(candidate)) {
+            return candidate;
+        }
+        return storageService.getDataDirectory().resolve(storagePath).normalize();
     }
 
     public List<AnnotationLabel> listAnnotationLabels(String projectId) {
@@ -625,7 +698,7 @@ public class EnterprisePlatformService {
                 String normalizedSplit = normalizeSplit(asset.split());
                 String safeFilename = sanitizeFilename(asset.filename());
                 String stem = stripExtension(safeFilename);
-                Path source = Path.of(asset.storagePath());
+                Path source = resolveAnnotationAssetPath(asset.id());
                 Path targetImage = imagesRoot.resolve(normalizedSplit).resolve(safeFilename);
                 Path targetLabel = labelsRoot.resolve(normalizedSplit).resolve(stem + ".txt");
 
@@ -782,11 +855,12 @@ public class EnterprisePlatformService {
         Map<String, String> connectionMeta = new LinkedHashMap<>(source.connectionMeta() == null ? Map.of() : source.connectionMeta());
         List<Map<String, String>> previewRows = source.previewRows() == null ? List.of() : source.previewRows().stream().map(this::sanitizePreviewRow).toList();
 
+        String sourceType = source.type() == null ? "unknown" : source.type();
         String normalizedName = source.name();
         if ("source-dashboard-seed".equals(source.id())) {
             normalizedName = "Wheel inspection operations view";
         } else if (normalizedName == null || normalizedName.isBlank() || "1".equals(normalizedName.trim())) {
-            normalizedName = switch (source.type()) {
+            normalizedName = switch (sourceType) {
                 case "xlsx" -> "Uploaded workbook";
                 case "csv" -> "Uploaded table";
                 case "postgres" -> "Inspection operations dataset";
@@ -796,13 +870,13 @@ public class EnterprisePlatformService {
             normalizedName = "Inspection operations dataset";
         }
 
-        connectionMeta.putIfAbsent("analysisSummary", source.type().equals("postgres")
+        connectionMeta.putIfAbsent("analysisSummary", "postgres".equals(sourceType)
             ? "Structured operational data source ready for variance, throughput, and defect review."
             : "Uploaded data source ready for AI analysis and reporting.");
 
         return new DataSourceProfile(
             source.id(),
-            source.type(),
+            sourceType,
             normalizedName,
             connectionMeta,
             source.storagePath(),
@@ -1161,6 +1235,183 @@ public class EnterprisePlatformService {
         return builder.toString();
     }
 
+    private AssistantProtocolSettings defaultAssistantProtocolSettings() {
+        return new AssistantProtocolSettings(180, true, true);
+    }
+
+    private AssistantIndexCatalogSnapshot buildAssistantIndexCatalogSnapshot(int lookbackDays) {
+        String generatedAt = LocalDateTime.now().toString();
+        List<AssistantIndexRecord> entries = new ArrayList<>();
+        entries.addAll(buildStaticAssistantIndexRecords(generatedAt));
+
+        providers.stream()
+            .filter(item -> isRecent(item.updatedAt(), lookbackDays))
+            .forEach(provider -> entries.add(new AssistantIndexRecord(
+                "config.provider." + provider.id(),
+                "provider",
+                provider.name(),
+                "/ai-assistant",
+                provider.id(),
+                true,
+                "configure_provider",
+                provider.updatedAt(),
+                Map.of(
+                    "chatModel", defaultText(provider.chatModel(), ""),
+                    "baseUrl", defaultText(provider.baseUrl(), "")
+                )
+            )));
+
+        dataSources.stream()
+            .filter(item -> isRecent(item.updatedAt(), lookbackDays))
+            .forEach(source -> entries.add(new AssistantIndexRecord(
+                "data.source." + source.id(),
+                "dataset",
+                source.name(),
+                "/data-hub",
+                source.id(),
+                true,
+                "review_data_source",
+                source.updatedAt(),
+                Map.of(
+                    "schemaProfile", defaultText(source.schemaProfile(), ""),
+                    "qualityScore", defaultText(source.qualityScore(), "")
+                )
+            )));
+
+        analysisJobs.stream()
+            .filter(item -> isRecent(item.updatedAt(), lookbackDays))
+            .forEach(job -> entries.add(new AssistantIndexRecord(
+                "analysis.job." + job.id(),
+                "analysis_job",
+                defaultText(job.result() == null ? "" : job.result().headline(), job.prompt()),
+                "/reports",
+                job.id(),
+                true,
+                "open_analysis",
+                job.updatedAt(),
+                Map.of(
+                    "template", defaultText(job.template(), ""),
+                    "riskLevel", defaultText(job.result() == null ? "" : job.result().riskLevel(), "")
+                )
+            )));
+
+        reports.stream()
+            .filter(item -> isRecent(item.createdAt(), lookbackDays))
+            .forEach(report -> entries.add(new AssistantIndexRecord(
+                "report.artifact." + report.id(),
+                "report",
+                report.filename(),
+                "/reports",
+                report.id(),
+                true,
+                "download_report",
+                report.createdAt(),
+                Map.of(
+                    "format", defaultText(report.format(), ""),
+                    "jobId", defaultText(report.jobId(), "")
+                )
+            )));
+
+        trainingJobs.stream()
+            .filter(item -> isRecent(item.finishedAt(), lookbackDays) || isRecent(item.startedAt(), lookbackDays))
+            .forEach(job -> entries.add(new AssistantIndexRecord(
+                "training.job." + job.id(),
+                "training_job",
+                defaultText(job.baseModel(), "training-job"),
+                "/training",
+                job.id(),
+                true,
+                "review_training_job",
+                defaultText(job.finishedAt(), defaultText(job.startedAt(), generatedAt)),
+                Map.of(
+                    "status", defaultText(job.status(), ""),
+                    "preset", defaultText(job.preset(), "")
+                )
+            )));
+
+        String csvContent = buildAssistantIndexCsv(entries);
+        return new AssistantIndexCatalogSnapshot(lookbackDays, generatedAt, csvContent, List.copyOf(entries));
+    }
+
+    private AssistantIndexCatalogSnapshot persistAssistantIndexCatalog(int lookbackDays) {
+        AssistantIndexCatalogSnapshot snapshot = buildAssistantIndexCatalogSnapshot(lookbackDays);
+        Path target = storageService.getDataDirectory().resolve(INDEX_CATALOG_FILE);
+        try {
+            Files.createDirectories(target.getParent());
+            Files.writeString(target, snapshot.csvContent());
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to persist assistant index catalog", exception);
+        }
+        return snapshot;
+    }
+
+    private List<AssistantIndexRecord> buildStaticAssistantIndexRecords(String now) {
+        return List.of(
+            new AssistantIndexRecord("page.workspace", "page", "Workspace", "/workspace", "workspace", false, "navigate", now, Map.of("area", "overview")),
+            new AssistantIndexRecord("page.ai-assistant", "page", "AI Assistant", "/ai-assistant", "ai-assistant", false, "navigate", now, Map.of("area", "chat")),
+            new AssistantIndexRecord("page.data-hub", "page", "Data Hub", "/data-hub", "data-hub", false, "navigate", now, Map.of("area", "sources")),
+            new AssistantIndexRecord("page.reports", "page", "Reports", "/reports", "reports", false, "navigate", now, Map.of("area", "exports")),
+            new AssistantIndexRecord("page.training", "page", "Training", "/training", "training", false, "navigate", now, Map.of("area", "jobs")),
+            new AssistantIndexRecord("page.annotation", "page", "Annotation", "/annotation", "annotation", false, "navigate", now, Map.of("area", "labels")),
+            new AssistantIndexRecord("page.platform-config", "page", "Platform Config", "/platform-config", "platform-config", false, "navigate", now, Map.of("area", "settings")),
+            new AssistantIndexRecord("action.training.start", "toggle", "Start training", "/training", "start-training", true, "start_training", now, Map.of("mode", "start")),
+            new AssistantIndexRecord("action.training.stop", "toggle", "Stop training", "/training", "stop-training", true, "stop_training", now, Map.of("mode", "stop")),
+            new AssistantIndexRecord("action.report.export.docx", "export", "Export DOCX report", "/reports", "export-docx", true, "export_docx", now, Map.of("format", "docx")),
+            new AssistantIndexRecord("action.report.export.xlsx", "export", "Export XLSX report", "/reports", "export-xlsx", true, "export_xlsx", now, Map.of("format", "xlsx")),
+            new AssistantIndexRecord("action.report.export.csv", "export", "Export CSV report", "/reports", "export-csv", true, "export_csv", now, Map.of("format", "csv")),
+            new AssistantIndexRecord("action.data.export.catalog", "index_catalog", "Export assistant index catalog", "/platform-config", "assistant-index-catalog", true, "export_index_catalog", now, Map.of("format", "csv")),
+            new AssistantIndexRecord("setting.assistant.indexLookbackDays", "setting", "Assistant index lookback days", "/platform-config", "assistant-index-lookback-days", true, "update_setting", now, Map.of("default", String.valueOf(assistantProtocolSettings.indexLookbackDays())))
+        );
+    }
+
+    private String buildAssistantIndexCsv(List<AssistantIndexRecord> entries) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("index_id,index_type,label,route,entity_id,requires_authorization,action_type,updated_at,metadata").append(System.lineSeparator());
+        for (AssistantIndexRecord entry : entries) {
+            builder.append(csv(entry.indexId())).append(',')
+                .append(csv(entry.indexType())).append(',')
+                .append(csv(entry.label())).append(',')
+                .append(csv(entry.route())).append(',')
+                .append(csv(entry.entityId())).append(',')
+                .append(csv(String.valueOf(entry.requiresAuthorization()))).append(',')
+                .append(csv(entry.actionType())).append(',')
+                .append(csv(entry.updatedAt())).append(',')
+                .append(csv(flattenMetadata(entry.metadata())))
+                .append(System.lineSeparator());
+        }
+        return builder.toString();
+    }
+
+    private String flattenMetadata(Map<String, String> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return "";
+        }
+        return metadata.entrySet().stream()
+            .map(entry -> entry.getKey() + "=" + defaultText(entry.getValue(), ""))
+            .reduce((left, right) -> left + "|" + right)
+            .orElse("");
+    }
+
+    private String csv(String value) {
+        String safe = value == null ? "" : value;
+        return "\"" + safe.replace("\"", "\"\"") + "\"";
+    }
+
+    private boolean isRecent(String value, int lookbackDays) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        try {
+            return LocalDateTime.parse(value).isAfter(LocalDateTime.now().minusDays(lookbackDays));
+        } catch (Exception ignored) {
+            try {
+                return OffsetDateTime.parse(value).isAfter(OffsetDateTime.now(ZoneOffset.UTC).minusDays(lookbackDays));
+            } catch (Exception secondIgnored) {
+                return true;
+            }
+        }
+    }
+
     private void persistProviders() { storageService.writeList(PROVIDERS_FILE, providers.stream().toList()); }
     private void persistDataSources() { storageService.writeList(SOURCES_FILE, dataSources.stream().toList()); }
     private void persistChatSessions() { storageService.writeList(CHAT_SESSIONS_FILE, chatSessions.stream().toList()); }
@@ -1173,6 +1424,7 @@ public class EnterprisePlatformService {
     private void persistTrainingJobs() { storageService.writeList(TRAINING_FILE, trainingJobs.stream().toList()); }
     private void persistModelVersions() { storageService.writeList(MODEL_VERSIONS_FILE, modelVersions.stream().toList()); }
     private void persistAuditLogs() { storageService.writeList(AUDIT_FILE, auditLogs.stream().toList()); }
+    private void persistAssistantProtocolSettings() { storageService.writeList(PROTOCOL_SETTINGS_FILE, List.of(assistantProtocolSettings)); }
 
     private void ensureEnterpriseSeeds() {
         if (providers.isEmpty()) {
@@ -1300,7 +1552,8 @@ public class EnterprisePlatformService {
         return promptPresets.stream()
             .filter(item -> item.id().equals(resolvedId))
             .findFirst()
-            .orElse(promptPresets.get(0));
+            .orElseGet(() -> promptPresets.stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("No prompt presets are available.")));
     }
 
     private static List<ProviderProfile> seedProviders() {

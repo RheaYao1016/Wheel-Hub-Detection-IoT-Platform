@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
-import { DEFAULT_CHART_THEME_TOKENS, type ChartThemeTokens, readChartThemeTokens } from "@/lib/theme";
+import {
+  DEFAULT_CHART_THEME_TOKENS,
+  type ChartThemeTokens,
+  readChartThemeTokens,
+} from "@/lib/theme";
 
 interface PieSlice {
   name: string;
@@ -17,7 +21,9 @@ interface PieChartProps {
 }
 
 export default function PieChart({ title, data, id, colors }: PieChartProps) {
-  const [tokens, setTokens] = useState<ChartThemeTokens>(DEFAULT_CHART_THEME_TOKENS);
+  const [tokens, setTokens] = useState<ChartThemeTokens>(
+    DEFAULT_CHART_THEME_TOKENS,
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -55,10 +61,16 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
     return Math.round((value / total) * 100);
   };
 
-  const centerValue = qualifiedItem ? `${formatPercent(qualifiedItem.value)}%` : `${total}`;
+  const centerValue = qualifiedItem
+    ? `${formatPercent(qualifiedItem.value)}%`
+    : `${total}`;
   const centerLabel = qualifiedItem ? "合格率" : "样本总量";
-  const centerSubLabel = primaryItem ? `主类 ${primaryItem.name}` : "等待数据";
-  const highlightValue = qualifiedItem ? `${formatPercent(qualifiedItem.value)}%` : `${primaryItem ? formatPercent(primaryItem.value) : 0}%`;
+  const centerSubLabel = primaryItem
+    ? `主类 ${primaryItem.name}`
+    : "等待数据";
+  const highlightValue = qualifiedItem
+    ? `${formatPercent(qualifiedItem.value)}%`
+    : `${primaryItem ? formatPercent(primaryItem.value) : 0}%`;
   const highlightLabel = qualifiedItem ? "优品占比" : "主类占比";
 
   const legendItems = normalizedData.map((item, index) => ({
@@ -73,7 +85,8 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
     animationEasing: "cubicOut",
     tooltip: {
       trigger: "item",
-      formatter: ({ name, value }: { name: string; value: number }) => `${name}<br/>${value} 件 (${formatPercent(value)}%)`,
+      formatter: ({ name, value }: { name: string; value: number }) =>
+        `${name}<br/>${value} 件 (${formatPercent(value)}%)`,
       backgroundColor: tokens.panelBgStrong,
       borderColor: tokens.ringSoft,
       borderWidth: 1,
@@ -123,7 +136,8 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
         label: {
           show: true,
           position: "center",
-          formatter: () => `{value|${centerValue}}\n{label|${centerLabel}}\n{sub|${centerSubLabel}}`,
+          formatter: () =>
+            `{value|${centerValue}}\n{label|${centerLabel}}\n{sub|${centerSubLabel}}`,
           rich: {
             value: {
               fontSize: 26,
@@ -151,41 +165,57 @@ export default function PieChart({ title, data, id, colors }: PieChartProps) {
   } as const;
 
   return (
-    <div className="pie-chart-shell" id={id}>
-      <div className="pie-chart-canvas">
+    <div className="flex flex-col gap-4 lg:flex-row" id={id}>
+      <div className="relative h-64 w-full lg:h-80 lg:w-3/5">
         <ReactECharts option={option} style={{ height: "100%", width: "100%" }} />
       </div>
-      <div className="pie-chart-side">
-        <div className="pie-chart-summary">
-          <div className="pie-summary-card">
-            <span>总量</span>
-            <strong>{total}</strong>
-            <em>当前结构样本</em>
+
+      <div className="flex w-full flex-col gap-3 lg:w-2/5">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-border bg-card/50 p-3 text-center">
+            <div className="text-xs text-muted-foreground">总量</div>
+            <div className="text-xl font-black text-foreground">{total}</div>
+            <div className="text-[10px] text-muted-foreground">当前结构样本</div>
           </div>
-          <div className="pie-summary-card">
-            <span>{highlightLabel}</span>
-            <strong>{highlightValue}</strong>
-            <em>{qualifiedItem?.name ?? primaryItem?.name ?? "暂无主类"}</em>
+          <div className="rounded-xl border border-border bg-card/50 p-3 text-center">
+            <div className="text-xs text-muted-foreground">{highlightLabel}</div>
+            <div className="text-xl font-black text-primary">{highlightValue}</div>
+            <div className="truncate text-[10px] text-muted-foreground">
+              {qualifiedItem?.name ?? primaryItem?.name ?? "暂无主类"}
+            </div>
           </div>
         </div>
-        <ul className="pie-chart-legend">
+
+        <ul className="space-y-2">
           {legendItems.map((item) => (
-            <li key={item.name} className="pie-legend-item">
-              <span className="legend-rank" style={{ color: item.color }}>
-                {item.rank}
-              </span>
-              <div className="legend-main">
-                <div className="legend-row">
-                  <span className="legend-name">{item.name}</span>
-                  <span className="legend-value">{item.value} 件</span>
+            <li
+              key={item.name}
+              className="rounded-lg border border-border/60 bg-card/40 p-2.5 transition hover:border-primary/30"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="text-sm font-medium">{item.name}</span>
                 </div>
-                <div className="legend-progress">
-                  <span style={{ width: `${Math.max(item.percent, 6)}%`, background: item.color }} />
-                </div>
-                <div className="legend-row legend-row-muted">
-                  <span>占比</span>
-                  <span>{item.percent}%</span>
-                </div>
+                <span className="text-xs text-muted-foreground">
+                  {item.value} 件
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(item.percent, 6)}%`,
+                    backgroundColor: item.color,
+                  }}
+                />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                <span>占比</span>
+                <span>{item.percent}%</span>
               </div>
             </li>
           ))}

@@ -72,6 +72,46 @@ export function isAppTheme(value: string | null | undefined): value is AppTheme 
   return THEME_OPTIONS.some((theme) => theme.id === value);
 }
 
+function parseHslComponents(value: string): [number, number, number] | null {
+  const hslMatch = value.match(/hsla?\(\s*([\d.]+)\s*,?\s*([\d.]+)%\s*,?\s*([\d.]+)%/);
+  if (hslMatch) {
+    return [parseFloat(hslMatch[1]), parseFloat(hslMatch[2]), parseFloat(hslMatch[3])];
+  }
+  const raw = value.trim().split(/\s+/);
+  if (raw.length === 3) {
+    const h = parseFloat(raw[0]);
+    const s = parseFloat(raw[1]);
+    const l = parseFloat(raw[2]);
+    if (!isNaN(h) && !isNaN(s) && !isNaN(l)) return [h, s, l];
+  }
+  return null;
+}
+
+export function colorWithAlpha(color: string, alpha: number): string {
+  const a = Math.max(0, Math.min(1, alpha));
+  const alphaHex = Math.round(a * 255)
+    .toString(16)
+    .padStart(2, "0");
+
+  if (color.startsWith("#")) {
+    return `${color}${alphaHex}`;
+  }
+
+  if (color.startsWith("rgb")) {
+    if (color.startsWith("rgba")) {
+      return color.replace(/,\s*[\d.]+\s*\)$/, `, ${a})`);
+    }
+    return color.replace("rgb(", "rgba(").replace(")", `, ${a})`);
+  }
+
+  const hsl = parseHslComponents(color);
+  if (hsl) {
+    return `hsla(${hsl[0]} ${hsl[1]}% ${hsl[2]}% / ${a})`;
+  }
+
+  return color;
+}
+
 export function readChartThemeTokens(): ChartThemeTokens {
   if (typeof window === "undefined") {
     return DEFAULT_CHART_THEME_TOKENS;

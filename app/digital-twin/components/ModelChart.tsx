@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import PieChart from "@/app/components/Charts/PieChart";
+import { getApiPath } from "@/lib/api-path";
 
 export default function ModelDistributionChart() {
   const [data, setData] = useState<Array<{ name: string; value: number }>>([]);
 
   useEffect(() => {
-    fetch("/api/statistics?type=model-dist")
+    fetch(getApiPath("/api/statistics?type=model-dist"))
       .then((res) => res.json())
       .then((d) =>
         setData(d.map((item: any) => ({ name: item.model, value: item.count })))

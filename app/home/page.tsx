@@ -1,398 +1,278 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import BackButton from "../components/Layout/BackButton";
+import {
+  ArrowRight,
+  BarChart3,
+  Bot,
+  Factory,
+  Radar,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Video,
+} from "lucide-react";
+import WorkflowHero from "../components/Layout/WorkflowHero";
+import TaskSection from "../components/Layout/TaskSection";
 import Card from "../components/Layout/Card";
-import WorkflowSteps, {
-  type WorkflowStep,
-} from "../components/Layout/WorkflowSteps";
-import CoreFlowHeader, {
-  type CoreFlowMetric,
-  type CoreFlowStage,
-} from "../components/Layout/CoreFlowHeader";
 import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { useLocale } from "../components/Locale/LocaleProvider";
 
-const HERO_PARAGRAPHS = [
-  "This platform links wheel-hub inspection hardware, AI vision, digital-twin mapping, and operation governance into one practical delivery story.",
-  "The redesigned UX focuses on a clear demo path and a usable action path: explain value fast, execute decisions quickly, and close governance reliably.",
-];
+type JourneyCard = {
+  titleZh: string;
+  titleEn: string;
+  descriptionZh: string;
+  descriptionEn: string;
+  href: string;
+  ctaZh: string;
+  ctaEn: string;
+  icon: React.ReactNode;
+  tagZh: string;
+  tagEn: string;
+};
 
-const VALUE_CARDS = [
+const JOURNEYS: JourneyCard[] = [
   {
-    value: "03",
-    title: "Core domains",
-    detail: "Command, Monitor, and Digital Twin are aligned as one continuous process chain.",
-  },
-  {
-    value: "12s",
-    title: "Decision refresh",
-    detail: "Operational snapshots are refreshed for shift-level incident handling rhythm.",
-  },
-  {
-    value: "4-step",
-    title: "Story framework",
-    detail: "Observe, diagnose, act, and close loop for both demo and daily operation.",
-  },
-  {
-    value: "1 route",
-    title: "Action continuity",
-    detail: "Each domain page keeps one role, reducing context switching and duplicate charts.",
-  },
-];
-
-const MODULE_CARDS = [
-  {
-    title: "Command Center",
-    body: "Executive overview of quality mix, throughput trend, queue status, and execution logs.",
+    titleZh: "先看全局态势",
+    titleEn: "Start With Posture",
+    descriptionZh: "先在指挥中心确认质量趋势、告警压力和产线节奏，再决定今天优先处理什么。",
+    descriptionEn: "Review quality trend, alert pressure, and throughput before choosing the day’s priority.",
     href: "/visualize",
-    tag: "Overview",
-    image: "/images/technical-solution-roadmap.png",
+    ctaZh: "打开指挥中心",
+    ctaEn: "Open Command Center",
+    icon: <BarChart3 className="h-5 w-5" />,
+    tagZh: "观察",
+    tagEn: "Observe",
   },
   {
-    title: "Operations Hub",
-    body: "Unified handoff page to Monitoring and Digital Twin domains.",
+    titleZh: "处理现场问题",
+    titleEn: "Handle Field Work",
+    descriptionZh: "从运营中台进入监控和数字孪生，减少在多个页面之间来回跳转。",
+    descriptionEn: "Use Operations Hub to hand off cleanly between monitoring and digital-twin tasks.",
     href: "/operations",
-    tag: "Operations",
-    image: "/images/innovation/center-clamp.png",
+    ctaZh: "进入运营中台",
+    ctaEn: "Enter Operations Hub",
+    icon: <Radar className="h-5 w-5" />,
+    tagZh: "执行",
+    tagEn: "Operate",
   },
   {
-    title: "Monitoring Center",
-    body: "Camera wall, alert queue triage, and frontline device checks for rapid response.",
-    href: "/monitor",
-    tag: "Realtime",
-    image: "/images/innovation/vision-inspection.png",
-  },
-  {
-    title: "Digital Twin",
-    body: "3D scene diagnostics, sensor mapping, process interpretation, and device lattice context.",
-    href: "/digital-twin",
-    tag: "Twin",
-    image: "/images/innovation/side-module.png",
-  },
-  {
-    title: "AI Workspace",
-    body: "AI assistant, data hub, report center, and training chain in one productivity space.",
+    titleZh: "沉淀 AI 产能",
+    titleEn: "Run AI Workflows",
+    descriptionZh: "把 AI 助手、数据源、训练和报告放到一个工作台，避免工具分散带来的低效率。",
+    descriptionEn: "Keep AI assistant, data, training, and reporting in one controlled workspace.",
     href: "/workspace",
-    tag: "AI Workflow",
-    image: "/images/innovation/plc-solution.png",
+    ctaZh: "打开智能工作台",
+    ctaEn: "Open Workspace",
+    icon: <Bot className="h-5 w-5" />,
+    tagZh: "分析",
+    tagEn: "Analyze",
   },
   {
-    title: "Admin Governance",
-    body: "System governance, import quality controls, and enterprise-level operational policy.",
+    titleZh: "完成治理闭环",
+    titleEn: "Close Governance Loop",
+    descriptionZh: "管理员在治理后台处理告警、导入和系统策略，避免日常操作和治理职责混在一起。",
+    descriptionEn: "Use the admin console for alerts, imports, and policy controls instead of mixing them into daily operations.",
     href: "/admin",
-    tag: "Governance",
-    image: "/images/wheel-manufacturing-trends-overview.png",
+    ctaZh: "前往治理后台",
+    ctaEn: "Go To Admin Console",
+    icon: <ShieldCheck className="h-5 w-5" />,
+    tagZh: "治理",
+    tagEn: "Govern",
   },
 ];
 
-const ROADMAP = [
+const PAGE_SPLITS = [
   {
-    title: "Mechanical and Fixture Foundation",
-    text: "Complete fixture strategy, key movement definitions, and execution baseline.",
-    status: "completed",
+    titleZh: "指挥中心负责判断，不负责处置",
+    titleEn: "Command decides, not executes",
+    bodyZh: "它应该回答哪里有问题、影响有多大、值不值得升级处理。",
+    bodyEn: "It should answer where issues are, how severe they are, and whether they need escalation.",
   },
   {
-    title: "Vision Detection Chain",
-    text: "Establish standardized pre-processing and measurement pipeline for inspection tasks.",
-    status: "completed",
+    titleZh: "运营中台负责分流，不堆重复图表",
+    titleEn: "Operations routes work, not duplicate charts",
+    bodyZh: "它应该把人送到监控或数字孪生，并明确下一步该在哪个页面完成。",
+    bodyEn: "It should route teams to Monitoring or Digital Twin and clarify where the next action belongs.",
   },
   {
-    title: "Digital Twin and Operations UX",
-    text: "Map devices, sensors, and process stages into role-oriented interaction flows.",
-    status: "in_progress",
-  },
-  {
-    title: "Enterprise Delivery Package",
-    text: "Finalize deployment narrative, governance controls, and cross-team reporting assets.",
-    status: "pending",
+    titleZh: "智能工作台负责生产力，不负责现场态势",
+    titleEn: "Workspace drives productivity, not field posture",
+    bodyZh: "它应该围绕数据、AI、训练、报告和配置组织任务，而不是重复监控页面内容。",
+    bodyEn: "It should organize work around data, AI, training, reporting, and config instead of re-showing field dashboards.",
   },
 ];
 
-export default function HomeIntro() {
-  const router = useRouter();
-
-  const workflowSteps = useMemo<WorkflowStep[]>(
-    () => [
-      {
-        id: "home-step-brief",
-        title: "Read project brief",
-        detail: "Understand scope and value narrative",
-        state: "active",
-      },
-      {
-        id: "home-step-command",
-        title: "Open command center",
-        detail: "Start from overview and KPI story",
-        state: "upcoming",
-        onClick: () => router.push("/visualize"),
-      },
-      {
-        id: "home-step-operations",
-        title: "Enter execution domains",
-        detail: "Branch into Monitoring or Twin for deep work",
-        state: "upcoming",
-        onClick: () => router.push("/operations"),
-      },
-      {
-        id: "home-step-workspace",
-        title: "Close loop in workspace",
-        detail: "Use AI and governance modules for follow-up actions",
-        state: "upcoming",
-        onClick: () => router.push("/workspace"),
-      },
-    ],
-    [router],
-  );
-
-  const coreMetrics = useMemo<CoreFlowMetric[]>(
-    () =>
-      VALUE_CARDS.map((item) => ({
-        label: item.title,
-        value: item.value,
-        note: item.detail,
-      })),
-    [],
-  );
-
-  const coreStages = useMemo<CoreFlowStage[]>(
-    () => [
-      {
-        id: "home-core-observe",
-        title: "Observe platform outcome",
-        detail: "Lead with quality, throughput, and business impact in command center.",
-        state: "done",
-      },
-      {
-        id: "home-core-diagnose",
-        title: "Diagnose by domain",
-        detail: "Choose monitoring for live incidents or twin for process and space context.",
-        state: "active",
-      },
-      {
-        id: "home-core-act",
-        title: "Execute role action",
-        detail: "Operators triage alerts and engineers verify process deviations.",
-        state: "upcoming",
-      },
-      {
-        id: "home-core-close",
-        title: "Close with governance",
-        detail: "Summarize findings in workspace and admin governance tracks.",
-        state: "upcoming",
-      },
-    ],
-    [],
-  );
-
-  const scrollToSection = (id: string) => {
-    const target = document.getElementById(id);
-    if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+export default function HomePage() {
+  const { text } = useLocale();
 
   return (
-    <div className="page-shell innovation-shell pt-0 pb-10">
-      <BackButton fallbackHref="/visualize" />
-
-      <WorkflowSteps
-        title="Demo Story Flow"
-        subtitle="Use this path to present the platform from value to execution."
-        steps={workflowSteps}
-      />
-
-      <div className="quick-jump-strip">
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("home-core")}
-        >
-          Core Flow
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("home-lanes")}
-        >
-          Action Lanes
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("home-modules")}
-        >
-          Module Tour
-        </button>
-        <button
-          type="button"
-          className="enterprise-secondary-button"
-          onClick={() => scrollToSection("home-roadmap")}
-        >
-          Delivery Path
-        </button>
+    <div className="relative mx-auto max-w-[1920px] px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-24 right-0 h-80 w-80 rounded-full bg-primary/12 blur-[110px]" />
+        <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-accent/12 blur-[110px]" />
       </div>
 
-      <CoreFlowHeader
-        id="home-core"
-        eyebrow="Platform Narrative / Demo Entry"
-        title="Wheel Hub Detection IoT Platform"
-        description={HERO_PARAGRAPHS.join(" ")}
-        metrics={coreMetrics}
-        stages={coreStages}
+      <WorkflowHero
+        eyebrow={text("平台入口", "Platform Entry")}
+        title={text(
+          "把总览、执行、AI 与治理重新组织成真正可用的工程工作台",
+          "Reorganize overview, execution, AI, and governance into a usable engineering workbench",
+        )}
+        description={text(
+          "首页现在不再承担宣传页角色，而是作为平台分工说明和高频入口控制台。先判断，再执行，再沉淀，再治理，避免在错误页面做错误事情。",
+          "Home no longer acts like a marketing screen. It is now the map of platform responsibilities and the fastest way into the right workflow.",
+        )}
+        badgeVariant="glow"
+        stats={[
+          {
+            label: text("核心工作域", "Core domains"),
+            value: "4",
+            detail: text("观察、执行、分析、治理", "Observe, operate, analyze, govern"),
+            icon: <Factory className="h-5 w-5" />,
+          },
+          {
+            label: text("主要入口", "Primary entries"),
+            value: "6",
+            detail: text("减少找页面成本", "Lower route-finding overhead"),
+            icon: <Target className="h-5 w-5" />,
+            tone: "success",
+          },
+          {
+            label: text("页面职责", "Page ownership"),
+            value: text("清晰", "Clear"),
+            detail: text("避免重复图表和错位操作", "Avoid duplicate charts and misplaced actions"),
+            icon: <Sparkles className="h-5 w-5" />,
+            tone: "info",
+          },
+        ]}
         actions={
           <>
-            <Link href="/visualize" className="enterprise-primary-button">
-              Start from Command Center
-            </Link>
-            <Link href="/operations" className="enterprise-secondary-button">
-              Jump to Operations Hub
-            </Link>
-            <Link href="/monitor" className="enterprise-secondary-button">
-              Open Monitoring
-            </Link>
-            <Link href="/digital-twin" className="enterprise-secondary-button">
-              Open Digital Twin
-            </Link>
+            <Button asChild>
+              <Link href="/visualize">{text("先看指挥中心", "Start In Command Center")}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/operations">{text("进入现场执行", "Go To Operations")}</Link>
+            </Button>
           </>
         }
-        sideNote={
-          <div className="innovation-highlight-list">
-            <div>
-              <strong>Minute 1: Outcome</strong>
-              <p>Show command center metrics and quality distribution.</p>
+        aside={
+          <Card variant="glass" className="h-full border-border/60">
+            <div className="space-y-4">
+              <Badge variant="secondary" className="w-fit">
+                {text("今日推荐路径", "Recommended flow")}
+              </Badge>
+              <ol className="space-y-4">
+                {[
+                  text("在指挥中心确认异常强度和产线节奏", "Confirm severity and throughput in Command Center"),
+                  text("在运营中台分流到监控或数字孪生", "Route work to Monitoring or Digital Twin from Operations Hub"),
+                  text("在智能工作台处理 AI、数据和报告", "Use Workspace for AI, data, and reporting"),
+                  text("在治理后台关闭告警和导入风险", "Close alerts and import risk in Admin Console"),
+                ].map((step, index) => (
+                  <li key={step} className="flex gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/12 text-sm font-bold text-primary">
+                      {index + 1}
+                    </div>
+                    <p className="text-sm leading-6 text-muted-foreground">{step}</p>
+                  </li>
+                ))}
+              </ol>
             </div>
-            <div>
-              <strong>Minute 2: Execution</strong>
-              <p>Open monitor and digital twin for root-cause context.</p>
-            </div>
-            <div>
-              <strong>Minute 3: Closure</strong>
-              <p>Finish with workspace reports and admin governance actions.</p>
-            </div>
-          </div>
+          </Card>
         }
       />
 
-      <section id="home-lanes" className="core-flow-lane-grid">
-        <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Observe</span>
-          <h3>Executive showcase lane</h3>
-          <p>
-            Start with command KPIs, then explain how this architecture improves
-            speed, traceability, and decision confidence.
-          </p>
-          <div className="core-flow-lane-actions">
-            <Link href="/visualize" className="enterprise-primary-button">
-              Open KPI Story
-            </Link>
-            <Link href="/home" className="enterprise-secondary-button">
-              Stay on Brief
-            </Link>
-          </div>
-        </Card>
-
-        <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Diagnose + Act</span>
-          <h3>Domain execution lane</h3>
-          <p>
-            Route issues to monitor for incident response or to digital twin for
-            spatial and process diagnostics.
-          </p>
-          <div className="core-flow-lane-actions">
-            <Link href="/monitor" className="enterprise-primary-button">
-              Go Monitoring
-            </Link>
-            <Link href="/digital-twin" className="enterprise-secondary-button">
-              Go Twin
-            </Link>
-          </div>
-        </Card>
-
-        <Card className="core-flow-lane-card">
-          <span className="core-flow-lane-kicker">Close</span>
-          <h3>Governance closure lane</h3>
-          <p>
-            Convert diagnosis into reports, action owners, and policy updates in
-            AI workspace and admin modules.
-          </p>
-          <div className="core-flow-lane-actions">
-            <Link href="/workspace" className="enterprise-primary-button">
-              Open Workspace
-            </Link>
-            <Link href="/admin" className="enterprise-secondary-button">
-              Open Governance
-            </Link>
-          </div>
-        </Card>
-      </section>
-
-      <section id="home-modules" className="innovation-feature-grid">
-        {MODULE_CARDS.map((card, index) => (
-          <Card
-            key={card.title}
-            className={`innovation-feature-card hover-lift animate-fade-in-up stagger-${
-              (index % 5) + 1
-            }`}
-          >
-            <span className="innovation-feature-tag">{card.tag}</span>
-            <div className="innovation-feature-image">
-              <img src={card.image} alt={card.title} loading="lazy" />
-            </div>
-            <h3 className="text-gradient">{card.title}</h3>
-            <p>{card.body}</p>
-            <div className="workspace-capability-actions mt-3">
-              <Link href={card.href} className="enterprise-secondary-button">
-                Open Module
-              </Link>
-            </div>
-          </Card>
-        ))}
-      </section>
-
-      <Card id="home-roadmap" className="innovation-timeline-card glow-border animate-scale-in">
-        <div className="panel-heading">
-          <div>
-            <span className="panel-kicker">Delivery Journey</span>
-            <h2>From prototype to enterprise operation</h2>
-          </div>
-        </div>
-        <div className="innovation-timeline">
-          {ROADMAP.map((item, index) => (
-            <div
-              key={item.title}
-              className={`innovation-timeline-item animate-slide-in-right stagger-${
-                (index % 5) + 1
-              }`}
-            >
-              <div className="innovation-timeline-index">
-                <span className={`status-indicator ${item.status}`} />
-                {String(index + 1).padStart(2, "0")}
+      <TaskSection
+        id="home-journeys"
+        eyebrow={text("快速开始", "Quick start")}
+        title={text("按工作目标进入正确页面", "Choose the right page by job to be done")}
+        description={text(
+          "借鉴企业后台里常见的任务分流做法，把页面当作能力边界，而不是随机堆功能的地方。",
+          "Borrowing from enterprise workbench patterns, each page now acts as a responsibility boundary instead of a random feature pile.",
+        )}
+      >
+        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+          {JOURNEYS.map((journey) => (
+            <Card key={journey.href} variant="glass" className="h-full border-border/60">
+              <div className="flex h-full flex-col">
+                <div className="mb-4 flex items-center justify-between">
+                  <Badge variant="secondary">{text(journey.tagZh, journey.tagEn)}</Badge>
+                  <div className="rounded-2xl border border-border/60 bg-background/70 p-2.5 text-primary">
+                    {journey.icon}
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold">
+                  {text(journey.titleZh, journey.titleEn)}
+                </h3>
+                <p className="mt-3 flex-1 text-sm leading-6 text-muted-foreground">
+                  {text(journey.descriptionZh, journey.descriptionEn)}
+                </p>
+                <Button asChild className="mt-5 w-fit">
+                  <Link href={journey.href}>
+                    {text(journey.ctaZh, journey.ctaEn)}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
               </div>
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.text}</p>
-                <Badge
-                  variant={
-                    item.status === "completed"
-                      ? "success"
-                      : item.status === "in_progress"
-                        ? "warning"
-                        : "secondary"
-                  }
-                  className="mt-2"
-                >
-                  {item.status === "completed"
-                    ? "Completed"
-                    : item.status === "in_progress"
-                      ? "In Progress"
-                      : "Planned"}
-                </Badge>
-              </div>
-            </div>
+            </Card>
           ))}
         </div>
-      </Card>
+      </TaskSection>
+
+      <TaskSection
+        className="mt-10"
+        eyebrow={text("页面分工", "Page ownership")}
+        title={text("明确每个页面应该解决什么问题", "Make each page solve one class of problem well")}
+        description={text(
+          "这是这轮改版最重要的原则之一。页面职责越明确，团队越不容易在错误上下文里浪费时间。",
+          "This is the main principle behind the redesign. The clearer the page ownership, the less time teams waste in the wrong context.",
+        )}
+      >
+        <div className="grid gap-4 xl:grid-cols-3">
+          {PAGE_SPLITS.map((item) => (
+            <Card key={item.titleZh} variant="gradient" className="border-border/60">
+              <h3 className="text-lg font-bold">{text(item.titleZh, item.titleEn)}</h3>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                {text(item.bodyZh, item.bodyEn)}
+              </p>
+            </Card>
+          ))}
+        </div>
+      </TaskSection>
+
+      <TaskSection
+        className="mt-10"
+        eyebrow={text("高频入口", "High-frequency entries")}
+        title={text("保留专用页面，但减少找路成本", "Keep specialist pages without making people hunt for them")}
+        description={text(
+          "如果你已经知道自己要做什么，可以直接进入这些专用页面。",
+          "If you already know the task, go directly to the specialist surface.",
+        )}
+      >
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { href: "/monitor", icon: <Video className="h-4 w-4" />, zh: "监控中心", en: "Monitoring" },
+            { href: "/digital-twin", icon: <Radar className="h-4 w-4" />, zh: "数字孪生", en: "Digital Twin" },
+            { href: "/reports", icon: <Bot className="h-4 w-4" />, zh: "报告中心", en: "Report Center" },
+            { href: "/data-hub", icon: <BarChart3 className="h-4 w-4" />, zh: "数据中心", en: "Data Hub" },
+          ].map((entry) => (
+            <Link
+              key={entry.href}
+              href={entry.href}
+              className="flex items-center justify-between rounded-2xl border border-border/60 bg-card/60 px-4 py-4 transition hover:border-primary/40 hover:bg-accent/10"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-border/60 bg-background/70 p-2 text-primary">
+                  {entry.icon}
+                </div>
+                <span className="font-semibold">{text(entry.zh, entry.en)}</span>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </Link>
+          ))}
+        </div>
+      </TaskSection>
     </div>
   );
 }

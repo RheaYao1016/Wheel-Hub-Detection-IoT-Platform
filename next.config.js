@@ -1,12 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  basePath: '/wheelhub',
+  assetPrefix: '/wheelhub',
+  env: {
+    NEXT_PUBLIC_BASE_PATH: '/wheelhub',
+  },
   images: {
     remotePatterns: [],
     formats: ['image/avif', 'image/webp'],
+    unoptimized: true,
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:18081'}/api/:path*`,
+      },
+    ];
   },
   experimental: {
     serverComponentsExternalPackages: ['three', '@react-three/fiber'],
-    optimizePackageImports: ['lucide-react', 'echarts', '@react-three/drei'],
   },
   webpack: (config) => {
     config.module.rules.push({
@@ -15,10 +28,10 @@ const nextConfig = {
     });
     return config;
   },
-  compress: true,
+  compress: false,
   poweredByHeader: false,
   reactStrictMode: true,
-  swcMinify: true,
+  swcMinify: false,
   productionBrowserSourceMaps: false,
 };
 

@@ -3,10 +3,13 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import traceback
+import base64
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote
 
 import httpx
 import pandas as pd
@@ -28,6 +31,35 @@ try:
 except Exception:  # pragma: no cover
     torch = None
 
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    def _configure_matplotlib_fonts() -> None:
+        preferred_fonts = [
+            "Noto Sans CJK SC",
+            "WenQuanYi Micro Hei",
+            "SimHei",
+            "DejaVu Sans",
+        ]
+        available = set(matplotlib.font_manager.findSystemFonts(fontpaths=None, fontext="ttf"))
+        chosen = None
+        for family in preferred_fonts:
+            try:
+                matplotlib.font_manager.FontProperties(family=family)
+                chosen = family
+                break
+            except Exception:
+                continue
+        if chosen:
+            plt.rcParams["font.family"] = [chosen, "sans-serif"]
+        plt.rcParams["axes.unicode_minus"] = False
+
+    _configure_matplotlib_fonts()
+except Exception:  # pragma: no cover
+    plt = None
+
 
 BASE_DIR = Path(__file__).resolve().parent
 WORKSPACE = Path(os.getenv("AI_ML_WORKSPACE", "./services/ai-ml/runtime")).resolve()
@@ -36,6 +68,76 @@ REPORT_DIR = WORKSPACE / "reports"
 REPORT_DIR.mkdir(parents=True, exist_ok=True)
 TRAIN_DIR = WORKSPACE / "training"
 TRAIN_DIR.mkdir(parents=True, exist_ok=True)
+INTENT_CATALOG_PATH = BASE_DIR / "intent_catalog.json"
+
+
+def load_intent_catalog() -> list[dict[str, Any]]:
+    if not INTENT_CATALOG_PATH.exists():
+        return []
+    try:
+        payload = json.loads(INTENT_CATALOG_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    return [item for item in payload if isinstance(item, dict)]
+
+
+INTENT_CATALOG = load_intent_catalog()
+
+PROTOCOL_VERSION = "AIP1"
+PROTOCOL_DELIMITER = "&&"
+PROTOCOL_INDEX_FALLBACK = "index.lookup.required"
+
+INTENT_CATEGORIES = {
+    "DATA_QUERY",
+    "DATA_AUTHORIZATION",
+    "MODE_SWITCH",
+    "STATE_SWITCH",
+    "CONFIG_UPDATE",
+    "CONFIG_READ",
+    "TRAINING_CONTROL",
+    "EXPORT_REQUEST",
+    "NAVIGATION",
+    "HELP_GENERAL",
+}
+
+RESPONSE_KINDS = {
+    "ANSWER",
+    "REQUEST_AUTH",
+    "REQUEST_CHOICE",
+    "EXECUTE",
+    "NAVIGATE",
+    "UPDATE_SETTING",
+    "REFRESH_INDEX",
+}
+
+TARGET_TYPES = {
+    "metric",
+    "dataset",
+    "report",
+    "toggle",
+    "button",
+    "page",
+    "setting",
+    "export",
+    "training_job",
+    "provider",
+    "analysis_job",
+    "index_catalog",
+    "unknown",
+}
+
+INTENT_TYPE_HINTS: dict[str, list[str]] = {
+    "DATA_QUERY": ["metric", "dataset", "analysis_job", "report"],
+    "DATA_AUTHORIZATION": ["dataset", "metric", "index_catalog"],
+    "MODE_SWITCH": ["page", "button", "setting"],
+    "STATE_SWITCH": ["toggle", "setting", "provider", "dataset"],
+    "CONFIG_UPDATE": ["setting", "provider", "dataset", "index_catalog"],
+    "CONFIG_READ": ["setting", "provider", "index_catalog", "dataset"],
+    "TRAINING_CONTROL": ["training_job", "toggle", "dataset"],
+    "EXPORT_REQUEST": ["export", "report", "index_catalog"],
+    "NAVIGATION": ["page"],
+    "HELP_GENERAL": ["page", "unknown"],
+}
 
 
 class Envelope(BaseModel):
@@ -118,6 +220,9 @@ class ChatRequest(BaseModel):
     sources: list[SourceModel] = Field(default_factory=list)
     contextText: str | None = None
     responseFormatHint: str | None = None
+    protocolGuide: str | None = None
+    indexCatalogCsv: str | None = None
+    indexLookbackDays: int = 180
 
 
 class AnalysisRequest(BaseModel):
@@ -221,6 +326,8 @@ def chat_respond(request: ChatRequest) -> Envelope:
             "promptPresetId": request.promptPreset.id,
             "intentAssessment": remote["intentAssessment"],
             "actions": remote["actions"],
+            "responseProtocolRaw": remote.get("responseProtocolRaw", ""),
+            "responseProtocol": remote.get("responseProtocol"),
         },
     )
 
@@ -229,22 +336,40 @@ def chat_respond(request: ChatRequest) -> Envelope:
 def analysis_run(request: AnalysisRequest) -> Envelope:
     source_summary = summarize_sources(request.sources)
     source_profiles = [profile_source(source) for source in request.sources]
+    detection_context = build_detection_context(request, source_profiles)
     remote = run_remote_analysis(request, source_profiles)
+    estimated_token_usage = estimate_token_usage(request.prompt, request.sources)
+    token_usage_fallback = (
+        estimated_token_usage.model_dump()
+        if hasattr(estimated_token_usage, "model_dump")
+        else estimated_token_usage.dict()
+    )
+
     analysis = {
-        "headline": remote["headline"],
-        "summary": adjust_verbosity(remote["summary"], request.verbosity),
-        "findings": remote["findings"],
-        "recommendations": remote["recommendations"],
-        "evidence": remote.get("evidence") or build_analysis_evidence(request.template, request.provider.defaultStrategy, source_profiles),
-        "riskLevel": determine_risk_level(source_profiles),
+        "headline": remote.get("headline") or detection_context["headline"],
+        "summary": adjust_verbosity(remote.get("summary", ""), request.verbosity),
+        "findings": remote.get("findings") or detection_context["findings"],
+        "recommendations": remote.get("recommendations") or detection_context["recommendations"],
+        "evidence": remote.get("evidence")
+        or build_analysis_evidence(
+            request.template,
+            request.provider.defaultStrategy,
+            source_profiles,
+            detection_context["domainName"],
+        ),
+        "riskLevel": detection_context["riskLevel"],
+        "inspectionDomain": detection_context["domainName"],
+        "riskScore": detection_context["riskScore"],
+        "metrics": detection_context["metrics"],
+        "chartSeries": detection_context["chartSeries"],
         "confidence": calculate_confidence(source_profiles),
-        "tokenUsage": remote["tokenUsage"],
+        "tokenUsage": remote.get("tokenUsage", token_usage_fallback),
         "sourceRefs": [source.name for source in request.sources],
         "appliedStrategy": request.provider.defaultStrategy,
-        "artifacts": ["xlsx", "csv", "docx"],
+        "artifacts": ["xlsx", "csv", "csv7", "docx", "png"],
         "promptPresetId": request.promptPreset.id,
-        "intentAssessment": remote["intentAssessment"],
-        "actions": remote["actions"],
+        "intentAssessment": remote.get("intentAssessment"),
+        "actions": remote.get("actions", []),
         "sourceSummary": source_summary,
     }
     return Envelope(message="Analysis completed.", data=analysis)
@@ -258,17 +383,23 @@ def data_source_profile(request: DataSourceProfileRequest) -> Envelope:
 
 @app.post("/reports/generate")
 def report_generate(request: ReportRequest) -> Envelope:
-    format_name = request.format.lower()
-    report_id = f"{request.jobId}-{format_name}-{int(datetime.utcnow().timestamp())}"
-    target = REPORT_DIR / f"{report_id}.{format_name}"
+    requested_format = request.format.lower()
+    normalized_format = normalize_report_format(requested_format)
+    extension = "png" if normalized_format == "png" else ("csv" if normalized_format in {"csv", "csv7"} else normalized_format)
+    report_id = f"{request.jobId}-{requested_format}-{int(datetime.utcnow().timestamp())}"
+    target = REPORT_DIR / f"{report_id}.{extension}"
     analysis = request.analysis
 
-    if format_name == "csv":
+    if normalized_format == "csv":
         generate_csv_report(target, analysis)
-    elif format_name == "xlsx":
+    elif normalized_format == "csv7":
+        generate_csv7_report(target, analysis)
+    elif normalized_format == "xlsx":
         generate_xlsx_report(target, analysis)
-    elif format_name == "docx":
+    elif normalized_format == "docx":
         generate_docx_report(target, analysis)
+    elif normalized_format == "png":
+        generate_chart_report(target, analysis)
     else:
         raise ValueError("Unsupported report format")
 
@@ -277,7 +408,7 @@ def report_generate(request: ReportRequest) -> Envelope:
         data={
             "filename": target.name,
             "storagePath": str(target),
-            "summary": "Structured diagnosis report for operators, engineers, and managers.",
+            "summary": build_report_summary(analysis, normalized_format),
         },
     )
 
@@ -400,37 +531,304 @@ def adjust_verbosity(text: str, verbosity: str) -> str:
     return text
 
 
+def normalize_report_format(format_name: str) -> str:
+    normalized = (format_name or "docx").lower().strip()
+    if normalized in {"chart", "image"}:
+        return "png"
+    if normalized in {"csv7"}:
+        return "csv7"
+    if normalized in {"csv", "xlsx", "docx", "png"}:
+        return normalized
+    return "docx"
+
+
+def build_report_summary(analysis: dict[str, Any], format_name: str) -> str:
+    domain_name = str(analysis.get("inspectionDomain", "general inspection"))
+    risk_level = str(analysis.get("riskLevel", "unknown")).upper()
+    risk_score = parse_numeric_value(analysis.get("riskScore"))
+    score_text = f"{risk_score:.2f}" if risk_score is not None else "n/a"
+    return (
+        f"{domain_name} analysis exported in {format_name.upper()} format "
+        f"with {risk_level} risk (score {score_text}) and domain-specific indicators."
+    )
+
+
+def infer_domain_key_from_analysis(analysis: dict[str, Any]) -> str:
+    domain_text = str(analysis.get("inspectionDomain", "")).lower()
+    if any(token in domain_text for token in ["bridge", "cable", "拉索", "桥梁"]):
+        return "bridge_cable"
+    if any(token in domain_text for token in ["wheel", "hub", "轮毂"]):
+        return "wheel_hub"
+    if any(token in domain_text for token in ["weld", "joint", "焊缝"]):
+        return "weld_joint"
+    return "general_asset"
+
+
+def find_metric_value(analysis: dict[str, Any], keywords: list[str]) -> float:
+    lowered_keywords = [keyword.lower() for keyword in keywords]
+
+    for metric in analysis.get("metrics", []) or []:
+        label = str(metric.get("label", "")).lower()
+        if any(keyword in label for keyword in lowered_keywords):
+            parsed = parse_numeric_value(metric.get("value"))
+            if parsed is not None:
+                return parsed
+
+    for point in analysis.get("chartSeries", []) or []:
+        name = str(point.get("name", "")).lower()
+        if any(keyword in name for keyword in lowered_keywords):
+            parsed = parse_numeric_value(point.get("value"))
+            if parsed is not None:
+                return parsed
+
+    return 0.0
+
+
+def classify_metric_severity(value: float, threshold: float) -> str:
+    if threshold <= 0:
+        return "normal"
+    if value >= threshold * 1.35:
+        return "critical"
+    if value >= threshold:
+        return "warning"
+    return "normal"
+
+
+def build_domain_metric_rows(analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    domain_key = infer_domain_key_from_analysis(analysis)
+    risk_score = find_metric_value(analysis, ["risk score", "风险总分", "risk_score"])
+    rows: list[dict[str, Any]] = [
+        {
+            "key": "risk_score",
+            "label": "Risk Score",
+            "value": round(risk_score, 3),
+            "threshold": 70.0,
+            "severity": classify_metric_severity(risk_score, 70.0),
+            "unit": "score",
+            "note": "Primary dispatch score for risk escalation.",
+        }
+    ]
+
+    if domain_key == "bridge_cable":
+        corrosion = find_metric_value(analysis, ["corrosion", "腐蚀"])
+        wire_break = find_metric_value(analysis, ["wire_break", "break_count", "断丝", "断股"])
+        tension_loss = find_metric_value(analysis, ["tension loss", "tension_loss", "索力损失", "张力损失"])
+        rows.extend(
+            [
+                {
+                    "key": "corrosion_ratio",
+                    "label": "Corrosion Ratio",
+                    "value": round(corrosion, 4),
+                    "threshold": 0.15,
+                    "severity": classify_metric_severity(corrosion, 0.15),
+                    "unit": "ratio",
+                    "note": "Corrosion ratio above 0.15 requires focused segment inspection.",
+                },
+                {
+                    "key": "wire_break_count",
+                    "label": "Wire Break Count",
+                    "value": round(wire_break, 2),
+                    "threshold": 3.0,
+                    "severity": classify_metric_severity(wire_break, 3.0),
+                    "unit": "count",
+                    "note": "Wire break count above 3 indicates structural degradation risk.",
+                },
+                {
+                    "key": "tension_loss_ratio",
+                    "label": "Tension Loss Ratio",
+                    "value": round(tension_loss, 4),
+                    "threshold": 0.12,
+                    "severity": classify_metric_severity(tension_loss, 0.12),
+                    "unit": "ratio",
+                    "note": "Tension loss above 0.12 should be escalated to urgent assessment.",
+                },
+            ]
+        )
+    elif domain_key == "wheel_hub":
+        runout = find_metric_value(analysis, ["runout", "跳动"])
+        defect_score = find_metric_value(analysis, ["defect score", "defect_score", "缺陷评分"])
+        diameter_deviation = find_metric_value(analysis, ["diameter deviation", "diameter", "直径偏差", "直径"])
+        rows.extend(
+            [
+                {
+                    "key": "runout_mm",
+                    "label": "Runout (mm)",
+                    "value": round(runout, 4),
+                    "threshold": 0.25,
+                    "severity": classify_metric_severity(runout, 0.25),
+                    "unit": "mm",
+                    "note": "Runout above 0.25 mm generally requires station recalibration.",
+                },
+                {
+                    "key": "defect_score",
+                    "label": "Defect Score",
+                    "value": round(defect_score, 4),
+                    "threshold": 0.70,
+                    "severity": classify_metric_severity(defect_score, 0.70),
+                    "unit": "score",
+                    "note": "Defect score above 0.70 indicates high defect concentration.",
+                },
+                {
+                    "key": "diameter_mm_deviation",
+                    "label": "Diameter Deviation",
+                    "value": round(diameter_deviation, 4),
+                    "threshold": 0.02,
+                    "severity": classify_metric_severity(diameter_deviation, 0.02),
+                    "unit": "ratio",
+                    "note": "Diameter deviation above 2% indicates dimensional drift.",
+                },
+            ]
+        )
+    elif domain_key == "weld_joint":
+        crack_density = find_metric_value(analysis, ["crack density", "crack", "裂纹", "焊缝"])
+        rows.append(
+            {
+                "key": "crack_density",
+                "label": "Crack Density",
+                "value": round(crack_density, 4),
+                "threshold": 0.10,
+                "severity": classify_metric_severity(crack_density, 0.10),
+                "unit": "ratio",
+                "note": "Crack density above 0.10 indicates elevated weld integrity risk.",
+            }
+        )
+    else:
+        anomaly_ratio = find_metric_value(analysis, ["anomaly ratio", "异常比例", "anomaly"])
+        rows.append(
+            {
+                "key": "generic_anomaly_ratio",
+                "label": "Anomaly Ratio",
+                "value": round(anomaly_ratio, 4),
+                "threshold": 0.20,
+                "severity": classify_metric_severity(anomaly_ratio, 0.20),
+                "unit": "ratio",
+                "note": "Anomaly ratio above 0.20 requires tighter threshold review.",
+            }
+        )
+
+    return rows
+
+
 def generate_csv_report(target: Path, analysis: dict[str, Any]) -> None:
+    domain_metrics = build_domain_metric_rows(analysis)
     with target.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["section", "content"])
-        writer.writerow(["headline", analysis.get("headline", "")])
-        writer.writerow(["summary", analysis.get("summary", "")])
+        writer.writerow(["section", "key", "value", "threshold", "severity", "detail"])
+        writer.writerow(["overview", "inspection_domain", analysis.get("inspectionDomain", "general"), "", "", ""])
+        writer.writerow(["overview", "headline", analysis.get("headline", ""), "", "", ""])
+        writer.writerow(["overview", "summary", analysis.get("summary", ""), "", "", ""])
+        writer.writerow(["overview", "risk_level", analysis.get("riskLevel", ""), "", "", ""])
+        writer.writerow(["overview", "risk_score", analysis.get("riskScore", ""), "70", "", ""])
+
+        for item in domain_metrics:
+            writer.writerow(
+                [
+                    "domain_metric",
+                    item["key"],
+                    item["value"],
+                    item["threshold"],
+                    item["severity"],
+                    item["note"],
+                ]
+            )
+
         for item in analysis.get("findings", []):
-            writer.writerow(["finding", item])
+            writer.writerow(["finding", "finding", item, "", "", ""])
         for item in analysis.get("recommendations", []):
-            writer.writerow(["recommendation", item])
+            writer.writerow(["recommendation", "recommendation", item, "", "", ""])
+        for evidence_item in analysis.get("evidence", []):
+            writer.writerow(
+                [
+                    "evidence",
+                    str(evidence_item.get("label", "")),
+                    str(evidence_item.get("detail", "")),
+                    "",
+                    "",
+                    "",
+                ]
+            )
+
+
+def generate_csv7_report(target: Path, analysis: dict[str, Any]) -> None:
+    domain_metrics = build_domain_metric_rows(analysis)
+    with target.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "domain",
+                "headline",
+                "risk_level",
+                "risk_score",
+                "indicator",
+                "value",
+                "severity",
+            ]
+        )
+        if not domain_metrics:
+            domain_metrics = [
+                {
+                    "label": "Risk Score",
+                    "value": parse_numeric_value(analysis.get("riskScore")) or 0.0,
+                    "severity": analysis.get("riskLevel", "unknown"),
+                }
+            ]
+        for metric in domain_metrics:
+            writer.writerow(
+                [
+                    analysis.get("inspectionDomain", "general"),
+                    analysis.get("headline", ""),
+                    analysis.get("riskLevel", ""),
+                    analysis.get("riskScore", ""),
+                    metric.get("label", ""),
+                    metric.get("value", ""),
+                    metric.get("severity", ""),
+                ]
+            )
 
 
 def generate_xlsx_report(target: Path, analysis: dict[str, Any]) -> None:
+    domain_metrics = build_domain_metric_rows(analysis)
     overview = pd.DataFrame(
         [
+            ["inspectionDomain", analysis.get("inspectionDomain", "")],
             ["headline", analysis.get("headline", "")],
             ["summary", analysis.get("summary", "")],
             ["riskLevel", analysis.get("riskLevel", "")],
+            ["riskScore", analysis.get("riskScore", "")],
             ["confidence", analysis.get("confidence", "")],
         ],
         columns=["field", "value"],
     )
-    findings = pd.DataFrame({"findings": analysis.get("findings", [])})
-    recommendations = pd.DataFrame({"recommendations": analysis.get("recommendations", [])})
-    evidence = pd.DataFrame(analysis.get("evidence", []))
+    findings = pd.DataFrame(
+        [{"index": idx + 1, "finding": item} for idx, item in enumerate(analysis.get("findings", []))]
+    )
+    recommendations = pd.DataFrame(
+        [{"index": idx + 1, "recommendation": item} for idx, item in enumerate(analysis.get("recommendations", []))]
+    )
+    evidence = pd.DataFrame(analysis.get("evidence", []), columns=["label", "detail"])
+    domain_metrics_df = pd.DataFrame(
+        domain_metrics,
+        columns=["key", "label", "value", "threshold", "severity", "unit", "note"],
+    )
+    metrics = pd.DataFrame(analysis.get("metrics", []))
+    chart_series = pd.DataFrame(analysis.get("chartSeries", []))
+    source_refs = pd.DataFrame(
+        [{"index": idx + 1, "source": item} for idx, item in enumerate(analysis.get("sourceRefs", []))]
+    )
 
     with pd.ExcelWriter(target, engine="openpyxl") as writer:
         overview.to_excel(writer, sheet_name="overview", index=False)
+        if not domain_metrics_df.empty:
+            domain_metrics_df.to_excel(writer, sheet_name="domain_metrics", index=False)
         findings.to_excel(writer, sheet_name="findings", index=False)
         recommendations.to_excel(writer, sheet_name="recommendations", index=False)
         evidence.to_excel(writer, sheet_name="evidence", index=False)
+        if not metrics.empty:
+            metrics.to_excel(writer, sheet_name="metrics", index=False)
+        if not chart_series.empty:
+            chart_series.to_excel(writer, sheet_name="chart_series", index=False)
+        if not source_refs.empty:
+            source_refs.to_excel(writer, sheet_name="source_refs", index=False)
 
 
 def generate_docx_report(target: Path, analysis: dict[str, Any]) -> None:
@@ -438,11 +836,16 @@ def generate_docx_report(target: Path, analysis: dict[str, Any]) -> None:
         target.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
         return
 
+    domain = str(analysis.get("inspectionDomain", "general inspection"))
     document = Document()
-    document.add_heading("Wheel Hub AI Diagnosis Report", level=1)
+    document.add_heading(f"{domain} AI Diagnosis Report", level=1)
     document.add_paragraph(analysis.get("headline", ""))
     document.add_heading("Summary", level=2)
     document.add_paragraph(analysis.get("summary", ""))
+    document.add_heading("Risk Overview", level=2)
+    document.add_paragraph(
+        f"Risk level: {analysis.get('riskLevel', '')}, score: {analysis.get('riskScore', '')}, confidence: {analysis.get('confidence', '')}"
+    )
     document.add_heading("Findings", level=2)
     for item in analysis.get("findings", []):
         document.add_paragraph(item, style="List Bullet")
@@ -453,6 +856,68 @@ def generate_docx_report(target: Path, analysis: dict[str, Any]) -> None:
     for item in analysis.get("evidence", []):
         document.add_paragraph(f"{item.get('label', '')}: {item.get('detail', '')}")
     document.save(target)
+
+
+def generate_chart_report(target: Path, analysis: dict[str, Any]) -> None:
+    if plt is None:
+        # 1x1 transparent PNG fallback to keep export contract stable.
+        target.write_bytes(
+            base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII="
+            )
+        )
+        return
+
+    domain_metrics = build_domain_metric_rows(analysis)
+    chart_rows = [item for item in domain_metrics if item.get("key") != "risk_score"]
+    if chart_rows:
+        labels = [str(item.get("label", "metric")) for item in chart_rows]
+        values = [float(item.get("value", 0.0)) for item in chart_rows]
+        thresholds = [float(item.get("threshold", 0.0)) for item in chart_rows]
+        severities = [str(item.get("severity", "normal")) for item in chart_rows]
+    else:
+        chart_data = analysis.get("chartSeries", []) or [{"name": "risk_score", "value": analysis.get("riskScore", 0)}]
+        labels = [str(item.get("name", "metric")) for item in chart_data]
+        values = [float(item.get("value", 0)) for item in chart_data]
+        thresholds = [0.0 for _ in values]
+        severities = ["normal" for _ in values]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    severity_color = {"normal": "#2ec977", "warning": "#ffd166", "critical": "#ff6b81"}
+    bar_colors = [severity_color.get(item, "#5bbdf7") for item in severities]
+    bars = ax.bar(labels, values, color=bar_colors)
+    if any(value > 0 for value in thresholds):
+        ax.plot(labels, thresholds, color="#ffffff", linestyle="--", marker="o", linewidth=1.2, label="threshold")
+        ax.legend(loc="upper right")
+    ax.set_title(f"{analysis.get('inspectionDomain', 'Inspection')} - Risk Breakdown")
+    ax.set_ylabel("Value")
+    ax.grid(axis="y", alpha=0.2)
+    for index, bar in enumerate(bars):
+        height = bar.get_height()
+        ax.annotate(
+            f"{height:.2f}",
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 3),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+        if thresholds[index] > 0:
+            ax.annotate(
+                f"T:{thresholds[index]:.2f}",
+                xy=(bar.get_x() + bar.get_width() / 2, thresholds[index]),
+                xytext=(0, -11),
+                textcoords="offset points",
+                ha="center",
+                va="top",
+                fontsize=7,
+                color="#d9e4ff",
+            )
+
+    fig.tight_layout()
+    fig.savefig(target, dpi=180)
+    plt.close(fig)
 
 
 def create_training_artifacts(job_id: str, dataset_name: str, epoch_count: int, base_model: str, dataset_path: str | None) -> list[str]:
@@ -482,7 +947,7 @@ def create_training_artifacts(job_id: str, dataset_name: str, epoch_count: int, 
             f"- Base model: {base_model}\n"
             f"- Epochs: {epoch_count}\n"
             f"- Dataset: {dataset_name}\n"
-            f"- Dataset path: {dataset_path or "not-provided"}\n"
+            f"- Dataset path: {dataset_path or 'not-provided'}\n"
             "- Review real Ultralytics artifacts in the same run directory for charts and weights.\n"
         ),
         encoding="utf-8",
@@ -530,7 +995,7 @@ def profile_source(source: SourceModel) -> dict[str, Any]:
         or ["Which key fields should be validated before AI analysis?"],
         "sampleFormat": source.connectionMeta.get(
             "sampleFormat",
-            '{"task":"闂傚倸鍊搁崐鎼佸磹閹间礁纾归柟闂寸绾惧綊鏌熼梻瀵割槮缁炬儳缍婇弻鐔兼⒒鐎靛壊妲紒鐐劤濠€閬嶅焵椤掑倹鍤€閻庢凹鍙冨畷宕囧鐎ｃ劋姹楅梺鍦劋閸ㄥ綊宕愰悙鐑樺仭婵犲﹤鍟扮粻鑽も偓娈垮枟婵炲﹪寮崘顔肩＜婵炴垶鑹鹃獮鍫熶繆閻愵亜鈧倝宕㈡禒瀣瀭闁割煈鍋嗛々鍙夌節闂堟侗鍎愰柣鎾存礃缁绘盯宕卞Δ鍐唺缂備胶濮撮…鐑藉蓟閳ュ磭鏆嗛悗锝庡墰琚﹀┑鐘愁問閸犳帡宕戦幘缁樷拺闂傚牊绋撶粻姘舵煛閸涱喚绠炵€规洘绻堝畷顐﹀Ψ瑜忛敍婵囩箾鏉堝墽绋荤憸鏉垮暞缁傚秹鎮欓鍌滅槇闂侀潧楠忕徊浠嬫偂閹扮増鐓曢柡鍐ｅ亾闁绘濞€楠炲啴鍨鹃弬銉︾€婚梺瑙勫劤绾绢厽顨ラ崶顒佲拺闁告挻褰冩禍婵堢磼鐠囨彃鈧潡宕哄☉銏犵睄闁割偆鍠撻崢浠嬫⒑閹稿海绠撻柣妤€鎳樺畷銉╊敃閵堝洨锛滈柡澶婄墑閸斿苯霉椤曗偓閺屾盯鍩為幆褌澹曞┑锛勫亼閸婃牜鏁繝鍕焼濞达絿鍎ら浠嬫煟閹邦喖鍔嬮柣鎾寸懇濮婃椽顢橀妸褏鏆犲Δ鐘靛仦閿曘垽寮诲☉妯滅喖宕楅崗鍏肩槗闂備礁鎼径鍥礈濠靛棭鍤楅柛鏇ㄥ墰缁♀偓闂佸憡娲﹂崑鎺楀汲椤愨懇鏀介柣姗嗗亝婵即鏌涚仦鍓х煂闁绘挻鎹囧铏规嫚閳ヨ櫕鐝濈紓浣哄У閻楃姴顕ｆ繝姘耿婵°倕锕ら幃鎴︽⒑缁洍鍋撳畷鍥╊唹闁诲孩鐭划娆忣潖缂佹ɑ濯村〒姘煎灣閸旀悂鏌ｉ悙鏉戝毈闁稿锕ら悾鐑藉箛閺夊灝宓嗛梺闈涚箚閳ь剚鏋奸崑鎾诲醇閺囩喓鍙嗛梺鍝勬川閸嬫盯鍩€椤掆偓缂嶅﹪骞冮垾鏂ユ闁靛繆鈧枼鍋撻崼鏇熺厽闁归偊鍘肩徊濠氭煃闁垮顥堥柡灞界Ч閹稿﹥寰勫Ο鐑╂瀰闂備礁鎼懟顖滅矓閸洖绠熼柟缁㈠枛缁€瀣亜閹扳晛鈧挾妲愬┑瀣厽閹兼番鍊ゅ鎰箾閸欏澧柣锝囧厴椤㈡宕橀鍐兒濠电姷鏁告慨鐑藉极閸涘﹥鍙忛柟鎯板Г閸婂潡鏌ㄩ弴鐐蹭喊缂傚秵鐗犻弻锟犲炊閵夈儳浠鹃梺鎶芥敱鐢繝寮诲☉姘勃闁告挆鍕珮婵＄偑鍊х拋锝囩不閹捐钃熼柣鏂挎惈閺嬪牓鏌涘Δ鍐ㄤ粧闁哥姴锕ら—鍐Χ閸愩劎浠鹃梺缁橆殘婵挳鎮鹃悜钘夌闁绘劏鏅滈～宥呪攽閻愬弶顥滅紒璇差儑缁辨棃寮撮姀鈾€鎷绘繛杈剧秬濞咃絿鏁☉娆嶄簻妞ゆ挾鍋熸晶锔姐亜閵忊€蹭孩妞わ箑缍婇弻鐔兼煥鐎ｎ亞浼岄梺璇″枔閸ㄨ棄鐣峰Δ鍛殐闁宠桨绀佺粻浼存⒒閸屾瑧鍔嶉柟顔肩埣瀹曟洟鎮介弶鍡楊樀楠炴鎹勬笟顖涱棥闂備胶顫嬮崟鍨暦闂佺粯鎸鹃崰鏍蓟閺囥垹閱囨繝闈涙閸嬫捇宕ㄦ繝鍕垫锤婵°倧绲介崯顖炲煕閹烘鐓曢悘鐐插⒔閹冲懏銇勯敂鑲╃暤闁哄瞼鍠撻崰濠囧础閻愭壆鐩庨梺缁樻尪閸婃繈寮婚弴鐔虹闁绘劦鍓氶悵鏃傜磼閻愵剙绀冩い顐㈩樀婵＄敻宕熼姘辩杸闂佸憡鎸烽懗鍫曞汲閻樺樊娓婚柕鍫濋娴滄粓鏌熼搹顐€跨€殿喖顭峰鎾晬閸曨厽婢戝┑鐘垫暩閸嬬偤宕曢搹顐ゎ洸濡わ絽鍟悡鏇㈢叓閸ャ劍灏伴柛锝勭矙閺岋綁濡烽妷锕€娈楀┑顔硷工椤嘲鐣烽幒鎴旀瀻闁圭儤鍨电敮顖滅磽閸屾瑧璐伴柛锝庡櫍瀹曞湱鎹勬笟顖氭婵犵數濮甸懝鐐劔闂備礁鐤囧銊ッ归崶顏嶆澓闂傚倷娴囬褔宕欓悾宀€绀婇柛鈩冪☉缁愭淇婇妶鍛櫣缁炬儳顭烽弻娑樼暆閳ь剟宕戦悙鐑樺亗闁绘柨鍚嬮悡娑㈡煕鐏炵偓鐨戝ù鐘灲閺岀喖顢欓挊澶屼紝闂佸搫鐭夌紞渚€鐛Ο鍏煎磯闁绘垶顭囬埀顒傚亾缁绘盯鏁愰崨顔芥倷闂佹寧娲︽禍顏堝Υ娴ｇ硶妲堟慨妤€妫欓崓闈涱渻閵堝棙灏甸柛鐘查叄瀹曟粓鎮介悽鐢碉紳闂佺鏈悷銊╁礂瀹€鍕€垫慨姗嗗墰缁犺崵鈧娲栭悥鍏间繆濮濆矈妲诲Δ鐘靛仜缁夌懓顫忕紒妯诲濞撴凹鍨抽崝鍝ョ磽娴ｈ櫣甯涢悽顖椻偓宕囨殾闁靛骏缍嗗Σ濂告⒑闁稓鈹掗柛鏂跨焸椤㈡﹢宕楅悡搴ｇ獮闁诲函缍嗛崜娆撶嵁閹扮増鈷戦悹鍥皺缁犳娊鏌涚€ｎ剙鈻堟い銏′亢椤︽娊鏌熸笟鍨鐎规洘甯掗埞鍐箚瑜屾竟鏇炩攽閻愯尙澧曢柣蹇旂箞瀵悂鎮㈤崫銉ь啎闂佺绻楅崑鎰板箠閸℃稒鐓熼煫鍥ㄦ煥濞搭喗鎱ㄦ繝鍐┿仢鐎规洏鍔嶇换婵嬪礋椤撶姵娈奸梻浣筋嚙鐎涒晠宕欒ぐ鎺戠婵犻潧鐟掗悜钘夌＜闁绘劗琛ラ幏?,"requiredFields":["wheelNumber","diameter","defectLevel"]}',
+            "{\"task\":\"quality-variance-diagnosis\",\"requiredFields\":[\"asset_id\",\"inspection_type\",\"defect_score\",\"result\"],\"recommendedOutputs\":[\"headline\",\"findings\",\"riskImpact\",\"actions\"]}",
         ),
     }
 
@@ -674,6 +1139,390 @@ def split_meta_list(value: str | None) -> list[str]:
     return [item.strip() for item in value.split("||") if item.strip()]
 
 
+def build_detection_context(
+    request: AnalysisRequest, source_profiles: list[dict[str, Any]]
+) -> dict[str, Any]:
+    domain_key = infer_inspection_domain(request, source_profiles)
+    risk_score = calculate_domain_risk_score(domain_key, source_profiles)
+    risk_level = "high" if risk_score >= 70 else ("medium" if risk_score >= 40 else "low")
+    domain_name = localize_domain_name(domain_key, request.locale)
+
+    metrics = build_domain_metrics(domain_key, source_profiles, risk_score, request.locale)
+    chart_series = [{"name": item["label"], "value": item["value"]} for item in metrics[:5]]
+
+    findings = build_domain_findings(domain_key, risk_level, request.locale, source_profiles)
+    recommendations = build_domain_recommendations(domain_key, risk_level, request.locale)
+    headline = build_domain_headline(domain_name, risk_level, request.locale)
+
+    return {
+        "domainKey": domain_key,
+        "domainName": domain_name,
+        "riskScore": round(risk_score, 2),
+        "riskLevel": risk_level,
+        "metrics": metrics,
+        "chartSeries": chart_series,
+        "headline": headline,
+        "findings": findings,
+        "recommendations": recommendations,
+    }
+
+
+def infer_inspection_domain(
+    request: AnalysisRequest, source_profiles: list[dict[str, Any]]
+) -> str:
+    joined_text = " ".join(
+        [
+            request.prompt or "",
+            request.template or "",
+            " ".join(source.name for source in request.sources),
+            " ".join(
+                " ".join(profile.get("detectedFields", []))
+                for profile in source_profiles
+            ),
+        ]
+    ).lower()
+
+    if has_keywords(
+        joined_text,
+        [
+            "bridge cable",
+            "bridge-cable",
+            "bridge_cable",
+            "bridge-cable-risk",
+            "cable",
+            "wire_break",
+            "corrosion_ratio",
+            "tension_loss",
+            "拉索",
+            "桥梁",
+            "索力",
+            "断丝",
+            "腐蚀",
+            # Defensive aliases for mojibake/legacy encoded prompts.
+            "鎷夌储",
+            "妗ユ",
+            "绱㈠姏",
+            "鏂笣",
+            "鑵愯殌",
+        ],
+    ):
+        return "bridge_cable"
+
+    if has_keywords(
+        joined_text,
+        [
+            "wheel hub",
+            "wheel_hub",
+            "wheel",
+            "hub",
+            "pcd",
+            "runout",
+            "diameter",
+            "轮毂",
+            "跳动",
+            "孔距",
+            "直径",
+            "径向跳动",
+            # Defensive aliases for mojibake/legacy encoded prompts.
+            "杞瘡",
+            "璺冲姩",
+            "瀛旇窛",
+            "鐩村緞",
+        ],
+    ):
+        return "wheel_hub"
+
+    if has_keywords(joined_text, ["weld", "焊缝", "crack", "裂纹", "鐒婄紳", "瑁傜汗"]):
+        return "weld_joint"
+
+    return "general_asset"
+
+
+def has_keywords(text: str, keywords: list[str]) -> bool:
+    return any(keyword in text for keyword in keywords)
+
+
+def localize_domain_name(domain_key: str, locale: str) -> str:
+    names = {
+        "wheel_hub": {"zh-CN": "轮毂检测", "en-US": "Wheel Hub Inspection"},
+        "bridge_cable": {"zh-CN": "桥梁拉索检测", "en-US": "Bridge Cable Inspection"},
+        "weld_joint": {"zh-CN": "焊缝检测", "en-US": "Weld Joint Inspection"},
+        "general_asset": {"zh-CN": "通用资产检测", "en-US": "General Asset Inspection"},
+    }
+    return names.get(domain_key, names["general_asset"]).get(locale, names["general_asset"]["en-US"])
+
+
+def calculate_domain_risk_score(domain_key: str, source_profiles: list[dict[str, Any]]) -> float:
+    if not source_profiles:
+        return 46.0
+
+    quality_component = 0.0
+    indicator_component = 0.0
+
+    for profile in source_profiles:
+        grade = str(profile.get("qualityScore", "B"))
+        quality_component += {"A": 8.0, "B": 15.0, "C": 28.0}.get(grade, 20.0)
+
+        numeric_values = collect_numeric_values(profile)
+        if domain_key == "bridge_cable":
+            indicator_component += min(40.0, numeric_values.get("corrosion_ratio", 0.0) * 110.0)
+            indicator_component += min(24.0, numeric_values.get("wire_break_count", 0.0) * 3.5)
+            indicator_component += min(28.0, numeric_values.get("tension_loss_ratio", 0.0) * 100.0)
+        elif domain_key == "wheel_hub":
+            indicator_component += min(35.0, numeric_values.get("runout_mm", 0.0) * 115.0)
+            indicator_component += min(30.0, numeric_values.get("defect_score", 0.0) * 100.0)
+            indicator_component += min(20.0, abs(numeric_values.get("diameter_mm_deviation", 0.0)) * 40.0)
+        else:
+            indicator_component += min(42.0, numeric_values.get("generic_anomaly_ratio", 0.0) * 100.0)
+
+    raw_score = 16.0 + quality_component / max(len(source_profiles), 1) + indicator_component / max(len(source_profiles), 1)
+    return max(8.0, min(98.0, raw_score))
+
+
+def collect_numeric_values(profile: dict[str, Any]) -> dict[str, float]:
+    values: dict[str, float] = {
+        "corrosion_ratio": 0.0,
+        "wire_break_count": 0.0,
+        "tension_loss_ratio": 0.0,
+        "runout_mm": 0.0,
+        "defect_score": 0.0,
+        "diameter_mm_deviation": 0.0,
+        "generic_anomaly_ratio": 0.0,
+    }
+
+    preview_rows = profile.get("previewRows", []) or []
+    numeric_candidates: list[float] = []
+    for row in preview_rows[:12]:
+        if not isinstance(row, dict):
+            continue
+        for key, value in row.items():
+            key_normalized = str(key).strip().lower()
+            key_compact = key_normalized.replace("-", "_").replace(" ", "")
+            key_merged = key_compact.replace("_", "")
+            parsed = parse_numeric_value(value)
+            if parsed is None:
+                continue
+            numeric_candidates.append(parsed)
+            if any(token in key_merged for token in ["corrosion", "腐蚀", "锈蚀"]):
+                ratio_value = parsed / 100.0 if parsed > 1.0 else parsed
+                values["corrosion_ratio"] = max(values["corrosion_ratio"], ratio_value)
+            if any(token in key_merged for token in ["wirebreak", "breakcount", "断丝", "断股"]):
+                values["wire_break_count"] = max(values["wire_break_count"], parsed)
+            if any(token in key_merged for token in ["tensionloss", "索力损失", "张力损失"]):
+                ratio_value = parsed / 100.0 if parsed > 1.0 else parsed
+                values["tension_loss_ratio"] = max(values["tension_loss_ratio"], ratio_value)
+            if "runout" in key_merged or "跳动" in key_merged:
+                values["runout_mm"] = max(values["runout_mm"], parsed)
+            if any(token in key_merged for token in ["defectscore", "缺陷评分", "缺陷分"]):
+                score_value = parsed / 100.0 if parsed > 1.0 else parsed
+                values["defect_score"] = max(values["defect_score"], score_value)
+            if "diameter" in key_merged or "直径" in key_merged:
+                values["diameter_mm_deviation"] = max(values["diameter_mm_deviation"], abs(parsed - 650.0) / 650.0)
+
+    normalized_candidates: list[float] = []
+    for item in numeric_candidates:
+        if 0.0 <= item <= 1.5:
+            normalized_candidates.append(item)
+        elif 1.5 < item <= 100.0:
+            normalized_candidates.append(item / 100.0)
+
+    if normalized_candidates:
+        threshold = sum(1 for item in normalized_candidates if item > 0.5)
+        values["generic_anomaly_ratio"] = threshold / len(normalized_candidates)
+
+    return values
+
+
+def parse_numeric_value(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if value is None:
+        return None
+    text_value = str(value).strip().replace(",", "")
+    matched = re.search(r"-?\d+(\.\d+)?", text_value)
+    if not matched:
+        return None
+    try:
+        parsed = float(matched.group(0))
+        if "%" in text_value:
+            return parsed / 100.0
+        return parsed
+    except Exception:
+        return None
+
+
+def build_domain_metrics(
+    domain_key: str,
+    source_profiles: list[dict[str, Any]],
+    risk_score: float,
+    locale: str,
+) -> list[dict[str, float | str]]:
+    metrics: list[dict[str, float | str]] = [
+        {"label": "Risk Score" if locale == "en-US" else "风险总分", "value": round(risk_score, 2)},
+        {"label": "Sources" if locale == "en-US" else "数据源数量", "value": float(len(source_profiles))},
+    ]
+
+    if domain_key == "bridge_cable":
+        corrosion = average_metric(source_profiles, "corrosion_ratio")
+        wire_break = average_metric(source_profiles, "wire_break_count")
+        tension = average_metric(source_profiles, "tension_loss_ratio")
+        metrics.extend(
+            [
+                {"label": "Corrosion Ratio" if locale == "en-US" else "腐蚀比例", "value": round(corrosion, 3)},
+                {"label": "Wire Break Count" if locale == "en-US" else "断丝数量", "value": round(wire_break, 3)},
+                {"label": "Tension Loss" if locale == "en-US" else "索力损失", "value": round(tension, 3)},
+            ]
+        )
+    elif domain_key == "wheel_hub":
+        runout = average_metric(source_profiles, "runout_mm")
+        defect_score = average_metric(source_profiles, "defect_score")
+        diameter_dev = average_metric(source_profiles, "diameter_mm_deviation")
+        metrics.extend(
+            [
+                {"label": "Runout (mm)" if locale == "en-US" else "跳动 (mm)", "value": round(runout, 3)},
+                {"label": "Defect Score" if locale == "en-US" else "缺陷评分", "value": round(defect_score, 3)},
+                {"label": "Diameter Deviation" if locale == "en-US" else "直径偏差", "value": round(diameter_dev, 3)},
+            ]
+        )
+    elif domain_key == "weld_joint":
+        anomaly = average_metric(source_profiles, "generic_anomaly_ratio")
+        metrics.append({"label": "Crack Density" if locale == "en-US" else "裂纹密度", "value": round(anomaly, 3)})
+    else:
+        anomaly = average_metric(source_profiles, "generic_anomaly_ratio")
+        metrics.append({"label": "Anomaly Ratio" if locale == "en-US" else "异常比例", "value": round(anomaly, 3)})
+
+    return metrics
+
+
+def average_metric(source_profiles: list[dict[str, Any]], metric_key: str) -> float:
+    if not source_profiles:
+        return 0.0
+    values = [collect_numeric_values(profile).get(metric_key, 0.0) for profile in source_profiles]
+    return sum(values) / max(len(values), 1)
+
+
+def build_domain_headline(domain_name: str, risk_level: str, locale: str) -> str:
+    if locale == "en-US":
+        return f"{domain_name}: {risk_level.upper()} risk diagnosis completed"
+    return f"{domain_name}：{risk_level.upper()} 风险诊断已完成"
+
+
+def build_domain_findings(
+    domain_key: str,
+    risk_level: str,
+    locale: str,
+    source_profiles: list[dict[str, Any]],
+) -> list[str]:
+    profile_findings = build_findings_from_profiles(source_profiles)[:2]
+    if domain_key == "bridge_cable":
+        domain_findings = [
+            "Detected bridge-cable degradation indicators including corrosion, wire-break density, and tension-loss trend."
+            if locale == "en-US"
+            else "检测到桥梁拉索劣化特征，包括腐蚀、断丝密度与索力损失趋势。",
+            "Risk prioritization is aligned to segment-level damage severity for maintenance scheduling."
+            if locale == "en-US"
+            else "风险优先级已按分段损伤严重度排序，便于维护排程。",
+        ]
+    elif domain_key == "wheel_hub":
+        domain_findings = [
+            "Wheel-hub runout, defect score, and dimensional consistency jointly drive the current risk score."
+            if locale == "en-US"
+            else "轮毂跳动、缺陷评分与尺寸一致性共同决定当前风险分值。",
+            "Abnormal samples are concentrated in a limited subset and are suitable for targeted recheck."
+            if locale == "en-US"
+            else "异常样本集中在少量工位，适合定向复检与工艺回溯。",
+        ]
+    else:
+        domain_findings = [
+            "The selected asset data shows mixed-quality signals and requires prioritized inspection follow-up."
+            if locale == "en-US"
+            else "所选资产数据存在质量信号混合波动，需要优先级化复检。"
+        ]
+
+    severity_line = (
+        f"Current risk level is {risk_level.upper()}, driven by measurable source indicators."
+        if locale == "en-US"
+        else f"当前风险等级为 {risk_level.upper()}，由可量化指标驱动。"
+    )
+
+    return (domain_findings + profile_findings + [severity_line])[:5]
+
+
+def build_domain_recommendations(domain_key: str, risk_level: str, locale: str) -> list[str]:
+    if domain_key == "bridge_cable":
+        recommendations = [
+            "Schedule immediate segment-level NDT verification for top-risk cables."
+            if locale == "en-US"
+            else "对高风险拉索分段立即安排无损复检。",
+            "Track corrosion and tension-loss metrics in weekly trend reports."
+            if locale == "en-US"
+            else "在周报中持续跟踪腐蚀与索力损失指标。",
+        ]
+    elif domain_key == "wheel_hub":
+        recommendations = [
+            "Recalibrate stations with elevated runout and re-run sample validation."
+            if locale == "en-US"
+            else "对跳动偏高工位执行复校并复跑抽检。",
+            "Lock a defect-score threshold and trigger auto-alert when exceeded."
+            if locale == "en-US"
+            else "固化缺陷评分阈值，超限时触发自动告警。",
+        ]
+    else:
+        recommendations = [
+            "Define domain-specific thresholds before the next reporting cycle."
+            if locale == "en-US"
+            else "在下一轮报表前定义场景化阈值。"
+        ]
+
+    if risk_level == "high":
+        recommendations.append(
+            "Escalate to urgent response and generate a management report within 24 hours."
+            if locale == "en-US"
+            else "升级为紧急响应，并在 24 小时内生成管理层报告。"
+        )
+    return recommendations[:5]
+
+
+def build_local_analysis_payload(
+    request: AnalysisRequest,
+    source_summary: str,
+    source_profiles: list[dict[str, Any]],
+    detection_context: dict[str, Any],
+    error_hint: str,
+) -> dict[str, Any]:
+    intent_assessment = classify_intent(
+        request.prompt, request.template, request.promptPreset.id, request.sources
+    )
+    summary = build_local_analysis_summary(
+        request.prompt,
+        request.template,
+        source_summary,
+        source_profiles,
+    )
+    if request.locale == "en-US":
+        summary = f"{summary} Fallback mode activated because provider response was unavailable. Hint: {error_hint[:180]}"
+    else:
+        summary = f"{summary} 当前启用回退分析模式（AI 提供方响应不可用）。提示：{error_hint[:180]}"
+
+    token_usage = estimate_token_usage(request.prompt, request.sources)
+    token_usage_payload = token_usage.model_dump() if hasattr(token_usage, "model_dump") else token_usage.dict()
+    return {
+        "headline": detection_context["headline"],
+        "summary": summary,
+        "findings": detection_context["findings"] or build_findings_from_profiles(source_profiles),
+        "recommendations": detection_context["recommendations"] or build_recommendations_from_profiles(source_profiles),
+        "evidence": build_analysis_evidence(
+            request.template,
+            request.provider.defaultStrategy,
+            source_profiles,
+            detection_context["domainName"],
+        ),
+        "tokenUsage": token_usage_payload,
+        "intentAssessment": intent_assessment,
+        "actions": build_actions_from_intent(intent_assessment["intent"], request.promptPreset),
+    }
+
+
 def build_headline_from_profiles(source_profiles: list[dict[str, Any]]) -> str:
     if not source_profiles:
         return "Diagnosis completed: no source was selected, so the result is based on default operational context."
@@ -693,8 +1542,14 @@ def build_local_analysis_summary(prompt: str, template: str, source_summary: str
     )
 
 
-def build_analysis_evidence(template: str, strategy: str, source_profiles: list[dict[str, Any]]) -> list[dict[str, str]]:
+def build_analysis_evidence(
+    template: str,
+    strategy: str,
+    source_profiles: list[dict[str, Any]],
+    domain_name: str = "General Asset Inspection",
+) -> list[dict[str, str]]:
     evidence = [
+        {"label": "Inspection domain", "detail": domain_name},
         {"label": "Template", "detail": template},
         {"label": "Applied strategy", "detail": strategy},
         {"label": "Source count", "detail": str(len(source_profiles))},
@@ -1031,11 +1886,11 @@ def run_remote_chat(request: ChatRequest, source_profiles: list[dict[str, Any]])
         },
         {
             "role": "user",
-            "content": build_chat_user_prompt(request.message, context_text, intent_assessment, conversational_intent),
+            "content": build_chat_user_prompt(request, context_text, intent_assessment, conversational_intent),
         },
     ]
     remote = call_openai_compatible(request.provider, messages, max_tokens=850, temperature=0.1)
-    structured = parse_remote_chat_payload(remote["content"])
+    structured = parse_remote_chat_payload(remote["content"], request, intent_assessment)
     if structured is None:
         fail_http(502, "The AI provider returned text that could not be parsed into the required chat JSON schema.", [
             "Use a model with stronger instruction-following ability.",
@@ -1044,7 +1899,17 @@ def run_remote_chat(request: ChatRequest, source_profiles: list[dict[str, Any]])
         ])
     structured["tokenUsage"] = remote["tokenUsage"]
     structured["intentAssessment"] = intent_assessment if conversational_intent else structured.get("intentAssessment") or intent_assessment
-    structured["actions"] = normalize_actions(structured.get("actions"), structured["intentAssessment"], request.promptPreset)
+    structured["responseProtocol"] = normalize_response_protocol(
+        structured.get("responseProtocol"),
+        structured.get("responseProtocolRaw", ""),
+    )
+    structured["responseProtocolRaw"] = structured["responseProtocol"]["raw"]
+    structured["actions"] = normalize_actions(
+        structured.get("actions"),
+        structured["intentAssessment"],
+        request.promptPreset,
+        structured["responseProtocol"],
+    )
     return structured
 
 
@@ -1098,17 +1963,34 @@ def run_remote_analysis(request: AnalysisRequest, source_profiles: list[dict[str
     return structured
 
 
-def parse_remote_chat_payload(content: str) -> dict[str, Any] | None:
+def parse_remote_chat_payload(
+    content: str,
+    request: ChatRequest,
+    fallback_intent: dict[str, str],
+) -> dict[str, Any] | None:
     payload = parse_json_payload(content)
     if payload is None:
         return None
     content_value = str(payload.get("content", "")).strip()
     if not content_value:
         return None
+    raw_protocol = str(payload.get("responseProtocol", "")).strip()
+    normalized_protocol = normalize_response_protocol(
+        parse_response_protocol(raw_protocol),
+        raw_protocol,
+    )
+    if not normalized_protocol:
+        normalized_protocol = build_fallback_response_protocol(
+            content_value,
+            fallback_intent,
+            request,
+        )
     return {
         "content": content_value,
         "intentAssessment": normalize_intent_assessment(payload.get("intentAssessment")),
         "actions": payload.get("actions", []),
+        "responseProtocolRaw": normalized_protocol["raw"],
+        "responseProtocol": normalized_protocol,
     }
 
 
@@ -1155,6 +2037,307 @@ def parse_json_payload(content: str) -> dict[str, Any] | None:
     return payload
 
 
+def decode_protocol_value(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        return unquote(value)
+    except Exception:
+        return value
+
+
+def encode_protocol_value(value: Any) -> str:
+    return quote(str(value or ""), safe="._/-")
+
+
+def parse_protocol_list(raw: str) -> list[str]:
+    if not raw or raw.upper() == "NONE":
+        return []
+    values: list[str] = []
+    for item in raw.split("|"):
+        decoded = decode_protocol_value(item).strip()
+        if decoded and decoded not in values:
+            values.append(decoded)
+    return values
+
+
+def parse_protocol_options(raw: str) -> list[dict[str, str]]:
+    if not raw or raw.upper() == "NONE":
+        return []
+    options: list[dict[str, str]] = []
+    for item in raw.split("|"):
+        parts = item.split("~", 2)
+        option_id = decode_protocol_value(parts[0]).strip() if parts else ""
+        if not option_id:
+            continue
+        label = decode_protocol_value(parts[1]).strip() if len(parts) > 1 else option_id
+        description = decode_protocol_value(parts[2]).strip() if len(parts) > 2 else ""
+        options.append({"id": option_id, "label": label or option_id, "description": description})
+    return options[:6]
+
+
+def parse_protocol_payload(raw: str) -> dict[str, str]:
+    if not raw or raw.upper() == "NONE":
+        return {}
+    payload: dict[str, str] = {}
+    for item in raw.split("|"):
+        if ":" not in item:
+            continue
+        key, value = item.split(":", 1)
+        decoded_key = decode_protocol_value(key).strip()
+        if decoded_key:
+            payload[decoded_key] = decode_protocol_value(value).strip()
+    return payload
+
+
+def serialize_response_protocol(protocol: dict[str, Any]) -> str:
+    display_text = str(protocol.get("displayText", "")).replace(PROTOCOL_DELIMITER, " ").strip()
+    version = str(protocol.get("version", PROTOCOL_VERSION)).strip() or PROTOCOL_VERSION
+    intent = str(protocol.get("intentCategory", "HELP_GENERAL")).strip().upper() or "HELP_GENERAL"
+    response_kind = str(protocol.get("responseKind", "ANSWER")).strip().upper() or "ANSWER"
+    indexes = parse_protocol_list("|".join(str(item) for item in protocol.get("indexes", [])))
+    target_types = parse_protocol_list("|".join(str(item) for item in protocol.get("targetTypes", [])))
+    route = str(protocol.get("route", "NONE")).strip() or "NONE"
+    authorization_mode = str(protocol.get("authorizationMode", "NONE")).strip().upper() or "NONE"
+    highlight_mode = str(protocol.get("highlightMode", "NONE")).strip().upper() or "NONE"
+    options = protocol.get("options", [])
+    payload = protocol.get("payload", {})
+
+    serialized_options = "NONE"
+    if isinstance(options, list) and options:
+        option_parts: list[str] = []
+        for option in options[:6]:
+            if not isinstance(option, dict):
+                continue
+            option_id = str(option.get("id", "")).strip()
+            if not option_id:
+                continue
+            label = str(option.get("label", "")).strip() or option_id
+            description = str(option.get("description", "")).strip()
+            option_parts.append(
+                "~".join(
+                    [
+                        encode_protocol_value(option_id),
+                        encode_protocol_value(label),
+                        encode_protocol_value(description),
+                    ]
+                )
+            )
+        if option_parts:
+            serialized_options = "|".join(option_parts)
+
+    serialized_payload = "NONE"
+    if isinstance(payload, dict) and payload:
+        payload_parts = [
+            f"{encode_protocol_value(key)}:{encode_protocol_value(value)}"
+            for key, value in payload.items()
+            if str(key).strip()
+        ]
+        if payload_parts:
+            serialized_payload = "|".join(payload_parts)
+
+    serialized_indexes = "|".join(encode_protocol_value(item) for item in indexes) if indexes else PROTOCOL_INDEX_FALLBACK
+    serialized_target_types = "|".join(encode_protocol_value(item) for item in target_types) if target_types else "unknown"
+
+    return PROTOCOL_DELIMITER.join(
+        [
+            display_text or "Action prepared.",
+            version,
+            f"INTENT={encode_protocol_value(intent)}",
+            f"RESPONSE={encode_protocol_value(response_kind)}",
+            "@@" + serialized_indexes,
+            f"TYPE={serialized_target_types}",
+            f"ROUTE={encode_protocol_value(route)}",
+            f"AUTH={encode_protocol_value(authorization_mode)}",
+            f"HIGHLIGHT={encode_protocol_value(highlight_mode)}",
+            f"OPTIONS={serialized_options}",
+            f"PAYLOAD={serialized_payload}",
+        ]
+    )
+
+
+def parse_response_protocol(raw: str) -> dict[str, Any] | None:
+    candidate = (raw or "").strip()
+    if not candidate or PROTOCOL_DELIMITER not in candidate:
+        return None
+    segments = [segment.strip() for segment in candidate.split(PROTOCOL_DELIMITER)]
+    if not segments:
+        return None
+
+    parsed: dict[str, Any] = {
+        "displayText": segments[0],
+        "version": segments[1] if len(segments) > 1 else PROTOCOL_VERSION,
+        "intentCategory": "HELP_GENERAL",
+        "responseKind": "ANSWER",
+        "indexes": [],
+        "targetTypes": [],
+        "route": "NONE",
+        "authorizationMode": "NONE",
+        "highlightMode": "NONE",
+        "options": [],
+        "payload": {},
+    }
+
+    for segment in segments[2:]:
+        if segment.startswith("INTENT="):
+            parsed["intentCategory"] = decode_protocol_value(segment.split("=", 1)[1]).strip().upper()
+        elif segment.startswith("RESPONSE="):
+            parsed["responseKind"] = decode_protocol_value(segment.split("=", 1)[1]).strip().upper()
+        elif segment.startswith("@@"):
+            parsed["indexes"] = parse_protocol_list(segment[2:])
+        elif segment.startswith("TYPE="):
+            parsed["targetTypes"] = parse_protocol_list(segment.split("=", 1)[1])
+        elif segment.startswith("ROUTE="):
+            parsed["route"] = decode_protocol_value(segment.split("=", 1)[1]).strip() or "NONE"
+        elif segment.startswith("AUTH="):
+            parsed["authorizationMode"] = decode_protocol_value(segment.split("=", 1)[1]).strip().upper() or "NONE"
+        elif segment.startswith("HIGHLIGHT="):
+            parsed["highlightMode"] = decode_protocol_value(segment.split("=", 1)[1]).strip().upper() or "NONE"
+        elif segment.startswith("OPTIONS="):
+            parsed["options"] = parse_protocol_options(segment.split("=", 1)[1])
+        elif segment.startswith("PAYLOAD="):
+            parsed["payload"] = parse_protocol_payload(segment.split("=", 1)[1])
+
+    return parsed
+
+
+def normalize_response_protocol(payload: Any, raw: str = "") -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        payload = parse_response_protocol(raw)
+    if not isinstance(payload, dict):
+        return None
+
+    intent = str(payload.get("intentCategory", "HELP_GENERAL")).strip().upper() or "HELP_GENERAL"
+    if intent not in INTENT_CATEGORIES:
+        intent = "HELP_GENERAL"
+
+    response_kind = str(payload.get("responseKind", "ANSWER")).strip().upper() or "ANSWER"
+    if response_kind not in RESPONSE_KINDS:
+        response_kind = "ANSWER"
+
+    indexes = [
+        str(item).strip()
+        for item in payload.get("indexes", [])
+        if str(item).strip()
+    ]
+    if not indexes:
+        indexes = [PROTOCOL_INDEX_FALLBACK]
+
+    target_types = [
+        str(item).strip()
+        for item in payload.get("targetTypes", [])
+        if str(item).strip()
+    ]
+    if not target_types:
+        target_types = INTENT_TYPE_HINTS.get(intent, ["unknown"])[:2]
+    target_types = [item if item in TARGET_TYPES else "unknown" for item in target_types]
+
+    route = str(payload.get("route", "NONE")).strip() or "NONE"
+    authorization_mode = str(payload.get("authorizationMode", "NONE")).strip().upper() or "NONE"
+    highlight_mode = str(payload.get("highlightMode", "NONE")).strip().upper() or "NONE"
+    if authorization_mode not in {"NONE", "CONFIRM", "REQUIRED"}:
+        authorization_mode = "NONE"
+    if highlight_mode not in {"NONE", "BLINK", "PULSE"}:
+        highlight_mode = "NONE"
+
+    options = parse_protocol_options(
+        "|".join(
+            "~".join(
+                [
+                    str(option.get("id", "")),
+                    str(option.get("label", "")),
+                    str(option.get("description", "")),
+                ]
+            )
+            for option in payload.get("options", [])
+            if isinstance(option, dict)
+        )
+    )
+    protocol_payload = {
+        str(key).strip(): str(value).strip()
+        for key, value in (payload.get("payload", {}) or {}).items()
+        if str(key).strip()
+    }
+
+    normalized = {
+        "raw": "",
+        "displayText": str(payload.get("displayText", "")).strip() or "Action prepared.",
+        "version": str(payload.get("version", PROTOCOL_VERSION)).strip() or PROTOCOL_VERSION,
+        "intentCategory": intent,
+        "responseKind": response_kind,
+        "indexes": indexes[:4],
+        "targetTypes": target_types[:4],
+        "route": route,
+        "authorizationMode": authorization_mode,
+        "highlightMode": highlight_mode,
+        "options": options,
+        "payload": protocol_payload,
+    }
+    normalized["raw"] = serialize_response_protocol(normalized)
+    return normalized
+
+
+def parse_index_catalog_csv(csv_content: str) -> list[dict[str, Any]]:
+    if not csv_content or "index_id" not in csv_content:
+        return []
+    try:
+        reader = csv.DictReader(csv_content.splitlines())
+    except Exception:
+        return []
+
+    entries: list[dict[str, Any]] = []
+    for row in reader:
+        if not isinstance(row, dict):
+            continue
+        metadata_raw = str(row.get("metadata", "")).strip()
+        metadata: dict[str, str] = {}
+        if metadata_raw:
+            for part in metadata_raw.split(";"):
+                if "=" not in part:
+                    continue
+                key, value = part.split("=", 1)
+                key = key.strip()
+                if key:
+                    metadata[key] = value.strip()
+        entries.append(
+            {
+                "index_id": str(row.get("index_id", "")).strip(),
+                "index_type": str(row.get("index_type", "")).strip() or "unknown",
+                "label": str(row.get("label", "")).strip(),
+                "route": str(row.get("route", "")).strip() or "NONE",
+                "entity_id": str(row.get("entity_id", "")).strip(),
+                "requires_authorization": str(row.get("requires_authorization", "")).strip().lower() == "true",
+                "action_type": str(row.get("action_type", "")).strip(),
+                "updated_at": str(row.get("updated_at", "")).strip(),
+                "metadata": metadata,
+            }
+        )
+    return [entry for entry in entries if entry["index_id"]]
+
+
+def build_intent_prompt_block() -> str:
+    if not INTENT_CATALOG:
+        return (
+            "Intent categories: DATA_QUERY, DATA_AUTHORIZATION, MODE_SWITCH, STATE_SWITCH, "
+            "CONFIG_UPDATE, CONFIG_READ, TRAINING_CONTROL, EXPORT_REQUEST, NAVIGATION, HELP_GENERAL."
+        )
+
+    lines = [
+        "Intent recognition examples. Classify the user's message into exactly one category and keep it consistent with the protocol.",
+        "Examples:",
+    ]
+    for item in INTENT_CATALOG[:100]:
+        utterance = str(item.get("utterance", "")).strip().replace("\n", " ")
+        intent = str(item.get("intent", "")).strip()
+        response_kind = str(item.get("responseKind", "")).strip()
+        target_types = ",".join(str(value).strip() for value in item.get("targetTypes", []) if str(value).strip())
+        if utterance and intent:
+            lines.append(
+                f"- utterance={utterance} => intent={intent}; response={response_kind or 'ANSWER'}; targetTypes={target_types or 'unknown'}"
+            )
+    return "\n".join(lines)
+
+
 def normalize_intent_assessment(payload: Any) -> dict[str, str] | None:
     if not isinstance(payload, dict):
         return None
@@ -1197,9 +2380,10 @@ def default_response_format_hint(mode: str) -> str:
         )
     return (
         "Return JSON only. Do not add markdown fences or extra prose. "
-        "Required keys: content, intentAssessment, actions. "
+        "Required keys: content, intentAssessment, actions, responseProtocol. "
         "intentAssessment must include intent, reason, suggestedTemplate. "
-        "actions must contain id, type, label, target, payload, confidence."
+        "actions must contain id, type, label, target, payload, confidence. "
+        "responseProtocol must follow the exact AIP1 &&-delimited machine format."
     )
 
 
@@ -1262,6 +2446,7 @@ def build_general_chat_context_text(request: ChatRequest, intent_assessment: dic
         f"Locale: {request.locale}",
         f"Intent hint: {intent_assessment['intent']}",
         f"Preset objective: {request.promptPreset.objective}",
+        f"Index lookback days: {request.indexLookbackDays}",
     ]
 
     if request.sources:
@@ -1271,16 +2456,25 @@ def build_general_chat_context_text(request: ChatRequest, intent_assessment: dic
         lines.append("No explicit data source is selected yet.")
 
     lines.append("Answer the user's direct question first. Mention the selected sources only if they are clearly relevant.")
+    if request.indexCatalogCsv:
+        lines.append("Recent index catalog excerpt:")
+        lines.extend(request.indexCatalogCsv.splitlines()[:24])
     return "\n".join(lines)
 
 
 def build_chat_system_prompt(request: ChatRequest, conversational_intent: bool, response_format_hint: str) -> str:
+    protocol_guide = request.protocolGuide or (
+        "Protocol version: AIP1. Return responseProtocol as a single line with && delimiters and an @@ index segment."
+    )
+    intent_examples = build_intent_prompt_block()
     if conversational_intent:
         prompt_lines = [
             "You are a helpful industrial AI copilot for a wheel-hub inspection platform.",
             locale_instruction(request.locale),
             persona_instruction(request.persona, request.locale),
             response_format_hint,
+            protocol_guide,
+            intent_examples,
         ]
         prompt_lines.extend(
             [
@@ -1288,6 +2482,7 @@ def build_chat_system_prompt(request: ChatRequest, conversational_intent: bool, 
                 "Answer the user's direct question in natural language before offering any workflow guidance.",
                 "Do not turn a greeting, capability question, or help request into a dataset summary unless the user explicitly asks for source analysis.",
                 "Keep the reply helpful, grounded, and concise.",
+                "Every machine-actionable reply must bind to index ids from the supplied catalog.",
             ]
         )
     else:
@@ -1296,33 +2491,46 @@ def build_chat_system_prompt(request: ChatRequest, conversational_intent: bool, 
             locale_instruction(request.locale),
             persona_instruction(request.persona, request.locale),
             response_format_hint,
+            protocol_guide,
+            intent_examples,
         ]
         prompt_lines.extend(
             [
                 request.promptPreset.systemPrompt,
                 "Use the backend-assembled context as the only evidence basis.",
+                "Never invent indexes, routes, provider ids, dataset ids, or control ids that are not present in the supplied catalog or request context.",
             ]
         )
 
     return "\n".join(prompt_lines)
 
 
-def build_chat_user_prompt(user_message: str, context_text: str, intent_assessment: dict[str, str], conversational_intent: bool) -> str:
+def build_chat_user_prompt(
+    request: ChatRequest,
+    context_text: str,
+    intent_assessment: dict[str, str],
+    conversational_intent: bool,
+) -> str:
+    index_catalog_block = request.indexCatalogCsv or "index_id,index_type,label,route,entity_id,requires_authorization,action_type,updated_at,metadata"
     if conversational_intent:
         return (
             "Conversation context:\n"
             f"{context_text}\n\n"
             f"Intent hint: {intent_assessment['intent']} | {intent_assessment['reason']} | {intent_assessment['suggestedTemplate']}\n"
-            f"User task: {user_message}\n"
-            "Return JSON only. Answer the user's direct question first, then add short next-step suggestions only if they are genuinely helpful."
+            f"Recent index catalog CSV:\n{index_catalog_block}\n\n"
+            f"User task: {request.message}\n"
+            "Return JSON only. Answer the user's direct question first, then add short next-step suggestions only if they are genuinely helpful. "
+            "If the user requests data access, require authorization first and bind the answer to indexes."
         )
 
     return (
         "Backend context:\n"
         f"{context_text}\n\n"
         f"Intent hint: {intent_assessment['intent']} | {intent_assessment['reason']} | {intent_assessment['suggestedTemplate']}\n"
-        f"User task: {user_message}\n"
-        "Return practical guidance grounded only in the backend context."
+        f"Recent index catalog CSV:\n{index_catalog_block}\n\n"
+        f"User task: {request.message}\n"
+        "Return practical guidance grounded only in the backend context. "
+        "If any action, data fetch, export, configuration change, or navigation is involved, include the exact indexed target in responseProtocol."
     )
 
 

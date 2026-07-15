@@ -32,6 +32,7 @@ export default function PagedBlockControls({
   onPrev,
   onNext,
   onToggle,
+  showToggle = true,
   labels,
 }: {
   count: number;
@@ -41,6 +42,7 @@ export default function PagedBlockControls({
   onPrev: () => void;
   onNext: () => void;
   onToggle: () => void;
+  showToggle?: boolean;
   labels: Labels;
 }) {
   return (
@@ -49,9 +51,11 @@ export default function PagedBlockControls({
         {labels.total} {count} {labels.items}
       </span>
       <div className="enterprise-grid-actions">
-        <button type="button" className="enterprise-secondary-button enterprise-mini-button" onClick={onToggle}>
-          {expanded ? labels.collapse : labels.expand}
-        </button>
+        {showToggle ? (
+          <button type="button" className="enterprise-secondary-button enterprise-mini-button" onClick={onToggle}>
+            {expanded ? labels.collapse : labels.expand}
+          </button>
+        ) : null}
         <button type="button" className="enterprise-secondary-button enterprise-mini-button" disabled={page <= 0} onClick={onPrev}>
           {labels.prev}
         </button>
